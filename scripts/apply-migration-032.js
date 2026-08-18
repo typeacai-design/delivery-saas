@@ -1,0 +1,5 @@
+const fs = require('fs')
+const path = require('path')
+const { executeSql } = require('./lib/supabase-management')
+const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '032_complementos_campos_extra.sql'), 'utf8')
+executeSql(sql).catch(error => { console.error(error.message); process.exit(1) })

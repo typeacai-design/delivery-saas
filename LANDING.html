@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>We Delivery — O delivery que não come a sua margarina</title>
+<style>
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 500 900;
+  font-display: swap;
+  src: url(data:font/woff2;base64,) format('woff2');
+}
+
+:root {
+  --green-dark: #013F32;
+  --green-neon: #E7FE25;
+  --off-white: #FDFDFD;
+  --black: #161616;
+  --bg: var(--off-white);
+  --ink: var(--black);
+  --muted: rgba(22, 22, 22, 0.65);
+  --line: rgba(22, 22, 22, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: var(--black);
+    --ink: var(--off-white);
+    --muted: rgba(253, 253, 253, 0.65);
+    --line: rgba(253, 253, 253, 0.14);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: var(--black);
+  --ink: var(--off-white);
+  --muted: rgba(253, 253, 253, 0.65);
+  --line: rgba(253, 253, 253, 0.14);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* NAV */
+.nav {
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.nav-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.brand {
+  font-family: Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.brand-dot {
+  color: var(--green-neon);
+}
+.nav-links {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+.nav-links a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--black);
+  color: var(--off-white);
+  border: none;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn-primary {
+  background: var(--green-neon);
+  color: var(--black);
+  font-weight: 600;
+}
+
+/* HERO */
+.hero {
+  padding: 6rem 0 4rem;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+.hero-eyebrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--green-dark);
+  background: var(--green-neon);
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+.hero-title {
+  font-family: Georgia, serif;
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  margin-bottom: 1.5rem;
+}
+.hero-title em {
+  font-style: italic;
+  color: var(--green-dark);
+}
+.hero-subtitle {
+  font-size: 1.15rem;
+  color: var(--muted);
+  margin-bottom: 2rem;
+  max-width: 32rem;
+}
+.hero-cta {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+.hero-trust {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.hero-trust span::before {
+  content: "✓ ";
+  color: var(--green-dark);
+  font-weight: 700;
+}
+
+/* DEMO CARD */
+.demo {
+  background: var(--green-dark);
+  color: var(--off-white);
+  border-radius: 24px;
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+.demo::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 300px;
+  height: 300px;
+  background: var(--green-neon);
+  border-radius: 50%;
+  opacity: 0.1;
+  filter: blur(60px);
+}
+.demo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+.demo-status {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.7rem;
+  background: var(--green-neon);
+  color: var(--green-dark);
+  border-radius: 999px;
+  font-weight: 600;
+}
+.demo-title {
+  font-family: Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.demo-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 0;
+  border-top: 1px solid rgba(253, 253, 253, 0.15);
+  position: relative;
+}
+.demo-item-name {
+  font-weight: 500;
+}
+.demo-item-price {
+  color: var(--green-neon);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.demo-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--green-neon);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+/* SECTION */
+.section {
+  padding: 5rem 0;
+}
+.section-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+.section-title {
+  font-family: Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 3rem;
+  max-width: 800px;
+}
+.section-title em {
+  font-style: italic;
+  color: var(--green-dark);
+}
+
+/* PAIN POINTS */
+.pain {
+  background: var(--green-dark);
+  color: var(--off-white);
+}
+.pain .section-tag { color: var(--green-neon); }
+.pain .section-title em { color: var(--green-neon); }
+.pain-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+.pain-card {
+  padding: 2rem;
+  background: rgba(253, 253, 253, 0.05);
+  border: 1px solid rgba(231, 254, 37, 0.2);
+  border-radius: 16px;
+}
+.pain-icon {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+.pain-quote {
+  font-family: Georgia, serif;
+  font-size: 1.1rem;
+  font-style: italic;
+  line-height: 1.4;
+  color: var(--off-white);
+}
+
+/* HOW */
+.how-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+}
+.how-step {
+  text-align: left;
+}
+.how-num {
+  font-family: Georgia, serif;
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: var(--green-neon);
+  -webkit-text-stroke: 2px var(--green-dark);
+  margin-bottom: 0.5rem;
+  line-height: 1;
+}
+.how-text {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* BENEFITS */
+.benefits {
+  background: var(--off-white);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+.benefit {
+  padding: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  transition: border-color 0.2s;
+}
+.benefit:hover { border-color: var(--green-dark); }
+.benefit-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--green-dark);
+  color: var(--green-neon);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+.benefit-title {
+  font-family: Georgia, serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.benefit-text {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* COMPARE */
+.compare {
+  background: var(--green-dark);
+  color: var(--off-white);
+}
+.compare .section-tag { color: var(--green-neon); }
+.compare .section-title em { color: var(--green-neon); }
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.compare-table th,
+.compare-table td {
+  padding: 1rem 1.5rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(253, 253, 253, 0.15);
+}
+.compare-table th {
+  font-weight: 600;
+  color: var(--green-neon);
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.compare-table td:first-child {
+  color: var(--muted);
+}
+.compare-we { color: var(--green-neon); font-weight: 700; }
+.compare-other { color: rgba(253, 253, 253, 0.5); }
+.compare-table tr:last-child td { border-bottom: none; }
+
+/* TESTIMONIALS */
+.testimonials {
+  background: var(--green-neon);
+  color: var(--green-dark);
+}
+.testimonials .section-tag { color: var(--green-dark); }
+.testimonials .section-title em { color: var(--black); }
+.testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+.testimonial {
+  padding: 2rem;
+  background: var(--off-white);
+  border-radius: 16px;
+}
+.testimonial-stars {
+  color: var(--green-dark);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  letter-spacing: 0.1em;
+}
+.testimonial-text {
+  font-family: Georgia, serif;
+  font-size: 1.05rem;
+  font-style: italic;
+  line-height: 1.4;
+  margin-bottom: 1.5rem;
+}
+.testimonial-author {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.testimonial-role {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* FAQ */
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.faq-item {
+  padding: 1.5rem 0;
+  border-top: 1px solid var(--line);
+}
+.faq-item:last-child { border-bottom: 1px solid var(--line); }
+.faq-q {
+  font-family: Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.faq-q::before {
+  content: "▾ ";
+  color: var(--green-dark);
+}
+.faq-a {
+  color: var(--muted);
+  font-size: 0.95rem;
+  padding-left: 1.5rem;
+}
+
+/* CTA FINAL */
+.cta-final {
+  background: var(--black);
+  color: var(--off-white);
+  padding: 6rem 0;
+  text-align: center;
+}
+.cta-final-title {
+  font-family: Georgia, serif;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.5rem;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.cta-final-title em {
+  font-style: italic;
+  color: var(--green-neon);
+}
+.cta-final-sub {
+  font-size: 1.1rem;
+  color: rgba(253, 253, 253, 0.7);
+  margin-bottom: 2.5rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.cta-final .btn-primary {
+  font-size: 1.05rem;
+  padding: 1rem 2rem;
+}
+.cta-final-trust {
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  color: rgba(253, 253, 253, 0.5);
+}
+
+/* FOOTER */
+.footer {
+  padding: 3rem 0 2rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .hero-grid,
+  .pain-grid,
+  .testimonials-grid {
+    grid-template-columns: 1fr;
+  }
+  .benefits-grid { grid-template-columns: 1fr; }
+  .how-grid { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+  .hero-cta { flex-direction: column; align-items: stretch; }
+  .compare-table { font-size: 0.85rem; }
+  .compare-table th, .compare-table td { padding: 0.75rem; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <div class="brand">We<span class="brand-dot">●</span>Delivery</div>
+    <div class="nav-links">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#beneficios">Benefícios</a>
+      <a href="#precos">Preços</a>
+      <a href="/login" class="btn">Login</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="container hero-grid">
+    <div>
+      <span class="hero-eyebrow">Cardápio digital · WhatsApp</span>
+      <h1 class="hero-title">
+        Seu restaurante vendendo todo dia, <em>sem apps caros</em>.
+      </h1>
+      <p class="hero-subtitle">
+        Transforme seu WhatsApp na maior plataforma de delivery da sua cidade.
+        Sem comissão por pedido. Sem mensalidade absurda. Em 5 minutos no ar.
+      </p>
+      <div class="hero-cta">
+        <a href="/registro" class="btn btn-primary">Começar grátis →</a>
+        <a href="#como-funciona" class="btn">Ver como funciona</a>
+      </div>
+      <div class="hero-trust">
+        <span>Configure em 5 minutos</span>
+        <span>Sem cartão de crédito</span>
+        <span>Suporte humano</span>
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="demo-header">
+        <div class="demo-title">Cardápio Digital</div>
+        <div class="demo-status">● Aberto</div>
+      </div>
+      <div class="demo-item">
+        <div>
+          <div class="demo-item-name">Pizza Margherita</div>
+          <div style="font-size:0.8rem;color:rgba(253,253,253,0.6);margin-top:0.2rem;">⏱️ 25-30 min</div>
+        </div>
+        <div class="demo-item-price">R$ 39,90</div>
+      </div>
+      <div class="demo-item">
+        <div>
+          <div class="demo-item-name">X-Burger Artesanal</div>
+          <div style="font-size:0.8rem;color:rgba(253,253,253,0.6);margin-top:0.2rem;">⏱️ 15-20 min</div>
+        </div>
+        <div class="demo-item-price">R$ 28,50</div>
+      </div>
+      <div class="demo-item">
+        <div>
+          <div class="demo-item-name">Açaí 500ml + 3 adicionais</div>
+          <div style="font-size:0.8rem;color:rgba(253,253,253,0.6);margin-top:0.2rem;">⏱️ 10 min</div>
+        </div>
+        <div class="demo-item-price">R$ 22,00</div>
+      </div>
+      <div class="demo-total">
+        <span>Total</span>
+        <span style="color:var(--green-neon);">R$ 90,40</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section pain">
+  <div class="container">
+    <div class="section-tag">O problema</div>
+    <h2 class="section-title">Você se identifica com <em>algum desses?</em></h2>
+    <div class="pain-grid">
+      <div class="pain-card">
+        <div class="pain-icon">😤</div>
+        <p class="pain-quote">"App de delivery cobra caro demais pra começar. Pagam pouco, comem minha margarina."</p>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">💸</div>
+        <p class="pain-quote">"Pago 20-30% em cada pedido e ainda preciso de logística, motoboy, embalagem..."</p>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">📱</div>
+        <p class="pain-quote">"Perco pedidos porque o cliente não baixa o app. WhatsApp é mais fácil, mas vira bagunça."</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="como-funciona">
+  <div class="container">
+    <div class="section-tag">Como funciona</div>
+    <h2 class="section-title">Do cadastro ao primeiro pedido em <em>5 minutos</em></h2>
+    <div class="how-grid">
+      <div class="how-step">
+        <div class="how-num">01</div>
+        <div class="how-text">Cadastre seus produtos, preços e categorias pelo celular.</div>
+      </div>
+      <div class="how-step">
+        <div class="how-num">02</div>
+        <div class="how-text">Compartilhe o link do seu cardápio no WhatsApp e redes sociais.</div>
+      </div>
+      <div class="how-step">
+        <div class="how-num">03</div>
+        <div class="how-text">Cliente escolhe os itens, endereço e forma de pagamento.</div>
+      </div>
+      <div class="how-step">
+        <div class="how-num">04</div>
+        <div class="how-text">O pedido chega formatado no seu WhatsApp com todos os detalhes.</div>
+      </div>
+      <div class="how-step">
+        <div class="how-num">05</div>
+        <div class="how-text">Você prepara, entrega e recebe o pagamento. Sem intermediário.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section benefits" id="beneficios">
+  <div class="container">
+    <div class="section-tag">Por que escolher</div>
+    <h2 class="section-title">Tudo que um app caro oferece, <em>você tem aqui.</em></h2>
+    <div class="benefits-grid">
+      <div class="benefit">
+        <div class="benefit-icon">💰</div>
+        <h3 class="benefit-title">Zero comissão</h3>
+        <p class="benefit-text">Diferente dos apps que ficam com 20-30% do seu faturamento, aqui você paga apenas a mensalidade fixa. O resto do seu dinheiro é SEU.</p>
+      </div>
+      <div class="benefit">
+        <div class="benefit-icon">⚡</div>
+        <h3 class="benefit-title">5 minutos no ar</h3>
+        <p class="benefit-text">Sem técnicos, sem designers, sem burocracia. Cadastra seus produtos, define preços e tá no ar. Seus clientes já podem pedir.</p>
+      </div>
+      <div class="benefit">
+        <div class="benefit-icon">📱</div>
+        <h3 class="benefit-title">Seu cliente já tem o app</h3>
+        <p class="benefit-text">Não precisa convencer ninguém a baixar nada. Seu cliente já usa WhatsApp todo dia. Ele vai pedir pelo canal que já conhece.</p>
+      </div>
+      <div class="benefit">
+        <div class="benefit-icon">🎯</div>
+        <h3 class="benefit-title">Marketing incluso</h3>
+        <p class="benefit-text">Aniversariantes, top clientes, cupons de desconto, recuperação de clientes inativos. Tudo que apps caros cobram à parte, você tem aqui.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section compare" id="precos">
+  <div class="container">
+    <div class="section-tag">Comparativo</div>
+    <h2 class="section-title">We Delivery vs. <em>apps tradicionais</em></h2>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>We Delivery</th>
+          <th>Apps comuns</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Comissão por pedido</td>
+          <td class="compare-we">ZERO</td>
+          <td class="compare-other">20-30%</td>
+        </tr>
+        <tr>
+          <td>Mensalidade</td>
+          <td class="compare-we">R$ 99/mês</td>
+          <td class="compare-other">R$ 200-500</td>
+        </tr>
+        <tr>
+          <td>Tempo de ativação</td>
+          <td class="compare-we">5 minutos</td>
+          <td class="compare-other">3-7 dias</td>
+        </tr>
+        <tr>
+          <td>App pra baixar</td>
+          <td class="compare-we">Não precisa</td>
+          <td class="compare-other">Obrigatório</td>
+        </tr>
+        <tr>
+          <td>Cardápio digital</td>
+          <td class="compare-we">Incluso</td>
+          <td class="compare-other">Cobrado à parte</td>
+        </tr>
+        <tr>
+          <td>Marketing automation</td>
+          <td class="compare-we">Incluso</td>
+          <td class="compare-other">Cobrado à parte</td>
+        </tr>
+        <tr>
+          <td>Suporte em português</td>
+          <td class="compare-we">Humano, de verdade</td>
+          <td class="compare-other">Robô / fila</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="section testimonials">
+  <div class="container">
+    <div class="section-tag">Quem usa, recomenda</div>
+    <h2 class="section-title">Lojistas que <em>pararam de pagar</em> comissão.</h2>
+    <div class="testimonials-grid">
+      <div class="testimonial">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Comecei a vender pelo WhatsApp e meus pedidos triplicaram. O cliente adora porque não precisa baixar app."</p>
+        <div class="testimonial-author">Maria Silva</div>
+        <div class="testimonial-role">Pizzaria São Jorge · São Paulo, SP</div>
+      </div>
+      <div class="testimonial">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Configurar foi ridiculamente fácil. Em 10 minutos já tinha meu cardápio no ar e o primeiro pedido chegou na hora."</p>
+        <div class="testimonial-author">João Mendes</div>
+        <div class="testimonial-role">Hamburgueria Artesanal · BH, MG</div>
+      </div>
+      <div class="testimonial">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Eu resistia a qualquer tecnologia. Mas o We Delivery é tão simples que até eu consegui usar."</p>
+        <div class="testimonial-author">Seu Antônio</div>
+        <div class="testimonial-role">Lanchonete do Bairro · Curitiba, PR</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-tag">FAQ</div>
+    <h2 class="section-title">Perguntas <em>frequentes</em></h2>
+    <div class="faq-list">
+      <div class="faq-item">
+        <div class="faq-q">Como funciona o delivery pelo WhatsApp?</div>
+        <div class="faq-a">O cliente acessa o link do seu cardápio digital, escolhe os produtos, preenche o endereço e finaliza o pedido. A mensagem chega formatada no seu WhatsApp. Simples assim.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Preciso pagar comissão sobre os pedidos?</div>
+        <div class="faq-a">NÃO. Zero comissão. Você paga apenas a mensalidade fixa, independentemente do quanto vender.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Preciso de computador ou técnico pra configurar?</div>
+        <div class="faq-a">Não. Tudo é online e qualquer pessoa consegue fazer pelo celular.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Posso usar no meu WhatsApp Business?</div>
+        <div class="faq-a">Sim! Pode usar o mesmo número que já tem.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Posso cancelar a qualquer momento?</div>
+        <div class="faq-a">Sim. Sem fidelidade, sem multa. Cancela quando quiser.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-final">
+  <div class="container">
+    <h2 class="cta-final-title">Não deixe seu dinheiro <em>na mão dos apps.</em></h2>
+    <p class="cta-final-sub">Seus clientes estão no WhatsApp agora mesmo esperando um lugar fácil pra fazer o pedido.</p>
+    <a href="/registro" class="btn btn-primary">Começar grátis agora →</a>
+    <div class="cta-final-trust">Sem cartão de crédito · Configure em 5 minutos</div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div>We<span style="color:var(--green-dark)">●</span>Delivery · Cardápio digital e delivery para restaurantes.</div>
+    <div>© 2026 · Feito no Brasil</div>
+  </div>
+</footer>
+
+</body>
+</html>

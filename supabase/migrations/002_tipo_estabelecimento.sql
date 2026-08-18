@@ -1,0 +1,4 @@
+ALTER TABLE tenants
+ADD COLUMN IF NOT EXISTS tipo_estabelecimento TEXT DEFAULT 'outros',
+ADD COLUMN IF NOT EXISTS valor_mensalidade DECIMAL(10,2) DEFAULT 99.90,
+ADD COLUMN IF NOT EXISTS data_nascimento DATE;
