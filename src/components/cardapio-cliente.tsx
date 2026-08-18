@@ -1045,9 +1045,9 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                 onClick={() => onAbrirModal(produto)}
               className="wd-product-card rounded-3xl overflow-hidden text-left hover:shadow-lg transition-all active:scale-95"
               >
-                <div className="wd-product-image aspect-square relative overflow-hidden rounded-t-3xl bg-gradient-to-br from-gray-50 to-gray-100">
+                <div className="wd-product-image aspect-square relative overflow-hidden rounded-t-3xl">
                   {produto.imagem_url ? (
-                    <img src={produto.imagem_url} alt={produto.nome} className="w-full h-full object-contain p-2 transition-transform duration-300 hover:scale-105" />
+                    <img src={produto.imagem_url} alt={produto.nome} className="w-full h-full object-cover transition-transform duration-300 hover:scale-105" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-5xl">🍔</div>
                   )}
