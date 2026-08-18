@@ -1047,7 +1047,12 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
               >
                 <div className="wd-product-image relative overflow-hidden rounded-t-3xl bg-white" style={{ aspectRatio: '1 / 1', width: '100%' }}>
                   {produto.imagem_url ? (
-                    <img src={produto.imagem_url} alt={produto.nome} className="block hover:scale-105" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', transition: 'transform 0.3s ease' }} />
+                    <img
+                      src={produto.imagem_url.includes('supabase.co/storage') ? `${produto.imagem_url.split('?')[0]}?width=600&height=600&resize=cover&quality=80` : produto.imagem_url}
+                      alt={produto.nome}
+                      className="block hover:scale-105"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', transition: 'transform 0.3s ease' }}
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-5xl">🍔</div>
                   )}
