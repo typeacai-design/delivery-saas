@@ -1057,7 +1057,7 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                     <div className="w-full h-full flex items-center justify-center text-5xl">🍔</div>
                   )}
                   {produto.etiquetas && produto.etiquetas.length > 0 && (
-                    <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+                    <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-10">
                       {produto.etiquetas.map((t: string) => {
                         const cfg = ETIQUETAS[t as keyof typeof ETIQUETAS]
                         if (!cfg) return null
