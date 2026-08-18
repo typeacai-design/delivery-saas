@@ -1056,13 +1056,30 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-5xl">🍔</div>
                   )}
+                  {produto.etiquetas && produto.etiquetas.length > 0 && (
+                    <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+                      {produto.etiquetas.map((t: string) => {
+                        const cfg = ETIQUETAS[t as keyof typeof ETIQUETAS]
+                        if (!cfg) return null
+                        return (
+                          <span
+                            key={t}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold shadow-lg backdrop-blur-sm"
+                            style={{ background: cfg.bg, color: cfg.color }}
+                          >
+                            <span>{cfg.icone}</span>
+                            {cfg.label}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="p-3">
                   <h3 className="wd-title font-bold text-sm leading-tight mb-1">{produto.nome}</h3>
                   {produto.descricao && (
                     <p className="wd-description text-xs line-clamp-2 mb-2">{produto.descricao}</p>
                   )}
-                  <ProductTags produto={produto} className="mb-2" />
                   <div className="flex items-center gap-2 mb-2">
                     <ProductPreco produto={produto} />
                     {produto.tempo_preparo_min && (
