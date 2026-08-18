@@ -43,3 +43,5 @@ next-env.d.ts
 .vercel
 .env*
 /artifacts/rls-047/
+
+.env*

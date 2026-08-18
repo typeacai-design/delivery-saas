@@ -254,14 +254,25 @@ function ProdutosTab() {
   const criarCategoria = async () => {
     if (!novaCat.trim()) return
     const { data: user } = await supabase.auth.getUser()
-    if (!user.user) return
-    await supabase.from('categorias').insert({
-      tenant_id: await activeTenantId(),
+    if (!user.user) { alert('Sessão expirada. Faça login novamente.'); return }
+
+    const tid = await activeTenantId()
+    if (!tid) { alert('Erro: loja não identificada. Faça login novamente.'); return }
+
+    const { error } = await supabase.from('categorias').insert({
+      tenant_id: tid,
       nome: novaCat,
       ordem: categorias.length,
       imagem_url: novaCatBanner.trim() || null,
     })
+
+    if (error) {
+      alert(`Erro ao criar sessão: ${error.message}`)
+      return
+    }
+
     setNovaCat('')
+    setNovaCatBanner('')
     setShowCatModal(false)
     setEditingCat(null)
     loadData()
