@@ -337,7 +337,7 @@ function ProdutosTab() {
           <button
             onClick={() => abrirModalProduto()}
             disabled={!temCategorias}
-            className="btn-ghost"
+            className={temCategorias ? 'btn-primary' : 'btn-ghost'}
             style={{
               opacity: temCategorias ? 1 : 0.5,
               cursor: temCategorias ? 'pointer' : 'not-allowed',
