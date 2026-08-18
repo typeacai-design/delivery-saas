@@ -1057,15 +1057,15 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                     <div className="w-full h-full flex items-center justify-center text-5xl">🍔</div>
                   )}
                   {produto.etiquetas && produto.etiquetas.length > 0 && (
-                    <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-10">
+                    <div className="absolute bottom-2 left-0 flex flex-col gap-1 items-start z-10">
                       {produto.etiquetas.map((t: string) => {
                         const cfg = ETIQUETAS[t as keyof typeof ETIQUETAS]
                         if (!cfg) return null
                         return (
                           <span
                             key={t}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold shadow-lg backdrop-blur-sm"
-                            style={{ background: cfg.bg, color: cfg.color }}
+                            className="inline-flex items-center gap-1 pl-3 pr-3 py-1 text-xs font-bold shadow-lg backdrop-blur-sm"
+                            style={{ background: cfg.bg, color: cfg.color, borderRadius: '0 999px 999px 0' }}
                           >
                             <span>{cfg.icone}</span>
                             {cfg.label}
