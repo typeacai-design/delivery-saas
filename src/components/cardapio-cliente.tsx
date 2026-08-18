@@ -1045,9 +1045,9 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                 onClick={() => onAbrirModal(produto)}
               className="wd-product-card rounded-3xl overflow-hidden text-left hover:shadow-lg transition-all active:scale-95"
               >
-                <div className="wd-product-image aspect-square relative overflow-hidden rounded-t-3xl bg-white">
+                <div className="wd-product-image relative overflow-hidden rounded-t-3xl bg-white" style={{ aspectRatio: '1 / 1', width: '100%' }}>
                   {produto.imagem_url ? (
-                    <img src={produto.imagem_url} alt={produto.nome} className="w-full h-full transition-transform duration-300 hover:scale-105" style={{ objectFit: 'cover', objectPosition: 'center' }} />
+                    <img src={produto.imagem_url} alt={produto.nome} className="block hover:scale-105" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', transition: 'transform 0.3s ease' }} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-5xl">🍔</div>
                   )}
