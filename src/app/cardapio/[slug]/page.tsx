@@ -45,7 +45,7 @@ export default async function CardapioPublicoPage({
     .select('*')
     .eq('tenant_id', tenant.id)
     .eq('ativo', true)
-    .order('ordem')
+    .order('ordem', { ascending: true })
 
   const { data: categoriasProduto } = await supabase
     .from('categorias_produtos')
@@ -59,6 +59,7 @@ export default async function CardapioPublicoPage({
     .select('*')
     .eq('tenant_id', tenant.id)
     .eq('ativo', true)
+    .order('ordem', { ascending: true })
 
   const { data: variantes } = await supabase
     .from('variantes')
