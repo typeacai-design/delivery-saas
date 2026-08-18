@@ -484,7 +484,7 @@ button { font-family: inherit; cursor: pointer; }
   .wd-content .grid.grid-cols-2 { gap:.85rem; }
   .wd-product-card { border-radius:1.15rem; }
   .wd-product-card .p-3 { padding:.9rem; }
-  .wd-product-card .wd-product-image { aspect-ratio:1 / .88; }
+  .wd-product-card .wd-product-image { aspect-ratio:1 / 1 !important; }
   .wd-content > section > .flex.items-center.justify-between h2 { font-size:1.35rem; }
 }
 .wd-announcement { display:block; overflow:hidden; padding:.65rem 0; font-size:.875rem; font-weight:600; white-space:nowrap; }
