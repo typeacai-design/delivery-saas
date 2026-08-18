@@ -1067,7 +1067,6 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                             className="inline-flex items-center gap-1 pl-3 pr-3 py-1 text-xs font-bold shadow-lg backdrop-blur-sm"
                             style={{ background: cfg.bg, color: cfg.color, borderRadius: '0 999px 999px 0' }}
                           >
-                            <span>{cfg.icone}</span>
                             {cfg.label}
                           </span>
                         )
