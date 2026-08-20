@@ -102,11 +102,12 @@ type Props = {
   produto?: any
   categorias: any[]
   categoriasProduto?: any[]
+  todosProdutos?: any[] // para validar ordem duplicada
   onClose: () => void
   onSaved: () => void
 }
 
-export default function ProdutoFormModal({ produto, categorias, categoriasProduto = [], onClose, onSaved }: Props) {
+export default function ProdutoFormModal({ produto, categorias, categoriasProduto = [], todosProdutos = [], onClose, onSaved }: Props) {
   // Calcula custo do produto baseado nos ingredientes vinculados.
   // Reaproveita os `insumos` (carregados via loadInsumos) e `form.ingredientes`.
   const custoCalculado = () => {
@@ -207,7 +208,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
     if (!tenantId) return
     const { data } = await supabase
       .from('categorias_complementos')
-      .select('id, nome')
+      .select('id, nome, descricao')
       .eq('tenant_id', tenantId)
       .eq('ativo', true)
       .order('ordem')
@@ -237,6 +238,20 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
     const num = (v: string) => (v === '' ? null : parseFloat(v))
     const numOrZero = (v: string, def = 0) => (v === '' ? def : parseFloat(v))
     const intOrZero = (v: string, def = 0) => (v === '' ? def : parseInt(v, 10))
+    const ordemNum = intOrZero(form.ordem, 0)
+
+    // Validação de ordem duplicada dentro da mesma sessão
+    if (ordemNum > 0 && todosProdutos.length > 0) {
+      const mesmoGrupo = todosProdutos.filter(
+        (p: any) => p.categoria_id === form.categoria_id && p.id !== produto?.id
+      )
+      const duplicado = mesmoGrupo.find((p: any) => p.ordem === ordemNum)
+      if (duplicado) {
+        setErro(`Já existe "${duplicado.nome}" com ordem ${ordemNum} nesta sessão.`)
+        setSalvando(false)
+        return
+      }
+    }
 
     const payload = {
       categoria_id: form.categoria_id,
@@ -248,7 +263,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
       imagem_url: form.imagem_url || null,
       imagem_path: form.imagem_path || null,
       tempo_preparo_min: form.tempo_preparo_min,
-      ordem: intOrZero(form.ordem, 0),
+      ordem: ordemNum,
       codigo_externo: form.codigo_externo || null,
       pontos: intOrZero(form.pontos, 0),
       eh_adicional: form.eh_adicional,
@@ -772,9 +787,49 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
           {/* ====== CARD 10: Complementos ====== */}
           <CardSection title="Complementos vinculados" icon={Layers}>
             <p className="text-sm text-gray-500 mb-3 -mt-1">
-              Selecione quais complementos o cliente pode adicionar a este item.
+              Clique em uma lista para vincular todos os complementos de uma vez, ou selecione individualmente.
               Gerencie em <strong>Cardápio → Complementos</strong>.
             </p>
+
+            {/* Seleção por listas */}
+            {categoriasComp.length > 0 && (
+              <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                <h4 className="text-sm font-semibold text-blue-800 mb-2">🎯 Selecionar por lista</h4>
+                <p className="text-xs text-blue-600 mb-3">Clique em uma lista para vincular todos os seus complementos de uma vez:</p>
+                <div className="flex flex-wrap gap-2">
+                  {categoriasComp.map((cat) => {
+                    const compsDaLista = complementos.filter(c => c.categoria_id === cat.id)
+                    const todosSelecionados = compsDaLista.length > 0 && compsDaLista.every(c => form.complemento_ids.includes(c.id))
+                    const algunsSelecionados = compsDaLista.some(c => form.complemento_ids.includes(c.id)) && !todosSelecionados
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          const idsAtuais = new Set(form.complemento_ids)
+                          compsDaLista.forEach(c => idsAtuais.add(c.id))
+                          setForm((f: any) => ({ ...f, complemento_ids: [...idsAtuais] }))
+                        }}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
+                          todosSelecionados
+                            ? 'bg-green-500 text-white'
+                            : algunsSelecionados
+                            ? 'bg-yellow-100 border-2 border-yellow-400 text-yellow-800'
+                            : 'bg-white border border-blue-300 text-blue-700 hover:bg-blue-100'
+                        }`}
+                      >
+                        {todosSelecionados && <Check size={14} />}
+                        <span>{cat.nome}</span>
+                        {cat.descricao && (
+                          <span className="text-xs opacity-75">({cat.descricao})</span>
+                        )}
+                        <span className="text-xs opacity-60">({compsDaLista.length})</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-2 mb-3">
               <div className="relative flex-1">
@@ -786,7 +841,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
                 >
                   <option value="">Todas as categorias</option>
                   {categoriasComp.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.nome}</option>
+                    <option key={c.id} value={c.id}>{c.nome}{c.descricao ? ` — ${c.descricao}` : ''}</option>
                   ))}
                 </select>
               </div>

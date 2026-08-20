@@ -156,7 +156,9 @@ export async function POST(request: Request) {
     const compsMap = new Map((complementosDb || []).map((c: any) => [c.id, c]))
     const vinculos = new Set((vinculosDb || []).map((v: any) => `${v.produto_id}:${v.complemento_id}`))
     const categoriaPorComp = new Map((categoriasDosComplementos || []).map((c: any) => [c.id, c.categoria_id]))
+    const venderSemEstoque = cfg.entrega_km?.vender_sem_estoque === true
     const listasMap = new Map((listasDb || []).map((l: any) => [l.id, l]))
+
     const itensValidados: any[] = []
     let subtotalCalculado = 0
     for (const item of itens) {
@@ -171,7 +173,7 @@ export async function POST(request: Request) {
         if (!comp || !comp.ativo || !vinculos.has(`${produto.id}:${comp.id}`)) return NextResponse.json({ error: 'Complemento invalido' }, { status: 400 })
         const qtd = Number(escolhido.quantidade) || 0
         if (qtd < 0 || qtd > Number(comp.qtd_max || 99)) return NextResponse.json({ error: `Quantidade invalida de ${comp.nome}` }, { status: 400 })
-        if (comp.controlar_estoque && qtd * quantidade > Number(comp.quantidade_estoque || 0)) return NextResponse.json({ error: `${comp.nome} sem estoque suficiente` }, { status: 400 })
+        if (!venderSemEstoque && comp.controlar_estoque && qtd * quantidade > Number(comp.quantidade_estoque || 0)) return NextResponse.json({ error: `${comp.nome} sem estoque suficiente` }, { status: 400 })
         selecionados.push({ id: comp.id, nome: comp.nome, quantidade: qtd, valor: Number(comp.preco) })
         if (comp.categoria_id) qtdPorLista.set(comp.categoria_id, (qtdPorLista.get(comp.categoria_id) || 0) + qtd)
       }
@@ -311,6 +313,8 @@ export async function POST(request: Request) {
     if (aniversarioIso && !validIsoDate(aniversarioIso)) return NextResponse.json({ error: 'Data de nascimento inválida' }, { status: 400 })
     const idempotencyKey = request.headers.get('idempotency-key') || body.idempotency_key
     if (!idempotencyKey || String(idempotencyKey).length < 32) return NextResponse.json({ error: 'Chave de idempotência ausente' }, { status: 400 })
+
+
     const { data: pedido, error: estoqueError } = await admin.rpc('criar_pedido_atomico', {
       p_tenant_id: tenant.id,
       p_token_hash: clienteTokenHash,
@@ -318,8 +322,23 @@ export async function POST(request: Request) {
       p_cliente: { nome: cliente_nome, telefone: whatsappLimpo, endereco: endereco_entrega || '', data_nascimento: aniversarioIso, cpf: cliente_cpf ? normalizeCpf(cliente_cpf) : '' },
       p_pedido: { valor_subtotal: subtotalCalculado, taxa_entrega: taxaCalculada, valor_desconto: valorDescontoTotal, valor_total: valorTotalFinal, forma_pagamento, troco_para: troco_para || '', bairro_entrega: bairro_entrega || '', endereco_entrega: endereco_entrega || '', numero_entrega: numero_entrega || '', complemento_entrega: complemento_entrega || '', tipo_entrega, observacoes: observacoes || '', cupom_aplicado: cupomValidado || '' },
       p_itens: itensValidados,
+      p_ignorar_estoque: venderSemEstoque,
     })
-    if (estoqueError || !pedido) return NextResponse.json({ error: 'Não foi possível concluir o pedido ou o estoque é insuficiente' }, { status: 409 })
+    if (estoqueError || !pedido) {
+      const erroMsg = estoqueError?.message || ''
+      console.error('Erro criar_pedido_atomico:', estoqueError)
+      if (erroMsg.includes('estoque_produto')) {
+        return NextResponse.json({ error: 'Um dos itens selectedo nao tem estoque suficiente' }, { status: 409 })
+      } else if (erroMsg.includes('estoque_complemento')) {
+        return NextResponse.json({ error: 'Um dos complementos nao tem estoque suficiente' }, { status: 409 })
+      } else if (erroMsg.includes('estoque_insumo')) {
+        return NextResponse.json({ error: 'Um dos ingredientes nao tem estoque suficiente' }, { status: 409 })
+      } else if (erroMsg.includes('cupom')) {
+        return NextResponse.json({ error: 'Cupom indisponivel ou invalido' }, { status: 409 })
+      }
+      // Inclui o código do erro para diagnóstico
+      return NextResponse.json({ error: 'Nao foi possivel concluir o pedido. Tente novamente em alguns instantes.', debug: estoqueError?.code || erroMsg }, { status: 409 })
+    }
 
     return NextResponse.json({
       id: pedido.id,

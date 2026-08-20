@@ -6,7 +6,7 @@ import { activeTenantId } from '@/lib/active-tenant-client'
 import { formatCurrency } from '@/lib/utils'
 import {
   Plus, Edit, Trash2, Search, X, Save, Upload, Image as ImageIcon,
-  Check, Layers, Box, AlertCircle
+  Check, Layers, Box, AlertCircle, Copy, ArrowRight
 } from 'lucide-react'
 
 type Lista = {
@@ -48,6 +48,8 @@ export default function ComplementosTab() {
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [showListaModal, setShowListaModal] = useState(false)
   const [showCompModal, setShowCompModal] = useState(false)
+  const [showCloneModal, setShowCloneModal] = useState(false)
+  const [cloneSourceLista, setCloneSourceLista] = useState<Lista | null>(null)
   const [editingLista, setEditingLista] = useState<Lista | null>(null)
   const [editingComp, setEditingComp] = useState<Complemento | null>(null)
   const [compParaNovaListaId, setCompParaNovaListaId] = useState<string>('')
@@ -175,7 +177,12 @@ export default function ComplementosTab() {
                         <Edit size={12} />
                       </button>
                     </div>
-                    <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-3 flex-wrap">
+                    {lista.descricao && (
+                      <p className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded mt-1 inline-block">
+                        💡 {lista.descricao}
+                      </p>
+                    )}
+                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-3 flex-wrap">
                       <span>Min: <strong>{lista.qtd_minima}</strong> • Max: <strong>{lista.qtd_maxima}</strong></span>
                       <span>{items.length} complemento{items.length !== 1 ? 's' : ''}</span>
                       {!lista.ativo && (
@@ -184,6 +191,14 @@ export default function ComplementosTab() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setCloneSourceLista(lista); setShowCloneModal(true) }}
+                      className="px-4 py-2 border border-amber-500 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-50 flex items-center gap-1.5"
+                      title="Clonar esta lista"
+                    >
+                      <Copy size={14} />
+                      Clonar
+                    </button>
                     <button
                       onClick={() => { setEditingLista(lista); setShowListaModal(true) }}
                       className="px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800"
@@ -316,6 +331,7 @@ export default function ComplementosTab() {
           comp={editingComp}
           listas={listas}
           defaultCategoriaId={editingComp?.categoria_id || compParaNovaListaId || listas[0]?.id || ''}
+          todosComplementos={complementos}
           onClose={() => {
             setShowCompModal(false)
             setEditingComp(null)
@@ -324,7 +340,198 @@ export default function ComplementosTab() {
           onSaved={loadData}
         />
       )}
+
+      {showCloneModal && cloneSourceLista && (
+        <CloneListaModal
+          sourceLista={cloneSourceLista}
+          listas={listas}
+          complementos={complementos}
+          onClose={() => {
+            setShowCloneModal(false)
+            setCloneSourceLista(null)
+          }}
+          onSaved={loadData}
+        />
+      )}
     </div>
+  )
+}
+
+/* ===========================================================
+   MODAL: Clonar Lista de Complementos
+   =========================================================== */
+function CloneListaModal({
+  sourceLista,
+  listas,
+  complementos,
+  onClose,
+  onSaved,
+}: {
+  sourceLista: Lista
+  listas: Lista[]
+  complementos: Complemento[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [nome, setNome] = useState(`${sourceLista.nome} (cópia)`)
+  const [descricao, setDescricao] = useState(sourceLista.descricao || '')
+  const [qtd_minima, setQtd_minima] = useState(String(sourceLista.qtd_minima))
+  const [qtd_maxima, setQtd_maxima] = useState(String(sourceLista.qtd_maxima))
+  const [max_um_de_cada, setMax_um_de_cada] = useState(sourceLista.max_um_de_cada)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+  const supabase = createClient()
+
+  const compsDaLista = complementos.filter((c) => c.categoria_id === sourceLista.id)
+
+  const salvar = async () => {
+    if (!nome.trim()) {
+      setErro('Informe o nome da nova lista.')
+      return
+    }
+    setSalvando(true)
+    setErro('')
+    const tid = await activeTenantId()
+    if (!tid) { setSalvando(false); return }
+
+    const num = (v: string, def: number) => (v === '' ? def : parseInt(v, 10))
+
+    // Criar nova lista
+    const { data: novaLista, error: erroLista } = await supabase
+      .from('categorias_complementos')
+      .insert({
+        tenant_id: tid,
+        nome: nome.trim(),
+        descricao: descricao || null,
+        qtd_minima: num(qtd_minima, 0),
+        qtd_maxima: num(qtd_maxima, 1),
+        max_um_de_cada,
+        ativo: true,
+        ordem: listas.length,
+      })
+      .select('id')
+      .single()
+
+    if (erroLista || !novaLista?.id) {
+      setErro('Erro ao criar lista: ' + (erroLista?.message || 'desconhecido'))
+      setSalvando(false)
+      return
+    }
+
+    // Clonar complementos da lista original
+    if (compsDaLista.length > 0) {
+      const compsClonados = compsDaLista.map((c) => ({
+        tenant_id: tid,
+        categoria_id: novaLista.id,
+        nome: c.nome,
+        descricao: c.descricao,
+        preco: c.preco,
+        custo: c.custo,
+        ordem: c.ordem,
+        qtd_max: c.qtd_max,
+        etiqueta1: c.etiqueta1,
+        etiqueta2: c.etiqueta2,
+        etiqueta3: c.etiqueta3,
+        controlar_estoque: c.controlar_estoque,
+        quantidade_estoque: c.quantidade_estoque,
+        ativo: c.ativo,
+        imagem_url: c.imagem_url,
+        imagem_path: c.imagem_path,
+      }))
+
+      const { error: erroComps } = await supabase
+        .from('complementos')
+        .insert(compsClonados)
+
+      if (erroComps) {
+        setErro(`Lista criada, mas houve erro ao clonar complementos: ${erroComps.message}`)
+        setSalvando(false)
+        return
+      }
+    }
+
+    setSalvando(false)
+    onSaved()
+    onClose()
+  }
+
+  return (
+    <ModalShell title={`Clonar lista: ${sourceLista.nome}`} onClose={onClose}>
+      <div className="space-y-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <ArrowRight size={20} className="text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">
+              Esta ação vai duplicar a lista <strong>"{sourceLista.nome}"</strong> com todos os seus {compsDaLista.length} complemento(s).
+            </p>
+            <p className="text-xs text-amber-600 mt-1">
+              A cópia será criada como nova lista ativa.
+            </p>
+          </div>
+        </div>
+
+        <Field label="Nome da nova lista" required>
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder='Ex: "Adicione Frutas (cópia)"'
+            className="form-input"
+            autoFocus
+          />
+        </Field>
+
+        <Field label="Descrição">
+          <input
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            placeholder="Descrição interna (opcional)"
+            className="form-input"
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Qtd mínima">
+            <input
+              type="number"
+              min={0}
+              value={qtd_minima}
+              onChange={(e) => setQtd_minima(e.target.value)}
+              className="form-input"
+            />
+          </Field>
+          <Field label="Qtd máxima">
+            <input
+              type="number"
+              min={1}
+              value={qtd_maxima}
+              onChange={(e) => setQtd_maxima(e.target.value)}
+              className="form-input"
+            />
+          </Field>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 cursor-pointer text-sm">
+            <input
+              type="checkbox"
+              checked={max_um_de_cada}
+              onChange={(e) => setMax_um_de_cada(e.target.checked)}
+              className="size-4 rounded border-gray-300 text-green-600"
+            />
+            Permitir no máximo uma unidade de cada complemento
+          </label>
+        </div>
+
+        {erro && (
+          <div className="text-sm text-red-600 flex items-center gap-2 bg-red-50 p-3 rounded-lg">
+            <AlertCircle size={16} />
+            {erro}
+          </div>
+        )}
+      </div>
+
+      <ModalFooter onClose={onClose} onSave={salvar} salvando={salvando} saveLabel="Clonar lista" />
+    </ModalShell>
   )
 }
 
@@ -443,7 +650,7 @@ function ListaModal({ lista, listas, onClose, onSaved }: any) {
 /* ===========================================================
    MODAL: Complemento
    =========================================================== */
-function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved }: any) {
+function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, todosComplementos }: any) {
   const [form, setForm] = useState({
     nome: comp?.nome || '',
     categoria_id: comp?.categoria_id || defaultCategoriaId,
@@ -466,20 +673,41 @@ function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved }
   const [erro, setErro] = useState('')
   const supabase = createClient()
 
+  // Valida se já existe outro complemento com a mesma ordem na mesma lista
+  const validarOrdemDuplicada = (novaOrdem: number, listaId: string, compId: string | undefined) => {
+    const mesmaLista = todosComplementos?.filter((c: Complemento) => c.categoria_id === listaId) || []
+    const duplicado = mesmaLista.find((c: Complemento) =>
+      c.ordem === novaOrdem && c.id !== compId
+    )
+    return duplicado ? `Já existe "${duplicado.nome}" com ordem ${novaOrdem} nesta lista.` : null
+  }
+
   const salvar = async () => {
-    if (!form.nome.trim()) return
+    if (!form.nome.trim()) {
+      setErro('Informe o nome do complemento.')
+      return
+    }
     setSalvando(true)
     const tid = await activeTenantId()
     if (!tid) { setSalvando(false); return }
 
     const num = (v: string, def: number) => (v === '' ? def : parseFloat(v))
     const intNum = (v: string, def: number) => (v === '' ? def : parseInt(v, 10))
+    const ordemNum = intNum(form.ordem, 0)
+
+    // Validação de ordem duplicada
+    const erroOrdem = validarOrdemDuplicada(ordemNum, form.categoria_id, comp?.id)
+    if (erroOrdem) {
+      setErro(erroOrdem)
+      setSalvando(false)
+      return
+    }
 
     const payload = {
       nome: form.nome,
       categoria_id: form.categoria_id || null,
       preco: num(form.preco, 0),
-      ordem: intNum(form.ordem, 0),
+      ordem: ordemNum,
       qtd_max: intNum(form.qtd_max, 99),
       custo: num(form.custo, 0),
       descricao: form.descricao || null,

@@ -24,9 +24,21 @@ export async function POST(request: Request) {
     const { data: tenant } = await supabase.from('tenants').select('config').eq('id', tenantId).single()
     const km = body.config || {}; const lat=Number(body.origem?.latitude), lng=Number(body.origem?.longitude)
     if (!['ceil','round','none'].includes(km.arredondamento) || !finite(km.valor_km) || Number(km.valor_km)<0 || !finite(km.minimo) || Number(km.minimo)<0 || !finite(km.max_km) || Number(km.max_km)<=0 || Number(km.max_km)>1000 || !Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lng)||lng < -180||lng > 180) return response({ error: 'Configuração por km inválida' }, 400)
-    const entrega_km={valor_km:Number(km.valor_km),minimo:Number(km.minimo),max_km:Number(km.max_km),arredondamento:km.arredondamento}
+    const entrega_km={valor_km:Number(km.valor_km),minimo:Number(km.minimo),max_km:Number(km.max_km),arredondamento:km.arredondamento,vender_sem_estoque:km.vender_sem_estoque===true}
     const config = { ...((tenant?.config || {}) as any), entrega_metodo: body.metodo === 'km' ? 'km' : 'bairro', entrega_km }
     const { error } = await supabase.from('tenants').update({ config, endereco: String(body.origem?.endereco||'').trim().slice(0,300)||null, latitude: lat, longitude: lng }).eq('id', tenantId)
+    return error ? response({ error: error.message }, 400) : response({ ok: true })
+  }
+  // Salvar só a configuração (ex: vender_sem_estoque)
+  if (body.kind === 'config') {
+    console.log('Salvando config:', JSON.stringify(body.config))
+    const { data: tenant } = await supabase.from('tenants').select('config').eq('id', tenantId).single()
+    console.log('Tenant config atual:', JSON.stringify(tenant?.config))
+    const currentConfig = (tenant?.config || {}) as any
+    const newConfig = { ...currentConfig, entrega_km: { ...(currentConfig.entrega_km || {}), vender_sem_estoque: body.config?.vender_sem_estoque } }
+    console.log('Nova config:', JSON.stringify(newConfig))
+    const { error } = await supabase.from('tenants').update({ config: newConfig }).eq('id', tenantId)
+    console.log('Erro:', error)
     return error ? response({ error: error.message }, 400) : response({ ok: true })
   }
   const bairro=String(body.bairro||'').trim().slice(0,100), taxa=Number(body.taxa), prazo=body.prazo_min==null||body.prazo_min===''?null:Number(body.prazo_min)

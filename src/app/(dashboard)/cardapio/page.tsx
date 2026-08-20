@@ -458,6 +458,7 @@ function ProdutosTab() {
           produto={editingProduto}
           categorias={categorias}
           categoriasProduto={categoriasProduto}
+          todosProdutos={Object.values(produtos).flat()}
           onClose={() => { setShowProdModal(false); setEditingProduto(null) }}
           onSaved={loadData}
         />

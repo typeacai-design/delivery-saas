@@ -246,8 +246,14 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
       map[produtoId] = data.listasComplementos
         .filter((l: any) => ids.has(l.id))
         .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
-        .map((l: any) => ({ ...l, complementos: (comps as any[]).filter(c => c.categoria_id === l.id) }))
+        .map((l: any) => ({
+          ...l,
+          complementos: (comps as any[])
+            .filter(c => c.categoria_id === l.id)
+            .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+        }))
       const semLista = (comps as any[]).filter(c => !c.categoria_id)
+        .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
       if (semLista.length) map[produtoId].push({ id: 'avulsos', nome: 'Adicionais', qtd_minima: 0, qtd_maxima: 99, complementos: semLista })
     })
     return map

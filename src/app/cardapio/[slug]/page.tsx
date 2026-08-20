@@ -71,6 +71,7 @@ export default async function CardapioPublicoPage({
     .select('*')
     .eq('tenant_id', tenant.id)
     .eq('ativo', true)
+    .order('ordem', { ascending: true })
 
   const { data: listasComplementos } = await supabase
     .from('categorias_complementos')

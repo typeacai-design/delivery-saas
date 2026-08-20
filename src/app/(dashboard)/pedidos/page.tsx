@@ -1,12 +1,50 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronLeft } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
+
+// Hook para tocar som de novo pedido
+function useSomNovoPedido(somAtivado: boolean) {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const pedidoIdsJaTocados = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    audioRef.current = new Audio('/sounds/pedido-novo.mp3')
+    audioRef.current.volume = 0.7
+  }, [])
+
+  const tocarSomNovosPedidos = (pedidos: Pedido[]) => {
+    if (!audioRef.current || !somAtivado) return
+
+    const pedidosNovos = pedidos.filter(
+      (p) => p.status === 'novo' && !pedidoIdsJaTocados.current.has(p.id)
+    )
+
+    if (pedidosNovos.length > 0) {
+      audioRef.current.currentTime = 0
+      audioRef.current.play().catch(() => {
+        // Ignora erro se o navegador bloquear autoplay
+      })
+      pedidosNovos.forEach((p) => pedidoIdsJaTocados.current.add(p.id))
+    }
+  }
+
+  // Marca IDs já existentes para não tocar ao carregar
+  const inicializarIds = (pedidos: Pedido[]) => {
+    pedidos.forEach((p) => {
+      if (p.status === 'novo') {
+        pedidoIdsJaTocados.current.add(p.id)
+      }
+    })
+  }
+
+  return { tocarSomNovosPedidos, inicializarIds }
+}
 
 const STATUS_CONFIG: Record<PedidoStatus, { label: string; color: string; icon: typeof Clock }> = {
   novo: { label: 'Novo', color: 'bg-orange-100 border-orange-300', icon: Clock },
@@ -33,7 +71,10 @@ export default function PedidosPage() {
   const [itensPedido, setItensPedido] = useState<any[]>([])
   const [motoboys, setMotoboys] = useState<any[]>([])
   const [filtroMotoboy, setFiltroMotoboy] = useState('todos')
+  const [novosPedidosCount, setNovosPedidosCount] = useState(0)
+  const [somAtivado, setSomAtivado] = useState(true)
   const supabase = createClient()
+  const { tocarSomNovosPedidos, inicializarIds } = useSomNovoPedido(somAtivado)
 
   useEffect(() => {
     loadPedidos()
@@ -54,7 +95,21 @@ export default function PedidosPage() {
       .order('data_criacao', { ascending: false })
       .limit(50)
 
-    setPedidos(data || [])
+    const pedidosData = data || []
+
+    if (loading) {
+      // Primeira carga: inicializa os IDs já existentes
+      inicializarIds(pedidosData)
+    } else {
+      // Verificações subsequentes: tocar som se houver novos pedidos "novo"
+      tocarSomNovosPedidos(pedidosData)
+    }
+
+    // Conta pedidos novos para badge
+    const countNovos = pedidosData.filter((p) => p.status === 'novo').length
+    setNovosPedidosCount(countNovos)
+
+    setPedidos(pedidosData)
     const { data: entregadores } = await supabase.from('motoboys').select('*').eq('tenant_id', tenantId).order('nome')
     setMotoboys(entregadores || [])
     setLoading(false)
@@ -122,16 +177,34 @@ export default function PedidosPage() {
             <div className="eyebrow mb-2">Atendimento</div>
             <h1 className="text-3xl font-semibold tracking-tight mb-1" style={{ color: 'var(--ink)' }}>
               Pedidos
+              {novosPedidosCount > 0 && (
+                <span className="ml-3 inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500 text-white text-base font-medium rounded-full animate-pulse">
+                  🔔 {novosPedidosCount} novo{novosPedidosCount > 1 ? 's' : ''}
+                </span>
+              )}
             </h1>
             <p className="hint">Gerencie os pedidos do seu delivery</p>
           </div>
-          <Link
-            href="/pedidos/novo"
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Novo Pedido
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSomAtivado(!somAtivado)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border ${
+                somAtivado
+                  ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                  : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200'
+              }`}
+              title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som silenciado - clique para ativar'}
+            >
+              {somAtivado ? '🔊 Som' : '🔇 Mudo'}
+            </button>
+            <Link
+              href="/pedidos/novo"
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Novo Pedido
+            </Link>
+          </div>
         </div>
       </div>
 
