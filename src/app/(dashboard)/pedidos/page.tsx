@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
+import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
 
 // Hook para tocar som de novo pedido em LOOP
 function useSomNovoPedido(somAtivado: boolean) {
@@ -95,9 +96,10 @@ const NEXT_STATUS: Record<PedidoStatus, PedidoStatus | null> = {
 const STATUS_LISTA: PedidoStatus[] = ['novo', 'preparando', 'pronto', 'saiu', 'entregue', 'cancelado']
 
 // Componente para mostrar os itens do pedido (carrega sob demanda)
-function ItensPedido({ pedidoId }: { pedidoId: string }) {
+function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compacto?: boolean }) {
   const [itens, setItens] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandido, setExpandido] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -116,27 +118,32 @@ function ItensPedido({ pedidoId }: { pedidoId: string }) {
     return () => { mounted = false }
   }, [pedidoId])
 
-  if (loading) return <div className="mt-3 text-xs text-gray-400">Carregando itens...</div>
+  if (loading) return <div className="p-3 text-xs text-gray-400">Carregando itens...</div>
   if (!itens.length) return null
 
+  const LIMITE_VISIVEL = 3
+  const mostrarTodos = expandido || !compacto || itens.length <= LIMITE_VISIVEL
+  const itensVisiveis = mostrarTodos ? itens : itens.slice(0, LIMITE_VISIVEL)
+  const temMais = compacto && itens.length > LIMITE_VISIVEL
+
   return (
-    <div className="mt-3 pt-3 border-t border-gray-100">
-      <p className="text-xs font-medium text-gray-500 mb-2">🛒 ITENS ({itens.length}):</p>
+    <div className="p-3 border-b border-gray-100">
+      <p className="text-xs font-medium text-gray-500 mb-1">🛒 ITENS ({itens.length}):</p>
       <div className="space-y-1">
-        {itens.map((item) => {
+        {itensVisiveis.map((item) => {
           const comps = Array.isArray(item.complementos)
             ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
             : []
           return (
-            <div key={item.id} className="text-sm">
-              <div className="flex justify-between">
-                <span>➡️ <strong>{item.quantidade}x {item.nome}</strong>{item.variante_nome ? ` (${item.variante_nome})` : ''}</span>
-                <span>{formatCurrency(item.valor_unitario * item.quantidade)}</span>
+            <div key={item.id} className="text-xs">
+              <div className="flex justify-between gap-1">
+                <span className="truncate"><strong>{item.quantidade}x {item.nome}</strong>{item.variante_nome ? ` (${item.variante_nome})` : ''}</span>
+                <span className="font-medium whitespace-nowrap">{formatCurrency(item.valor_unitario * item.quantidade)}</span>
               </div>
               {comps.length > 0 && (
-                <div className="ml-4 text-xs text-gray-500">
+                <div className="ml-2 text-gray-500 text-[10px]">
                   {comps.map((c: any, i: number) => (
-                    <div key={i}>## {c.nome}{c.quantidade > 1 ? ` x${c.quantidade}` : ''}{c.valor > 0 ? ` (${formatCurrency(c.valor * c.quantidade)})` : ''}</div>
+                    <span key={i} className="mr-1">+ {c.nome}{c.quantidade > 1 ? `x${c.quantidade}` : ''}</span>
                   ))}
                 </div>
               )}
@@ -144,6 +151,14 @@ function ItensPedido({ pedidoId }: { pedidoId: string }) {
           )
         })}
       </div>
+      {temMais && (
+        <button
+          onClick={() => setExpandido(!expandido)}
+          className="mt-1 text-xs text-blue-600 hover:underline"
+        >
+          {expandido ? '↑ Ver menos' : `↓ Ver mais ${itens.length - LIMITE_VISIVEL} itens`}
+        </button>
+      )}
     </div>
   )
 }
@@ -310,6 +325,89 @@ export default function PedidosPage() {
     }
   }
 
+  // Confirmar pedido via WPP (envia msg ao cliente)
+  const confirmarPedidoWPP = (pedido: any) => {
+    const mensagem = gerarMensagemWhatsApp({
+      pedidoId: pedido.codigo || pedido.id,
+      tenantNome: 'Nossa Loja', // Será substituído depois pelo tenant real
+      clienteNome: pedido.cliente_nome || '',
+      clienteWhatsapp: pedido.cliente_whatsapp || '',
+      itens: itensCache[pedido.id] || [],
+      subtotal: pedido.valor_subtotal || (pedido.valor_total - (pedido.taxa_entrega || 0)),
+      taxaEntrega: pedido.taxa_entrega || 0,
+      desconto: pedido.valor_desconto || 0,
+      total: pedido.valor_total,
+      formaPagamento: Array.isArray(pedido.forma_pagamento) ? pedido.forma_pagamento[0] : pedido.forma_pagamento,
+      trocoPara: pedido.troco_para,
+      endereco: pedido.endereco_entrega || '',
+      numero: pedido.numero_entrega || '',
+      complemento: pedido.complemento_entrega,
+      bairro: pedido.bairro_entrega || '',
+      observacoes: pedido.observacoes || '',
+      tipoEntrega: pedido.tipo_entrega || 'delivery',
+    })
+    const fone = (pedido.cliente_whatsapp || '').replace(/\D/g, '')
+    window.open(`https://wa.me/55${fone}?text=${encodeURIComponent(mensagem)}`, '_blank')
+  }
+
+  // Imprimir pedido
+  const imprimirPedido = (pedido: any) => {
+    const janela = window.open('', '_blank', 'width=400,height=600')
+    if (!janela) return alert('Permita popups para imprimir')
+    const itensHtml = (itensCache[pedido.id] || []).map(i => `<tr><td>${i.quantidade}x ${i.nome}</td><td>R$ ${(i.valor_unitario * i.quantidade).toFixed(2)}</td></tr>`).join('')
+    janela.document.write(`
+      <html><head><title>Pedido ${pedido.codigo || pedido.id}</title>
+      <style>body{font-family:monospace;font-size:12px;padding:10px}h1{font-size:14px}table{width:100%;border-collapse:collapse}td{padding:2px 0;border-bottom:1px dashed #ccc}hr{border:none;border-top:1px dashed #000}.total{font-weight:bold;font-size:14px}</style>
+      </head><body>
+      <h1>Pedido: ${pedido.codigo || pedido.id}</h1>
+      <p>${pedido.cliente_nome || ''}<br>${pedido.cliente_whatsapp || ''}<br>${pedido.endereco_entrega || ''} ${pedido.numero_entrega || ''}<br>${pedido.bairro_entrega || ''}</p>
+      <hr><table>${itensHtml}</table>
+      <hr>
+      <p>Subtotal: R$ ${(pedido.valor_subtotal || 0).toFixed(2)}<br>
+      Desconto: R$ ${(pedido.valor_desconto || 0).toFixed(2)}<br>
+      Entrega: R$ ${(pedido.taxa_entrega || 0).toFixed(2)}</p>
+      <p class="total">TOTAL: R$ ${(pedido.valor_total || 0).toFixed(2)}</p>
+      <p>Pagamento: ${pedido.forma_pagamento}</p>
+      ${pedido.observacoes ? `<p>Obs: ${pedido.observacoes}</p>` : ''}
+      <script>window.print();window.close();</script>
+      </body></html>
+    `)
+  }
+
+  // Dar desconto
+  const abrirModalDesconto = (pedido: any) => {
+    const valor = prompt(`Desconto em R$ (valor atual: R$ ${(pedido.valor_desconto || 0).toFixed(2)})`, String(pedido.valor_desconto || 0))
+    if (valor === null) return
+    const novoDesconto = parseFloat(valor) || 0
+    const novoTotal = (pedido.valor_total + (pedido.valor_desconto || 0)) - novoDesconto
+    supabase.from('pedidos').update({
+      valor_desconto: novoDesconto,
+      valor_total: novoTotal
+    }).eq('id', pedido.id).then(({ error }) => {
+      if (error) alert('Erro ao aplicar desconto')
+      else loadPedidos()
+    })
+  }
+
+  // Editar pedido (placeholder - redireciona para modal custom)
+  const abrirModalEditar = (pedido: any) => {
+    alert(`Editar pedido ${pedido.codigo || pedido.id} - Funcionalidade será implementada em próxima sprint. Por enquanto, cancele e recrie.`)
+  }
+
+  // Cache de itens por pedido (carrega sob demanda)
+  const [itensCache, setItensCache] = useState<Record<string, any[]>>({})
+  useEffect(() => {
+    const carregarItensCache = async () => {
+      const cache: Record<string, any[]> = {}
+      for (const p of pedidos) {
+        const { data } = await supabase.from('pedido_itens').select('*').eq('pedido_id', p.id)
+        cache[p.id] = data || []
+      }
+      setItensCache(cache)
+    }
+    carregarItensCache()
+  }, [pedidos])
+
   const loadDetalhesPedido = async (pedido: Pedido) => {
     setSelectedPedido(pedido)
     const { data } = await supabase
@@ -446,262 +544,162 @@ export default function PedidosPage() {
               </div>
             )}
 
-      {/* Lista de Pedidos em CARDS */}
-      <div className="space-y-4">
+      {/* Lista de Pedidos em GRID 3 COLUNAS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {pedidosFiltrados.length > 0 ? (
           pedidosFiltrados.map((pedido) => {
             const config = STATUS_CONFIG[pedido.status]
             const StatusIcon = config.icon
             const nextStatus = NEXT_STATUS[pedido.status]
-            const isExpanded = detalhesExpandidos.has(pedido.id)
             const isNovo = pedido.status === 'novo'
 
             return (
               <div
                 key={pedido.id}
-                className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden transition-all ${
+                className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all flex flex-col ${
                   isNovo ? 'border-orange-400 ring-2 ring-orange-200' : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                {/* Header do Card - Sempre visível */}
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    {/* Lado esquerdo - Info principal */}
-                    <div className="flex-1">
-                      {/* Código do pedido */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-2xl font-bold text-gray-900">
-                          {(pedido as any).codigo || ('#' + pedido.id.slice(0, 8))}
-                        </span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
-                          <StatusIcon className="w-3 h-3" />
-                          {config.label}
-                        </span>
-                      </div>
-
-                      {/* Data e hora */}
-                      <p className="text-sm text-gray-500 mb-1">
-                        🕐 {formatDateFull(pedido.data_criacao)}
-                      </p>
-
-                      {/* Tipo de entrega + Estimativa */}
-                      <div className="flex gap-2 text-xs text-gray-500 mb-2">
-                        <span>📦 {((pedido as any).tipo_entrega === 'retirada') ? 'Retirada' : 'Delivery'}</span>
-                        {(pedido as any).tempo_estimado_min && (
-                          <span>⏱️ {Math.round((pedido as any).tempo_estimado_min * 0.9)}-{Math.round((pedido as any).tempo_estimado_min * 1.2)} min</span>
-                        )}
-                      </div>
-
-                      <hr className="my-2 border-gray-200" />
-
-                      {/* Nome do cliente */}
-                      <p className="text-sm text-gray-700 mb-1">
-                        <strong>NOME:</strong> {(pedido as any).cliente_nome || 'Não identificado'}
-                      </p>
-
-                      {/* WhatsApp */}
-                      {(pedido as any).cliente_whatsapp && (
-                        <p className="text-sm text-gray-700 mb-1">
-                          <strong>Fone:</strong> {(pedido as any).cliente_whatsapp}
-                        </p>
-                      )}
-
-                      {/* Endereço completo */}
-                      {((pedido as any).tipo_entrega !== 'retirada') && (
-                        <>
-                          {(pedido as any).endereco_entrega && (
-                            <p className="text-sm text-gray-700 mb-1">
-                              <strong>Endereço:</strong> {(pedido as any).endereco_entrega}{(pedido as any).numero_entrega ? `, ${(pedido as any).numero_entrega}` : ''}
-                            </p>
-                          )}
-                          {(pedido as any).bairro_entrega && (
-                            <p className="text-sm text-gray-700 mb-1">
-                              <strong>Bairro:</strong> {(pedido as any).bairro_entrega}
-                            </p>
-                          )}
-                          {(pedido as any).complemento_entrega && (
-                            <p className="text-sm text-gray-700 mb-1">
-                              <strong>Complemento:</strong> {(pedido as any).complemento_entrega}
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </div>
-
-                    {/* Lado direito - Valor e ações */}
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-green-600 mb-2">
-                        {formatCurrency(pedido.valor_total)}
-                      </p>
-                      <p className="text-sm text-gray-600 mb-3">
-                        {formatFormaPagamento((pedido as any).forma_pagamento)}
-                      </p>
-
-                      {/* Botões de ação */}
-                      <div className="flex items-center gap-2 justify-end">
-                        {nextStatus && (
-                          <button
-                            onClick={() => updateStatus(pedido, nextStatus)}
-                            className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 flex items-center gap-1 shadow-sm"
-                          >
-                            {STATUS_CONFIG[nextStatus].label}
-                            <ChevronRight className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        {pedido.status !== 'cancelado' && pedido.status !== 'entregue' && (
-                          <button
-                            onClick={() => updateStatus(pedido, 'cancelado')}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Cancelar pedido"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => loadDetalhesPedido(pedido)}
-                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                          title="Ver detalhes completos"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
+                {/* HEADER */}
+                <div className={`p-3 border-b ${isNovo ? 'bg-orange-50/40' : 'bg-gray-50/40'}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-lg font-bold text-gray-900">
+                      {(pedido as any).codigo || ('#' + pedido.id.slice(0, 8))}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
+                      <StatusIcon className="w-3 h-3" />
+                      {config.label}
+                    </span>
                   </div>
+                  <p className="text-xs text-gray-500">
+                    🕐 {formatDate(pedido.data_criacao)} · {((pedido as any).tipo_entrega === 'retirada') ? '🏪 Retirada' : '🛵 Delivery'}
+                  </p>
+                </div>
 
-                  {/* ITENS DO PEDIDO - SEMPRE VISÍVEL */}
-                  <ItensPedido pedidoId={pedido.id} />
+                {/* CLIENTE + ENDEREÇO */}
+                <div className="p-3 border-b border-gray-100 text-xs space-y-0.5">
+                  <p className="font-semibold text-sm text-gray-900">{(pedido as any).cliente_nome || 'Cliente'}</p>
+                  {(pedido as any).cliente_whatsapp && (
+                    <p className="text-gray-600">📱 {(pedido as any).cliente_whatsapp}</p>
+                  )}
+                  {((pedido as any).tipo_entrega !== 'retirada') && (pedido as any).endereco_entrega && (
+                    <p className="text-gray-600 truncate" title={(pedido as any).endereco_entrega + ', ' + ((pedido as any).numero_entrega || '') + ' - ' + ((pedido as any).bairro_entrega || '')}>
+                      📍 {(pedido as any).endereco_entrega}, {(pedido as any).numero_entrega || 's/n'} - {(pedido as any).bairro_entrega || ''}
+                    </p>
+                  )}
+                  {((pedido as any).tipo_entrega !== 'retirada') && (pedido as any).complemento_entrega && (
+                    <p className="text-gray-500 italic text-xs">└ {(pedido as any).complemento_entrega}</p>
+                  )}
+                </div>
 
-                  {/* TOTAIS */}
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <div className="flex justify-between text-sm mb-1">
+                {/* ITENS */}
+                <ItensPedido pedidoId={pedido.id} compacto />
+
+                {/* OBS */}
+                {(pedido as any).observacoes && (
+                  <div className="px-3 py-2 bg-amber-50 border-t border-amber-100">
+                    <p className="text-xs text-amber-800 truncate">📝 {(pedido as any).observacoes}</p>
+                  </div>
+                )}
+
+                {/* TOTAIS + AÇÕES */}
+                <div className="mt-auto p-3 bg-gray-50 border-t border-gray-200">
+                  <div className="space-y-0.5 text-xs mb-2">
+                    <div className="flex justify-between">
                       <span className="text-gray-600">Subtotal:</span>
-                      <span className="font-medium">{formatCurrency((pedido as any).valor_subtotal || ((pedido as any).valor_total - ((pedido as any).taxa_entrega || 0)))}</span>
+                      <span>{formatCurrency((pedido as any).valor_subtotal || ((pedido as any).valor_total - ((pedido as any).taxa_entrega || 0)))}</span>
                     </div>
                     {((pedido as any).valor_desconto > 0) && (
-                      <div className="flex justify-between text-sm mb-1 text-green-600">
+                      <div className="flex justify-between text-green-600">
                         <span>Desconto:</span>
                         <span>-{formatCurrency((pedido as any).valor_desconto)}</span>
                       </div>
                     )}
                     {((pedido as any).taxa_entrega > 0) && (
-                      <div className="flex justify-between text-sm mb-1">
+                      <div className="flex justify-between">
                         <span className="text-gray-600">Entrega:</span>
                         <span>{formatCurrency((pedido as any).taxa_entrega)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between font-bold text-base pt-2 border-t border-gray-200">
+                    <div className="flex justify-between font-bold text-sm pt-1 border-t border-gray-300">
                       <span>TOTAL:</span>
                       <span className="text-green-600">{formatCurrency(pedido.valor_total)}</span>
                     </div>
+                    <div className="text-right text-gray-500 text-xs">
+                      {formatFormaPagamento((pedido as any).forma_pagamento)}
+                    </div>
                   </div>
 
-                  {/* Observações */}
-                  {(pedido as any).observacoes && (
-                    <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-                      <p className="text-sm text-amber-800">
-                        📝 <strong>Obs:</strong> {(pedido as any).observacoes}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Botão para expandir/colapsar mais detalhes */}
-                  <button
-                    onClick={() => toggleDetalhes(pedido.id)}
-                    className="mt-3 w-full py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg flex items-center justify-center gap-1 transition-colors"
-                  >
-                    {isExpanded ? (
-                      <>
-                        <ChevronUp className="w-4 h-4" />
-                        Ocultar detalhes
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="w-4 h-4" />
-                        Ver mais detalhes
-                      </>
+                  {/* GRID DE BOTÕES */}
+                  <div className="grid grid-cols-4 gap-1">
+                    {/* Confirmar/Avançar status */}
+                    {nextStatus && (
+                      <button
+                        onClick={() => updateStatus(pedido, nextStatus)}
+                        className="col-span-4 px-2 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 flex items-center justify-center gap-1"
+                        title={`Avançar para ${STATUS_CONFIG[nextStatus].label}`}
+                      >
+                        <ChevronRight className="w-3 h-3" />
+                        {STATUS_CONFIG[nextStatus].label}
+                      </button>
                     )}
-                  </button>
 
-                  {/* Detalhes expandidos */}
-                  {isExpanded && (
-                    <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
-                      {/* Motoboy */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">🛵 Motoboy:</span>
-                        <select
-                          className="form-input text-sm max-w-40"
-                          value={(pedido as any).motoboy_id || ''}
-                          onChange={e => atribuirMotoboy(pedido.id, e.target.value)}
-                        >
-                          <option value="">Selecionar...</option>
-                          {motoboys.filter(m => m.ativo || m.id === (pedido as any).motoboy_id).map(m => (
-                            <option key={m.id} value={m.id}>{m.nome}</option>
-                          ))}
-                        </select>
-                      </div>
+                    {/* Botão WPP cliente (Confirmar pedido) */}
+                    {(pedido as any).cliente_whatsapp && (
+                      <button
+                        onClick={() => confirmarPedidoWPP(pedido)}
+                        className="px-2 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center justify-center"
+                        title="Confirmar pedido (enviar msg ao cliente)"
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                      </button>
+                    )}
 
-                      {/* Taxa de entrega */}
-                      {(pedido as any).taxa_entrega > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Taxa de entrega:</span>
-                          <span>{formatCurrency((pedido as any).taxa_entrega || 0)}</span>
-                        </div>
-                      )}
+                    {/* Desconto */}
+                    <button
+                      onClick={() => abrirModalDesconto(pedido)}
+                      className="px-2 py-1.5 bg-amber-500 text-white text-xs rounded hover:bg-amber-600 flex items-center justify-center"
+                      title="Dar desconto"
+                    >
+                      <Tag className="w-3 h-3" />
+                    </button>
 
-                      {/* Troco */}
-                      {(pedido as any).troco_para > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Troco para:</span>
-                          <span>{formatCurrency((pedido as any).troco_para)}</span>
-                        </div>
-                      )}
+                    {/* Editar */}
+                    <button
+                      onClick={() => abrirModalEditar(pedido)}
+                      className="px-2 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 flex items-center justify-center"
+                      title="Editar pedido"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
 
-                      {/* Cupom */}
-                      {(pedido as any).cupom_aplicado && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Cupom usado:</span>
-                          <span className="text-green-600 font-medium">{(pedido as any).cupom_aplicado}</span>
-                        </div>
-                      )}
+                    {/* Imprimir */}
+                    <button
+                      onClick={() => imprimirPedido(pedido)}
+                      className="px-2 py-1.5 bg-gray-700 text-white text-xs rounded hover:bg-gray-800 flex items-center justify-center"
+                      title="Imprimir pedido"
+                    >
+                      <Printer className="w-3 h-3" />
+                    </button>
 
-                      {/* Tempo estimado */}
-                      {(pedido as any).tempo_estimado_min && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Tempo estimado:</span>
-                          <span>{(pedido as any).tempo_estimado_min} min</span>
-                        </div>
-                      )}
-
-                      {/* Complemento */}
-                      {(pedido as any).complemento_entrega && (
-                        <div className="text-sm">
-                          <span className="text-gray-600">Complemento:</span>
-                          <p className="text-gray-700">{(pedido as any).complemento_entrega}</p>
-                        </div>
-                      )}
-
-                      {/* WhatsApp rápido */}
-                      {(pedido as any).cliente_whatsapp && (
-                        <a
-                          href={`https://wa.me/${(pedido as any).cliente_whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${(pedido as any).cliente_nome || ''}! Sobre seu pedido ${(pedido as any).codigo || ''}...`)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          Enviar WhatsApp
-                        </a>
-                      )}
-                    </div>
-                  )}
+                    {/* Cancelar */}
+                    {pedido.status !== 'cancelado' && pedido.status !== 'entregue' && (
+                      <button
+                        onClick={() => updateStatus(pedido, 'cancelado')}
+                        className="col-span-4 px-2 py-1.5 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 flex items-center justify-center gap-1"
+                        title="Cancelar pedido"
+                      >
+                        <X className="w-3 h-3" />
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )
           })
         ) : (
-          <div className="bg-white rounded-xl border p-12 text-center">
+          <div className="col-span-full bg-white rounded-xl border p-12 text-center">
             <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido</h3>
             <p className="text-gray-500">Os pedidos aparecerão aqui quando chegarem</p>
