@@ -330,7 +330,7 @@ export default function PedidosPage() {
                       <span className="text-sm text-gray-500">{formatDate(pedido.data_criacao)}</span>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {pedido.forma_pagamento.join(', ')} • {formatCurrency(pedido.valor_total)}
+                      {(Array.isArray(pedido.forma_pagamento) ? pedido.forma_pagamento.join(', ') : pedido.forma_pagamento)} • {formatCurrency(pedido.valor_total)}
                     </p>
                   </div>
 
@@ -428,10 +428,10 @@ export default function PedidosPage() {
               <div>
                 <h3 className="font-medium mb-2">Pagamento</h3>
                 <p className="text-sm text-gray-600">
-                  {selectedPedido.forma_pagamento.map((forma, i) => (
+                  {(Array.isArray(selectedPedido.forma_pagamento) ? selectedPedido.forma_pagamento : [selectedPedido.forma_pagamento]).map((forma, i, arr) => (
                     <span key={forma}>
-                      {forma}: {formatCurrency(selectedPedido.valor_pago[i] || 0)}
-                      {i < selectedPedido.forma_pagamento.length - 1 && ', '}
+                      {forma}: {formatCurrency((selectedPedido.valor_pago && Array.isArray(selectedPedido.valor_pago) ? selectedPedido.valor_pago[i] : 0) || 0)}
+                      {i < arr.length - 1 && ', '}
                     </span>
                   ))}
                   {selectedPedido.troco > 0 && (

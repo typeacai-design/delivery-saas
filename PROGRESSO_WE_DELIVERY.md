@@ -38,7 +38,42 @@
 
 ---
 
-## Histórico — 2026-08-19
+## 2026-08-20 — Correções de Bugs (Sessão 2 — Tarde)
+
+### Bug: Pedido some do painel do lojista após finalização pelo cliente
+
+**Sintoma:** Cliente finalizava pedido no cardápio digital, valor aparecia no faturamento, mas pedido NÃO aparecia na aba de pedidos.
+
+**4 ERROS IDENTIFICADOS E CORRIGIDOS:**
+
+#### ERRO 1: GRANT SELECT restritivo demais (CRÍTICO)
+- **Causa:** Migration 047 concedia apenas 12 colunas para `SELECT` em `pedidos`
+- **Impacto:** `cliente_nome`, `forma_pagamento`, `cliente_whatsapp`, `endereco_entrega`, `troco_para` retornavam `null`
+- **Correção:** Migration 052 aplicada — GRANT SELECT com todas as 29 colunas necessárias
+- **Arquivo:** `supabase/migrations/052_expandir_grants_pedidos_corrigido.sql`
+
+#### ERRO 2: Campos ausentes na resposta da API
+- **Causa:** API `/api/pedidos/public` não retornava `cliente_nome` nem `cliente_whatsapp`
+- **Impacto:** Lojista não conseguia ver dados do cliente no painel
+- **Correção:** Adicionados campos na resposta JSON da API
+- **Arquivo:** `src/app/api/pedidos/public/route.ts`
+
+#### ERRO 3: Forma de pagamento como array não manipulado
+- **Causa:** Código usava `pedido.forma_pagamento.join(', ')` sem verificar se é array
+- **Impacto:** Se `forma_pagamento` fosse `null` ou string, `.join()` falhava
+- **Correção:** Adicionado `Array.isArray()` para verificação defensiva
+- **Arquivo:** `src/app/(dashboard)/pedidos/page.tsx`
+
+#### ERRO 4: Grant em coluna inexistente
+- **Causa:** `pedido_itens` não tem coluna `created_at` — migration falhava silenciosamente
+- **Correção:** Removida coluna inexistente do GRANT
+- **Arquivo:** `supabase/migrations/052_expandir_grants_pedidos_corrigido.sql`
+
+### Commit
+- Migration aplicada diretamente no Supabase via MCP
+- Commits de código no repositório
+
+---
 
 ### Correções de Segurança ✅
 - [x] `criar_pedido_atomico` — REVOGADO do anon

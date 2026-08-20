@@ -351,6 +351,9 @@ export async function POST(request: Request) {
       forma_pagamento: pedido.forma_pagamento,
       contagem_pedidos: contagemPedidos,
       itens: itensParaInserir,
+      // Dados do cliente para o painel do lojista
+      cliente_nome: cliente_nome,
+      cliente_whatsapp: whatsappLimpo,
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error: any) {
     console.error('Erro ao criar pedido público:', error)
