@@ -454,6 +454,7 @@ export function CheckoutDrawer({
         cliente={cliente}
         total={total}
         tempoTotal={tempoTotal}
+        tenantNome={tenantNome}
         onFechar={() => {
           setStep('carrinho')
           onLimparCarrinho()
@@ -1081,7 +1082,7 @@ function ObservacoesView({ observacaoPedido, setObservacaoPedido, itens, subtota
   </div>
 }
 
-function ModalConfirmacao({ pedido, cliente, total, tempoTotal, onFechar, onEnviarWhatsApp }: any) {
+function ModalConfirmacao({ pedido, cliente, total, tempoTotal, tenantNome, onFechar, onEnviarWhatsApp }: any) {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
@@ -1093,14 +1094,14 @@ function ModalConfirmacao({ pedido, cliente, total, tempoTotal, onFechar, onEnvi
 
           <h2 className="text-2xl font-bold mb-2">Pedido Enviado!</h2>
           <p className="text-gray-600 mb-6">
-            Seu pedido foi criado e enviado para <strong>{cliente.nome}</strong>.
+            Seu pedido foi criado e enviado para <strong>{tenantNome || 'a loja'}</strong>.
             <br />Aguarde a confirmação pelo WhatsApp.
           </p>
 
           <div className="wd-panel rounded-2xl p-4 mb-6 text-left space-y-2">
             <div className="flex justify-between">
               <span className="text-gray-600">Pedido</span>
-              <span className="font-medium">#{pedido?.id?.slice(-6) || '---'}</span>
+              <span className="font-bold text-green-600">{pedido?.codigo || `#${pedido?.id?.slice(-6) || '---'}`}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Total</span>
@@ -1114,10 +1115,19 @@ function ModalConfirmacao({ pedido, cliente, total, tempoTotal, onFechar, onEnvi
 
           {/* Pagamento é combinado via WhatsApp com o lojista */}
 
-          {pedido?.contagem_pedidos && (
-            <p className="text-sm text-gray-500 mb-4">
-              📊 Este é o {pedido.contagem_pedidos}º pedido de {cliente.nome}
-            </p>
+          {pedido?.contagem_pedidos > 1 && (
+            <div className="mb-4 p-3 rounded-2xl bg-gradient-to-r from-green-50 to-yellow-50 border border-green-200">
+              <p className="text-sm font-medium text-green-800">
+                🎉 Parabéns! Este é seu {pedido.contagem_pedidos}º pedido!
+              </p>
+            </div>
+          )}
+          {pedido?.contagem_pedidos === 1 && (
+            <div className="mb-4 p-3 rounded-2xl bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200">
+              <p className="text-sm font-medium text-blue-800">
+                👋 Bem-vindo! Este é seu primeiro pedido na {tenantNome || 'loja'}!
+              </p>
+            </div>
           )}
 
           <div className="space-y-3">
