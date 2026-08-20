@@ -68,14 +68,27 @@ export type Pedido = {
   cliente_id: string | null
   cliente_nome?: string
   cliente_whatsapp?: string
+  codigo?: string
   status: PedidoStatus
   valor_total: number
   taxa_entrega: number
   forma_pagamento: string[]
   valor_pago: number[]
   troco: number
+  troco_para?: number
   agendamento: string | null
   observacoes: string | null
+  tipo_entrega?: string
+  endereco_entrega?: string
+  numero_entrega?: string
+  complemento_entrega?: string
+  bairro_entrega?: string
+  valor_subtotal?: number
+  valor_desconto?: number
+  cupom_aplicado?: string
+  tempo_estimado_min?: number
+  motoboy_id?: string
+  motoboy_comissao?: number
   data_criacao: string
   data_atualizacao: string
 }

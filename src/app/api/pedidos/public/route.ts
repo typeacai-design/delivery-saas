@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     const { data: tenant } = await admin.from('tenants').select('id').eq('slug', slug).single()
     if (!tenant) return NextResponse.json({ error: 'Não foi possível consultar os pedidos' }, { status: 404, headers: { 'Cache-Control': 'no-store' } })
     const hash = hashAccessToken(token)
-    const { data, error } = await admin.from('pedidos').select('id,status,created_at,valor_total,tipo_entrega,forma_pagamento,pedido_itens(nome,quantidade,valor_unitario,variante_nome,complementos)').eq('tenant_id', tenant.id).eq('cliente_acesso_token_hash', hash).order('created_at', { ascending: false }).limit(50)
+    const { data, error } = await admin.from('pedidos').select('id,codigo,status,created_at,valor_total,tipo_entrega,forma_pagamento,pedido_itens(nome,quantidade,valor_unitario,variante_nome,complementos)').eq('tenant_id', tenant.id).eq('cliente_acesso_token_hash', hash).order('created_at', { ascending: false }).limit(50)
     if (error) throw error
     return NextResponse.json({ pedidos: data || [] }, { headers: { 'Cache-Control': 'no-store' } })
   } catch { return NextResponse.json({ error: 'Não foi possível consultar os pedidos' }, { status: 500, headers: { 'Cache-Control': 'no-store' } }) }
@@ -342,6 +342,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       id: pedido.id,
+      codigo: pedido.codigo,
       status: pedido.status,
       valor_subtotal: pedido.valor_subtotal,
       taxa_entrega: pedido.taxa_entrega,
