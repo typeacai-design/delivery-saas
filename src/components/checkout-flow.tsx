@@ -402,15 +402,7 @@ export function CheckoutDrawer({
       }
 
       let pedido = await pedidoRes.json()
-      if (formaPagamento === 'pix') {
-        const pixResponse = await fetch('/api/pedido-pix', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-          body: JSON.stringify({ pedido_id: pedido.id }),
-        })
-        const pix = await pixResponse.json()
-        pedido = pixResponse.ok ? { ...pedido, pix } : { ...pedido, pix_error: pix.error || 'PIX indisponível. Fale com a loja para receber a chave.' }
-      }
+      // NÃO processamos pagamento aqui - o cliente seleciona a forma e conversa com o lojista via WhatsApp
       setPedidoFinalizado(pedido)
       setStep('confirmacao')
       onPedidoCriado?.(pedido)
@@ -1120,15 +1112,7 @@ function ModalConfirmacao({ pedido, cliente, total, tempoTotal, onFechar, onEnvi
             </div>
           </div>
 
-          {pedido?.pix && (
-            <div className="wd-panel rounded-2xl p-4 mb-6 text-center">
-              <p className="font-bold mb-3">Pague agora com PIX</p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={pedido.pix.qr_code_base64} alt="QR Code PIX deste pedido" className="size-52 mx-auto rounded-xl bg-white" />
-              <button type="button" className="mt-3 text-sm font-semibold underline" onClick={() => navigator.clipboard.writeText(pedido.pix.br_code)}>Copiar PIX Copia e Cola</button>
-            </div>
-          )}
-          {pedido?.pix_error && <p className="text-sm text-amber-700 mb-4">{pedido.pix_error}</p>}
+          {/* Pagamento é combinado via WhatsApp com o lojista */}
 
           {pedido?.contagem_pedidos && (
             <p className="text-sm text-gray-500 mb-4">
