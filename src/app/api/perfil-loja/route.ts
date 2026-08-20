@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const slug=slugify(check); const { count }=await supabase.from('tenants').select('id',{count:'exact',head:true}).ilike('slug',slug).neq('id',tenantId)
     return out({slug,available:slug.length>=3&&!RESERVED.has(slug)&&!count,suggestions:[`${slug}-delivery`,`${slug}-${String(tenantId).slice(0,4)}`]})
   }
-  const {data,error}=await supabase.from('tenants').select('nome,cpf,cnpj,categoria,tipo_estabelecimento,logo_url,telefone,endereco,numero,cidade,estado,slug').eq('id',tenantId).single()
+  const {data,error}=await supabase.from('tenants').select('nome,cpf,cnpj,categoria,tipo_estabelecimento,logo_url,telefone,endereco,numero,cidade,estado,bairro,complemento,cep,slug,email').eq('id',tenantId).single()
   return error?out({error:error.message},400):out(data)
 }
 
@@ -25,7 +25,19 @@ export async function PUT(request: Request) {
   if(count)return out({error:'Slug indisponível'},409)
   const cpf=String(body.cpf||'').replace(/\D/g,'').slice(0,11);const cnpj=String(body.cnpj||'').replace(/\D/g,'').slice(0,14)
   if(!cpfOk(cpf))return out({error:'CPF inválido'},400);if(cnpj&&cnpj.length!==14)return out({error:'CNPJ deve ter 14 dígitos'},400)
-  const values={nome:String(body.nome||'').trim().slice(0,160),cpf:cpf||null,cnpj:cnpj||null,categoria:body.categoria||null,tipo_estabelecimento:body.categoria||null,telefone:String(body.telefone||'').replace(/\D/g,'').slice(0,15)||null,endereco:String(body.endereco||'').trim().slice(0,300)||null,numero:String(body.numero||'').slice(0,30)||null,cidade:String(body.cidade||'').slice(0,100)||null,estado:String(body.estado||'').slice(0,2).toUpperCase()||null,slug}
+  const values={
+    nome:String(body.nome||'').trim().slice(0,160),
+    cpf:cpf||null,
+    cnpj:cnpj||null,
+    categoria:body.categoria||null,
+    tipo_estabelecimento:body.categoria||null,
+    telefone:String(body.telefone||'').replace(/\D/g,'').slice(0,15)||null,
+    endereco:String(body.endereco||'').trim().slice(0,300)||null,
+    numero:String(body.numero||'').slice(0,30)||null,
+    cidade:String(body.cidade||'').slice(0,100)||null,
+    estado:String(body.estado||'').slice(0,2).toUpperCase()||null,
+    slug
+  }
   if(!values.nome)return out({error:'Nome do negócio é obrigatório'},400)
   const {error}=await supabase.from('tenants').update(values).eq('id',tenantId)
   return error?out({error:error.message},400):out({ok:true,slug})

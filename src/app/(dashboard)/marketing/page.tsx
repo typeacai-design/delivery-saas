@@ -9,9 +9,10 @@ import { formatCurrency } from '@/lib/utils'
 import FidelidadeTab from '@/components/admin/marketing/FidelidadeTab'
 import DisparoTab from '@/components/admin/marketing/DisparoTab'
 import CarrinhoAbandonadoTab from '@/components/admin/marketing/CarrinhoAbandonadoTab'
+import MeusClientesTab from '@/components/admin/marketing/MeusClientesTab'
 import AvaliacoesPage from '../avaliacoes/page'
 
-type Tab = 'fidelidade' | 'disparo' | 'carrinho' | 'aniversariantes' | 'top' | 'cupons' | 'avaliacoes'
+type Tab = 'clientes' | 'fidelidade' | 'disparo' | 'carrinho' | 'aniversariantes' | 'top' | 'cupons' | 'avaliacoes'
 type Periodo = '7d' | '15d' | '30d' | 'custom'
 
 export default function MarketingPage() {
@@ -83,6 +84,7 @@ export default function MarketingPage() {
   }
 
   const tabs = [
+    { id: 'clientes', label: 'Meus Clientes', icon: Users },
     { id: 'fidelidade', label: 'Fidelidade', icon: Star },
     { id: 'disparo', label: 'Disparo WhatsApp', icon: Send },
     { id: 'carrinho', label: 'Carrinho abandonado', icon: Clock },
@@ -144,6 +146,7 @@ export default function MarketingPage() {
         <div className="text-center py-8 hint">Carregando...</div>
       ) : (
         <>
+          {tab === 'clientes' && <MeusClientesTab />}
           {tab === 'fidelidade' && <FidelidadeTab />}
           {tab === 'disparo' && <DisparoTab clientes={clientes} />}
           {tab === 'carrinho' && <CarrinhoAbandonadoTab />}
