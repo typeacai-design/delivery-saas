@@ -1,6 +1,38 @@
-# Progresso We Delivery — 2026-08-18
+# Progresso We Delivery — 2026-08-19
 
 ## Sessão de hoje
+
+### Git + Deploy
+- **Commit**: `8237272` — feat: gestão de matéria-prima, estoque e refatoração de pedidos
+- **GitHub**: https://github.com/typeacai-design/delivery-saas
+- **Deploy**: https://wedelivery.site (produção)
+
+### Migration aplicada
+- `048_estoque_corrigido.sql` — Corrige `criar_pedido_atomico`:
+  - Só baixa estoque de insumos se `controlar_estoque = true`
+  - Novo parâmetro `p_ignorar_estoque` opcional
+
+### Arquivos commitados
+- `public/sounds/pedido-novo.mp3` — Som para novos pedidos
+- `src/app/(dashboard)/gestao/page.tsx` — Página de gestão com matéria-prima
+- `src/app/(dashboard)/configuracoes/estoque/page.tsx` — Página de estoque
+- `src/app/(dashboard)/pedidos/novo/page.tsx` — Refatoração completa (+825/-259 linhas)
+- `src/app/(dashboard)/pedidos/page.tsx` — Melhorias na listagem (+91 linhas)
+- `src/components/admin/ComplementosTab.tsx` — Clone entre listas (+238 linhas)
+- `src/components/admin/ProdutoFormModal.tsx` — Melhorias no formulário (+65 linhas)
+- `src/app/api/configuracoes/entregas/route.ts` — Config de entregas
+- `src/app/api/pedidos/public/route.ts` — API pública de pedidos
+- `src/app/(dashboard)/configuracoes/page.tsx` — Ajustes gerais
+- `src/app/(dashboard)/cardapio/page.tsx` — +1 linha
+- `src/app/cardapio/[slug]/page.tsx` — +1 linha
+- `src/components/cardapio-cliente.tsx` — Ajustes visuais
+
+### Bugs corrigidos no banco
+- Função `criar_pedido_atomico` agora verifica estoque corretamente
+
+---
+
+## Histórico — 2026-08-18
 
 ### Infraestrutura
 - **Git inicializado** no projeto (290 arquivos comitados)
@@ -35,25 +67,25 @@
    - Sem emojis (só texto)
    - Empilhadas verticalmente
 
-## Arquivos modificados hoje
-
-- `src/app/(dashboard)/cardapio/page.tsx` — botão verde, tratamento de erro
-- `src/app/cardapio/[slug]/page.tsx` — ordenação produtos/categorias
-- `src/components/cardapio-cliente.tsx` — tags na foto, transform URL
-- `src/app/globals.css` — `.wd-product-card` e `.wd-product-image` uniformes
-- `supabase/migrations/051_add_categorias_imagem_url.sql` — coluna imagem_url
-
-## Git/Deploy
-
-- Repositório: https://github.com/typeacai-design/delivery-saas
-- Cada commit → push → `vercel --prod --force` (workflow manual)
-- Builds automáticos ao detectar mudanças no CSS/JSX
+---
 
 ## Próxima sessão — Pontos a retomar
 
-- **Sprint 5**: Motoboys + Avaliações
-- **Sprint 6**: Embaixadores + Sorteios
-- **Validação visual**: lojista deve revisar cardápio mobile após todas as mudanças
-- **Integração WhatsApp real** (Z-API) — atual é wa.me manual
-- **Gateway PIX automático** (Yampi/Mercado Pago)
-- **App PWA entregadores**
+### Sprint 5: Motoboys + Avaliações
+- [ ] Implementar motoboys próprios da loja
+- [ ] Sistema de avaliações com estrelas + comentário
+
+### Sprint 6: Embaixadores + Sorteios
+- [ ] Programa de embaixadores
+- [ ] Sorteios por campanha
+
+### Integrações
+- [ ] Z-API para WhatsApp real
+- [ ] Gateway PIX automático (Yampi/Mercado Pago)
+- [ ] App PWA entregadores
+
+### Segurança (BANCO)
+- [ ] Corrigir `criar_pedido_atomico` executável por `anon` — CRÍTICO
+- [ ] Adicionar `search_path` fixo nas funções
+- [ ] Criar RLS policies para `pagamentos`, `api_rate_limits`, `convites_loja`
+- [ ] Ativar leaked password protection no Auth
