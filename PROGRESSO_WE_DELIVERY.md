@@ -38,7 +38,49 @@
 
 ---
 
-## 2026-08-20 — Correções de Bugs (Sessão 2 — Tarde)
+## 2026-08-20 — Melhoramentos no Painel de Pedidos (Sessão 2 — Tarde)
+
+### 1. Som em loop até confirmar
+- Som toca repetidamente até o lojista clicar em "Preparando"
+- Removido do loop quando o status muda de "novo"
+- Hook `useSomNovoPedido` com controle de loop
+
+### 2. Código do pedido formatado (00001/26)
+- Migration 053 aplicada: coluna `codigo` adicionada
+- Função `gerar_codigo_pedido()` gera sequência por tenant/ano
+- Trigger automático atribui código ao criar pedido
+- Formato: 5 dígitos + "/" + 2 últimos dígitos do ano
+- Ex: 00001/26, 00002/26... em 2026; 00001/27, 00002/27... em 2027
+
+### 3. Card de pedido com mais informações
+- Novo layout em formato de **card quadrado**
+- Informações visíveis:
+  - Código do pedido (00001/26)
+  - Nome do cliente
+  - WhatsApp
+  - Data/hora
+  - Valor total
+  - Forma de pagamento
+  - Tipo de entrega/endereço
+  - Observações
+- Detalhes extras em **dropdown colapsável** (Ver mais/menos)
+
+### 4. Estatísticas incluem "Entregues"
+- Adicionado status `entregue` na barra de estatísticas
+- Agora mostra: Novo, Preparando, Pronto, Saiu, **Entregues**
+
+### 5. Removido filtro de motoboy
+- Removido select "Filtrar motoboy:" da barra superior
+- Mantido seletor individual por pedido
+
+### 6. Migrations aplicadas
+- 053_codigo_pedido_grants
+- 053_codigo_funcoes
+- 053_ajustar_trigger_codigo
+- 053_corrigir_updated_at
+- 053_atualizar_codigos_existentes (via função)
+
+---
 
 ### Bug: Pedido some do painel do lojista após finalização pelo cliente
 

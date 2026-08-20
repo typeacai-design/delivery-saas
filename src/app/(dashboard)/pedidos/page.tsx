@@ -389,7 +389,7 @@ export default function PedidosPage() {
                       {/* Código do pedido */}
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-2xl font-bold text-gray-900">
-                          {(pedido as any).codigo || `#${pedido.id.slice(0, 8)}`}
+                          {(pedido as any).codigo || ('#' + pedido.id.slice(0, 8))}
                         </span>
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
                           <StatusIcon className="w-3 h-3" />
@@ -567,7 +567,7 @@ export default function PedidosPage() {
               </div>
             )
           })
-        }) : (
+        ) : (
           <div className="bg-white rounded-xl border p-12 text-center">
             <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido</h3>
@@ -583,7 +583,7 @@ export default function PedidosPage() {
             <div className="p-6 border-b">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-xl font-bold">Pedido {(selectedPedido as any).codigo || `#${selectedPedido.id.slice(0, 8)}`}</h2>
+                  <h2 className="text-xl font-bold">Pedido {(selectedPedido as any).codigo || ('#' + selectedPedido.id.slice(0, 8))}</h2>
                   <p className="text-gray-500">{formatDateFull(selectedPedido.data_criacao)}</p>
                 </div>
                 <button onClick={() => setSelectedPedido(null)} className="text-gray-400 hover:text-gray-600">
