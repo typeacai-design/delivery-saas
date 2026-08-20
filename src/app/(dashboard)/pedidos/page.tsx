@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2 } from 'lucide-react'
+import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -95,6 +95,195 @@ const NEXT_STATUS: Record<PedidoStatus, PedidoStatus | null> = {
 // Status que devem aparecer na barra de estatísticas (exclui 'todos' que é calculado)
 const STATUS_LISTA: PedidoStatus[] = ['novo', 'preparando', 'pronto', 'saiu', 'entregue', 'cancelado']
 
+// Componente para editar UM item com autocomplete de produtos do banco
+function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
+  item: any
+  idx: number
+  onChange: (idx: number, novo: any) => void
+  onRemove: (idx: number) => void
+  tenantId: string
+}) {
+  const supabase = createClient()
+  const [produtos, setProdutos] = useState<any[]>([])
+  const [complementosDb, setComplementosDb] = useState<any[]>([])
+  const [categorias, setCategorias] = useState<any[]>([])
+  const [showProdutos, setShowProdutos] = useState(false)
+  const [showComps, setShowComps] = useState(false)
+  const [busca, setBusca] = useState('')
+
+  useEffect(() => {
+    const carregar = async () => {
+      const { data: cats } = await supabase.from('categorias_produtos').select('id, nome').eq('tenant_id', tenantId).order('nome')
+      setCategorias(cats || [])
+      const { data: prods } = await supabase.from('produtos').select('id, nome, preco, categoria_id, ativo').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
+      setProdutos(prods || [])
+      const { data: comps } = await supabase.from('complementos').select('id, nome, preco, ativo, categoria_id').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
+      setComplementosDb(comps || [])
+    }
+    carregar()
+  }, [tenantId])
+
+  const selecionarProduto = (prod: any) => {
+    onChange(idx, { ...item, produto_id: prod.id, nome: prod.nome, valor_unitario: Number(prod.preco) })
+    setShowProdutos(false)
+    setBusca('')
+  }
+
+  const toggleComplemento = (comp: any) => {
+    const compsAtuais = Array.isArray(item.complementos)
+      ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
+      : []
+    const existe = compsAtuais.find((c: any) => c.id === comp.id)
+    let novos: any[]
+    if (existe) {
+      novos = compsAtuais.filter((c: any) => c.id !== comp.id)
+    } else {
+      novos = [...compsAtuais, { id: comp.id, nome: comp.nome, valor: Number(comp.preco), quantidade: 1 }]
+    }
+    onChange(idx, { ...item, complementos: novos })
+  }
+
+  const alterarQtdComplemento = (compId: string, delta: number) => {
+    const compsAtuais = Array.isArray(item.complementos)
+      ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
+      : []
+    const novos = compsAtuais.map((c: any) =>
+      c.id === compId ? { ...c, quantidade: Math.max(1, (c.quantidade || 1) + delta) } : c
+    )
+    onChange(idx, { ...item, complementos: novos })
+  }
+
+  const produtosFiltrados = produtos.filter((p) =>
+    !busca || p.nome.toLowerCase().includes(busca.toLowerCase())
+  )
+
+  const compsAtuais = Array.isArray(item.complementos)
+    ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
+    : []
+
+  return (
+    <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+      <div className="flex items-start gap-2">
+        {/* BUSCA PRODUTO */}
+        <div className="flex-1 relative">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              className="form-input text-sm w-full pl-8"
+              placeholder="Buscar produto..."
+              value={item.nome || ''}
+              onFocus={() => setShowProdutos(true)}
+              onChange={(e) => {
+                onChange(idx, { ...item, nome: e.target.value })
+                setBusca(e.target.value)
+                setShowProdutos(true)
+              }}
+            />
+          </div>
+          {showProdutos && (
+            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              {produtosFiltrados.length === 0 ? (
+                <p className="p-3 text-sm text-gray-500">Nenhum produto encontrado</p>
+              ) : (
+                produtosFiltrados.slice(0, 30).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => selecionarProduto(p)}
+                    className="w-full text-left p-2 hover:bg-green-50 flex justify-between items-center text-sm border-b last:border-b-0"
+                  >
+                    <span>{p.nome}</span>
+                    <span className="font-medium text-green-600">{formatCurrency(Number(p.preco))}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* QTD */}
+        <input
+          type="number"
+          min={1}
+          className="form-input text-sm w-16 text-center"
+          value={item.quantidade || 1}
+          onChange={(e) => onChange(idx, { ...item, quantidade: Number(e.target.value) || 1 })}
+          title="Quantidade"
+        />
+
+        {/* VALOR */}
+        <input
+          type="number"
+          step="0.01"
+          className="form-input text-sm w-24"
+          value={item.valor_unitario || 0}
+          onChange={(e) => onChange(idx, { ...item, valor_unitario: Number(e.target.value) || 0 })}
+          title="Valor unitário"
+        />
+
+        {/* REMOVER */}
+        <button
+          type="button"
+          onClick={() => onRemove(idx)}
+          className="p-2 text-red-600 hover:bg-red-50 rounded"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* COMPLEMENTOS */}
+      <div className="ml-2">
+        <button
+          type="button"
+          onClick={() => setShowComps(!showComps)}
+          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+        >
+          {showComps ? '▲ Ocultar' : '▼ Adicionar'} complementos ({compsAtuais.length})
+        </button>
+        {showComps && (
+          <div className="mt-1 p-2 bg-white border rounded-lg max-h-40 overflow-y-auto">
+            {complementosDb.length === 0 ? (
+              <p className="text-xs text-gray-500">Nenhum complemento cadastrado</p>
+            ) : (
+              complementosDb.map((c) => {
+                const selecionado = compsAtuais.find((cc: any) => cc.id === c.id)
+                return (
+                  <div key={c.id} className="flex items-center justify-between py-1 text-xs">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1">
+                      <input
+                        type="checkbox"
+                        checked={!!selecionado}
+                        onChange={() => toggleComplemento(c)}
+                        className="size-3"
+                      />
+                      <span>{c.nome}</span>
+                    </label>
+                    <span className="text-green-600 mr-2">+{formatCurrency(Number(c.preco))}</span>
+                    {selecionado && (
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => alterarQtdComplemento(c.id, -1)} className="px-1 bg-gray-200 rounded">-</button>
+                        <span>{selecionado.quantidade}</span>
+                        <button type="button" onClick={() => alterarQtdComplemento(c.id, 1)} className="px-1 bg-gray-200 rounded">+</button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+        )}
+        {compsAtuais.length > 0 && (
+          <div className="text-xs text-gray-500 mt-1">
+            {compsAtuais.map((c: any) => (
+              <span key={c.id} className="mr-2">+{c.quantidade}x {c.nome}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Componente para mostrar os itens do pedido (carrega sob demanda)
 function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compacto?: boolean }) {
   const [itens, setItens] = useState<any[]>([])
@@ -177,6 +366,7 @@ export default function PedidosPage() {
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
   const [itensEditando, setItensEditando] = useState<any[]>([])
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+  const [tenantIdAtual, setTenantIdAtual] = useState<string>('')
   const supabase = createClient()
   const { inicializarIds, adicionarAoLoop, removerDoLoop, verificarMudancaStatus } = useSomNovoPedido(somAtivado)
 
@@ -186,6 +376,7 @@ export default function PedidosPage() {
     const setupRealtime = async () => {
       const tenantId = await activeTenantId()
       if (!tenantId) { setLoading(false); return }
+      setTenantIdAtual(tenantId)
 
       // 1. Carrega pedidos iniciais
       const { data } = await supabase
@@ -1063,62 +1254,34 @@ export default function PedidosPage() {
 
                 <div className="space-y-2">
                   {itensEditando.map((item, idx) => (
-                    <div key={idx} className="bg-gray-50 p-2 rounded-lg flex items-center gap-2">
-                      <div className="flex-1">
-                        <input
-                          className="form-input text-sm w-full mb-1"
-                          placeholder="Nome do item"
-                          value={item.nome || ''}
-                          onChange={e => {
-                            const novos = [...itensEditando]
-                            novos[idx] = { ...novos[idx], nome: e.target.value }
-                            setItensEditando(novos)
-                          }}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="number"
-                            min={1}
-                            className="form-input text-sm"
-                            placeholder="Qtd"
-                            value={item.quantidade || 1}
-                            onChange={e => {
-                              const novos = [...itensEditando]
-                              novos[idx] = { ...novos[idx], quantidade: Number(e.target.value) || 1 }
-                              setItensEditando(novos)
-                            }}
-                          />
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="form-input text-sm"
-                            placeholder="Valor R$"
-                            value={item.valor_unitario || 0}
-                            onChange={e => {
-                              const novos = [...itensEditando]
-                              novos[idx] = { ...novos[idx], valor_unitario: Number(e.target.value) || 0 }
-                              setItensEditando(novos)
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const novos = itensEditando.filter((_, i) => i !== idx)
-                          setItensEditando(novos)
-                        }}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <ItemEditor
+                      key={idx}
+                      item={item}
+                      idx={idx}
+                      tenantId={tenantIdAtual}
+                      onChange={(i, novo) => {
+                        const novos = [...itensEditando]
+                        novos[i] = novo
+                        setItensEditando(novos)
+                      }}
+                      onRemove={(i) => {
+                        const novos = itensEditando.filter((_, ix) => ix !== i)
+                        setItensEditando(novos)
+                      }}
+                    />
                   ))}
                 </div>
 
                 {/* TOTAL */}
                 <div className="mt-3 pt-3 border-t">
                   {(() => {
-                    const subtotal = itensEditando.reduce((acc, i) => acc + (Number(i.valor_unitario) || 0) * (Number(i.quantidade) || 1), 0)
+                    const subtotal = itensEditando.reduce((acc, i) => {
+                      const compTotal = (Array.isArray(i.complementos)
+                        ? (typeof i.complementos === 'string' ? JSON.parse(i.complementos) : i.complementos)
+                        : []
+                      ).reduce((s: number, c: any) => s + (Number(c.valor) || 0) * (Number(c.quantidade) || 1), 0)
+                      return acc + ((Number(i.valor_unitario) || 0) + compTotal) * (Number(i.quantidade) || 1)
+                    }, 0)
                     const taxa = Number(pedidoEditando.taxa_entrega) || 0
                     const desconto = Number(pedidoEditando.valor_desconto) || 0
                     const total = Math.max(0, subtotal + taxa - desconto)
