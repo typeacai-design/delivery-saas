@@ -612,4 +612,3 @@ function PerfilEditavel({tenant,onSaved}:{tenant:any;onSaved:()=>Promise<void>})
     </div>
   </div>
 }
-}
