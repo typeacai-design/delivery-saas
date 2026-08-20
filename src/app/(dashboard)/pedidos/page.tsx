@@ -91,8 +91,8 @@ const NEXT_STATUS: Record<PedidoStatus, PedidoStatus | null> = {
   cancelado: null,
 }
 
-// Status que devem aparecer na barra de estatísticas
-const STATUS_LISTA: PedidoStatus[] = ['novo', 'preparando', 'pronto', 'saiu', 'entregue']
+// Status que devem aparecer na barra de estatísticas (exclui 'todos' que é calculado)
+const STATUS_LISTA: PedidoStatus[] = ['novo', 'preparando', 'pronto', 'saiu', 'entregue', 'cancelado']
 
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
@@ -343,8 +343,14 @@ export default function PedidosPage() {
         </div>
       </div>
 
-      {/* Stats Bar - COM ENTREGUES */}
+      {/* Stats Bar - COM TODOS E CANCELADOS */}
       <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
+        {/* Card "Todos" - mostra total */}
+        <div className="bg-gray-100 border border-gray-300 rounded-lg px-4 py-2 flex items-center gap-2 whitespace-nowrap">
+          <span className="text-gray-700 font-medium">Todos</span>
+          <span className="bg-white px-2 py-0.5 rounded-full text-sm font-bold">{pedidos.length}</span>
+        </div>
+
         {STATUS_LISTA.map((status) => {
           const count = pedidos.filter((p) => p.status === status).length
           const config = STATUS_CONFIG[status]
