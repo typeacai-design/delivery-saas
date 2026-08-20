@@ -103,6 +103,7 @@ export default function PedidosPage() {
   const [novosPedidosCount, setNovosPedidosCount] = useState(0)
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
+  const [filtroStatus, setFiltroStatus] = useState<string | null>(null) // null = todos
   const supabase = createClient()
   const { inicializarIds, adicionarAoLoop, removerDoLoop, verificarMudancaStatus } = useSomNovoPedido(somAtivado)
 
@@ -343,34 +344,58 @@ export default function PedidosPage() {
         </div>
       </div>
 
-      {/* Stats Bar - COM TODOS E CANCELADOS */}
-      <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
+      {/* Stats Bar - BOTOES PEQUENOS E CLICAVEIS */}
+      <div className="flex gap-2 mb-4 flex-wrap">
         {/* Card "Todos" - mostra total */}
-        <div className="bg-gray-100 border border-gray-300 rounded-lg px-4 py-2 flex items-center gap-2 whitespace-nowrap">
-          <span className="text-gray-700 font-medium">Todos</span>
-          <span className="bg-white px-2 py-0.5 rounded-full text-sm font-bold">{pedidos.length}</span>
-        </div>
+        <button
+          onClick={() => setFiltroStatus(null)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+            filtroStatus === null
+              ? 'bg-gray-800 text-white shadow-md'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <span>Todos</span>
+          <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs font-bold">{pedidos.length}</span>
+        </button>
 
         {STATUS_LISTA.map((status) => {
           const count = pedidos.filter((p) => p.status === status).length
           const config = STATUS_CONFIG[status]
+          const isActive = filtroStatus === status
           return (
-            <div
+            <button
               key={status}
-              className={`${config.bgColor} border rounded-lg px-4 py-2 flex items-center gap-2 whitespace-nowrap`}
+              onClick={() => setFiltroStatus(isActive ? null : status)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? config.bgColor + ' ' + config.color + ' shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
             >
-              <config.icon className="w-4 h-4" />
-              <span className={`font-medium ${config.color}`}>{config.label}</span>
-              <span className="bg-white px-2 py-0.5 rounded-full text-sm font-bold">{count}</span>
-            </div>
+              <config.icon className="w-3 h-3" />
+              <span>{config.label}</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+            </button>
           )
         })}
       </div>
 
+      {/* Pedidos filtrados ou todos */}
+      {(() => {
+        const pedidosFiltrados = filtroStatus
+          ? pedidos.filter(p => p.status === filtroStatus)
+          : pedidos
+        const statusConfig = filtroStatus ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
+        return (
+          <>
+            {filtroStatus && (
+              <div className="mb-4 text-sm text-gray-500">
+                Mostrando <strong>{statusConfig?.label}</strong> ({pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''})
+                <button onClick={() => setFiltroStatus(null)} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
+              </div>
+            )}
+
       {/* Lista de Pedidos em CARDS */}
       <div className="space-y-4">
-        {pedidos.length > 0 ? (
-          pedidos.map((pedido) => {
+        {pedidosFiltrados.length > 0 ? (
+          pedidosFiltrados.map((pedido) => {
             const config = STATUS_CONFIG[pedido.status]
             const StatusIcon = config.icon
             const nextStatus = NEXT_STATUS[pedido.status]
@@ -581,6 +606,9 @@ export default function PedidosPage() {
           </div>
         )}
       </div>
+          </>
+        )
+      })()}
 
       {/* Modal de Detalhes Completos */}
       {selectedPedido && (
