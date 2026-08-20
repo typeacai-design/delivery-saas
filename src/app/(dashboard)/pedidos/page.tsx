@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil } from 'lucide-react'
+import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2 } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -173,6 +173,10 @@ export default function PedidosPage() {
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
   const [filtroStatus, setFiltroStatus] = useState<string | null>(null) // null = todos
+  const [modalEditarAberto, setModalEditarAberto] = useState(false)
+  const [pedidoEditando, setPedidoEditando] = useState<any>(null)
+  const [itensEditando, setItensEditando] = useState<any[]>([])
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false)
   const supabase = createClient()
   const { inicializarIds, adicionarAoLoop, removerDoLoop, verificarMudancaStatus } = useSomNovoPedido(somAtivado)
 
@@ -389,9 +393,47 @@ export default function PedidosPage() {
     })
   }
 
-  // Editar pedido (placeholder - redireciona para modal custom)
+  // Editar pedido - abre modal real
   const abrirModalEditar = (pedido: any) => {
-    alert(`Editar pedido ${pedido.codigo || pedido.id} - Funcionalidade será implementada em próxima sprint. Por enquanto, cancele e recrie.`)
+    setPedidoEditando(pedido)
+    setModalEditarAberto(true)
+  }
+
+  const salvarEdicao = async () => {
+    if (!pedidoEditando) return
+    setSalvandoEdicao(true)
+    try {
+      const body = {
+        cliente_nome: pedidoEditando.cliente_nome,
+        cliente_whatsapp: pedidoEditando.cliente_whatsapp,
+        endereco_entrega: pedidoEditando.endereco_entrega,
+        numero_entrega: pedidoEditando.numero_entrega,
+        complemento_entrega: pedidoEditando.complemento_entrega,
+        bairro_entrega: pedidoEditando.bairro_entrega,
+        observacoes: pedidoEditando.observacoes,
+        taxa_entrega: Number(pedidoEditando.taxa_entrega) || 0,
+        valor_desconto: Number(pedidoEditando.valor_desconto) || 0,
+        itens: itensEditando,
+      }
+      const r = await fetch(`/api/pedidos/${pedidoEditando.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) {
+        const err = await r.json()
+        throw new Error(err.error || 'Erro ao salvar')
+      }
+      alert('Pedido atualizado!')
+      setModalEditarAberto(false)
+      setPedidoEditando(null)
+      setItensEditando([])
+      loadPedidos()
+    } catch (e: any) {
+      alert(e.message || 'Erro ao salvar')
+    } finally {
+      setSalvandoEdicao(false)
+    }
   }
 
   // Cache de itens por pedido (carrega sob demanda)
@@ -407,6 +449,13 @@ export default function PedidosPage() {
     }
     carregarItensCache()
   }, [pedidos])
+
+  // Carrega itens quando modal de edição abre
+  useEffect(() => {
+    if (modalEditarAberto && pedidoEditando) {
+      setItensEditando(itensCache[pedidoEditando.id] || [])
+    }
+  }, [modalEditarAberto, pedidoEditando, itensCache])
 
   const loadDetalhesPedido = async (pedido: Pedido) => {
     setSelectedPedido(pedido)
@@ -899,6 +948,208 @@ export default function PedidosPage() {
                   </a>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EDIÇÃO */}
+      {modalEditarAberto && pedidoEditando && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-auto">
+            <div className="p-4 border-b sticky top-0 bg-white z-10 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Editar pedido {pedidoEditando.codigo || pedidoEditando.id.slice(0, 8)}</h2>
+              <button onClick={() => setModalEditarAberto(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* DADOS CLIENTE */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="text-sm">
+                  <span className="font-medium block mb-1">Nome do cliente</span>
+                  <input
+                    className="form-input w-full"
+                    value={pedidoEditando.cliente_nome || ''}
+                    onChange={e => setPedidoEditando({ ...pedidoEditando, cliente_nome: e.target.value })}
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium block mb-1">WhatsApp</span>
+                  <input
+                    className="form-input w-full"
+                    value={pedidoEditando.cliente_whatsapp || ''}
+                    onChange={e => setPedidoEditando({ ...pedidoEditando, cliente_whatsapp: e.target.value })}
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium block mb-1">Endereço</span>
+                  <input
+                    className="form-input w-full"
+                    value={pedidoEditando.endereco_entrega || ''}
+                    onChange={e => setPedidoEditando({ ...pedidoEditando, endereco_entrega: e.target.value })}
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium block mb-1">Número</span>
+                  <input
+                    className="form-input w-full"
+                    value={pedidoEditando.numero_entrega || ''}
+                    onChange={e => setPedidoEditando({ ...pedidoEditando, numero_entrega: e.target.value })}
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium block mb-1">Bairro</span>
+                  <input
+                    className="form-input w-full"
+                    value={pedidoEditando.bairro_entrega || ''}
+                    onChange={e => setPedidoEditando({ ...pedidoEditando, bairro_entrega: e.target.value })}
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium block mb-1">Complemento</span>
+                  <input
+                    className="form-input w-full"
+                    value={pedidoEditando.complemento_entrega || ''}
+                    onChange={e => setPedidoEditando({ ...pedidoEditando, complemento_entrega: e.target.value })}
+                  />
+                </label>
+                <label className="text-sm md:col-span-2">
+                  <span className="font-medium block mb-1">Observações</span>
+                  <textarea
+                    className="form-input w-full"
+                    rows={2}
+                    value={pedidoEditando.observacoes || ''}
+                    onChange={e => setPedidoEditando({ ...pedidoEditando, observacoes: e.target.value })}
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium block mb-1">Taxa de entrega (R$)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-input w-full"
+                    value={pedidoEditando.taxa_entrega || 0}
+                    onChange={e => setPedidoEditando({ ...pedidoEditando, taxa_entrega: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="font-medium block mb-1">Desconto (R$)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-input w-full"
+                    value={pedidoEditando.valor_desconto || 0}
+                    onChange={e => setPedidoEditando({ ...pedidoEditando, valor_desconto: Number(e.target.value) })}
+                  />
+                </label>
+              </div>
+
+              {/* ITENS */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold">Itens do pedido</h3>
+                  <button
+                    onClick={() => {
+                      const novoItem = { produto_id: '', nome: '', quantidade: 1, valor_unitario: 0, complementos: [] }
+                      setItensEditando([...itensEditando, novoItem])
+                    }}
+                    className="px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Adicionar item
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {itensEditando.map((item, idx) => (
+                    <div key={idx} className="bg-gray-50 p-2 rounded-lg flex items-center gap-2">
+                      <div className="flex-1">
+                        <input
+                          className="form-input text-sm w-full mb-1"
+                          placeholder="Nome do item"
+                          value={item.nome || ''}
+                          onChange={e => {
+                            const novos = [...itensEditando]
+                            novos[idx] = { ...novos[idx], nome: e.target.value }
+                            setItensEditando(novos)
+                          }}
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            className="form-input text-sm"
+                            placeholder="Qtd"
+                            value={item.quantidade || 1}
+                            onChange={e => {
+                              const novos = [...itensEditando]
+                              novos[idx] = { ...novos[idx], quantidade: Number(e.target.value) || 1 }
+                              setItensEditando(novos)
+                            }}
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="form-input text-sm"
+                            placeholder="Valor R$"
+                            value={item.valor_unitario || 0}
+                            onChange={e => {
+                              const novos = [...itensEditando]
+                              novos[idx] = { ...novos[idx], valor_unitario: Number(e.target.value) || 0 }
+                              setItensEditando(novos)
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const novos = itensEditando.filter((_, i) => i !== idx)
+                          setItensEditando(novos)
+                        }}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* TOTAL */}
+                <div className="mt-3 pt-3 border-t">
+                  {(() => {
+                    const subtotal = itensEditando.reduce((acc, i) => acc + (Number(i.valor_unitario) || 0) * (Number(i.quantidade) || 1), 0)
+                    const taxa = Number(pedidoEditando.taxa_entrega) || 0
+                    const desconto = Number(pedidoEditando.valor_desconto) || 0
+                    const total = Math.max(0, subtotal + taxa - desconto)
+                    return (
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(subtotal)}</span></div>
+                        {taxa > 0 && <div className="flex justify-between"><span>Taxa:</span><span>{formatCurrency(taxa)}</span></div>}
+                        {desconto > 0 && <div className="flex justify-between text-green-600"><span>Desconto:</span><span>-{formatCurrency(desconto)}</span></div>}
+                        <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>TOTAL:</span><span className="text-green-600">{formatCurrency(total)}</span></div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t sticky bottom-0 bg-white flex justify-end gap-2">
+              <button
+                onClick={() => setModalEditarAberto(false)}
+                className="px-4 py-2 border rounded-lg text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarEdicao}
+                disabled={salvandoEdicao}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-1"
+              >
+                <Save className="w-4 h-4" />
+                {salvandoEdicao ? 'Salvando...' : 'Salvar alterações'}
+              </button>
             </div>
           </div>
         </div>
