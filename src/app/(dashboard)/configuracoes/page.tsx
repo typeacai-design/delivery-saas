@@ -362,9 +362,7 @@ function EntregasTab() {
   const empty = { id: '', bairro: '', taxa: 0, prazo_min: '', ativo: true }
   const [data,setData]=useState<any>({bairros:[],config:{valor_km:2,minimo:5,max_km:20,arredondamento:'ceil'},origem:{}})
   const [form,setForm]=useState<any>(empty); const [metodo,setMetodo]=useState<'bairro'|'km'>('bairro'); const [query,setQuery]=useState(''); const [suggestions,setSuggestions]=useState<any[]>([]); const [mapOk,setMapOk]=useState<boolean|null>(null); const [preview,setPreview]=useState<any>(null); const [msg,setMsg]=useState('')
-  const [venderSemEstoque,setVenderSemEstoque]=useState(false)
-  const [salvandoEstoque,setSalvandoEstoque]=useState(false)
-  const load=async()=>{const r=await fetch('/api/configuracoes/entregas',{cache:'no-store'});const b=await r.json();if(r.ok){setData(b);setMetodo(b.config?.metodo||'bairro');setQuery(b.origem?.endereco||'');setVenderSemEstoque(b.config?.entrega_km?.vender_sem_estoque===true)}}
+  const load=async()=>{const r=await fetch('/api/configuracoes/entregas',{cache:'no-store'});const b=await r.json();if(r.ok){setData(b);setMetodo(b.config?.metodo||'bairro');setQuery(b.origem?.endereco||'')}}
   useEffect(()=>{load();fetch('/api/mapbox',{cache:'no-store'}).then(r=>r.json()).then(b=>setMapOk(Boolean(b.configured))).catch(()=>setMapOk(false))},[])
   useEffect(()=>{if(query.length<3)return setSuggestions([]);const timer=setTimeout(async()=>{const r=await fetch('/api/mapbox',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'search',query})});const b=await r.json();setMapOk(b.configured);setSuggestions(b.suggestions||[])},350);return()=>clearTimeout(timer)},[query])
   const saveBairro=async()=>{const r=await fetch('/api/configuracoes/entregas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const b=await r.json();setMsg(r.ok?'Bairro salvo.':b.error);if(r.ok){setForm(empty);load()}}
@@ -372,11 +370,9 @@ function EntregasTab() {
   const selectPlace=(place:any)=>{setData((d:any)=>({...d,origem:{endereco:place.label,latitude:place.latitude,longitude:place.longitude}}));setQuery(place.label);setSuggestions([])}
   const saveKm=async()=>{if(metodo==='km'&&mapOk!==true)return setMsg('Entrega por km indisponível sem MAPBOX_ACCESS_TOKEN. Use o método por bairro.');const config={...data.config,metodo};const r=await fetch('/api/configuracoes/entregas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'km',metodo,config,origem:{...data.origem,endereco:query}})});setMsg(r.ok?'Configuração salva.':(await r.json()).error)}
   const calcPreview=async()=>{if(!preview?.longitude||!data.origem?.longitude)return;const r=await fetch('/api/mapbox',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'route',origem:data.origem,destino:preview})});const b=await r.json();if(r.ok){const raw=Math.max(Number(data.config.minimo)||0,b.km*Number(data.config.valor_km||0));const taxa=data.config.arredondamento==='ceil'?Math.ceil(raw):data.config.arredondamento==='round'?Math.round(raw):raw;setPreview({...preview,...b,taxa})}else setMsg(b.error)}
-  const salvarVenderSemEstoque=async()=>{setSalvandoEstoque(true);const config={...data.config,entrega_km:{...data.config?.entrega_km,vender_sem_estoque:venderSemEstoque}};const r=await fetch('/api/configuracoes/entregas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'config',config})});const b=await r.json();setMsg(r.ok?'Configuração de estoque salva.':b.error);setSalvandoEstoque(false)}
   return <div className="space-y-5">
     <div className="glass p-6"><h2 className="text-lg font-semibold mb-4">Método da taxa</h2><div className="grid grid-cols-2 gap-3">{(['bairro','km'] as const).map(v=><button key={v} disabled={v==='km'&&mapOk===false} onClick={()=>{if(v==='km'&&mapOk!==true){setMsg('Entrega por km indisponível. Configure o Mapbox ou mantenha bairro.');return}setMetodo(v)}} className="p-4 rounded-xl border disabled:opacity-50 disabled:cursor-not-allowed" style={{borderColor:metodo===v?'var(--green)':'var(--line)'}}>{v==='bairro'?'Por bairro':'Por quilômetro'}</button>)}</div></div>
-    <div className="glass p-6"><h2 className="text-lg font-semibold mb-4">Controle de estoque</h2><div className="flex items-start gap-4"><label className="flex items-start gap-3 cursor-pointer flex-1"><input type="checkbox" checked={venderSemEstoque} onChange={e=>setVenderSemEstoque(e.target.checked)} className="mt-1 size-4 rounded border-gray-300 text-green-600"/><div><p className="font-medium">Vender mesmo sem estoque</p><p className="text-sm text-gray-500 mt-1">Quando ativado, os pedidos são finalizados mesmo que o estoque de matéria-prima, complementos ou produtos esteja zerado ou negativo. Ideal para quem prepara sob demanda.</p></div></label><button className="btn-primary shrink-0" onClick={salvarVenderSemEstoque} disabled={salvandoEstoque}>{salvandoEstoque?'Salvando...':'Salvar'}</button></div></div>
-    {metodo==='bairro'?<><div className="glass p-6"><h2 className="text-lg font-semibold mb-4">{form.id?'Editar':'Novo'} bairro</h2><div className="grid md:grid-cols-5 gap-3"><input placeholder="Bairro" value={form.bairro} onChange={e=>setForm({...form,bairro:e.target.value})}/><input type="number" step=".01" placeholder="Taxa" value={form.taxa} onChange={e=>setForm({...form,taxa:Number(e.target.value)})}/><input type="number" placeholder="Prazo (min)" value={form.prazo_min} onChange={e=>setForm({...form,prazo_min:e.target.value})}/><label className="flex items-center gap-2"><input type="checkbox" checked={form.ativo} onChange={e=>setForm({...form,ativo:e.target.checked})}/>Ativo</label><button className="btn-primary justify-center" onClick={saveBairro}><Save size={14}/>Salvar</button></div></div><div className="glass p-6 space-y-2">{data.bairros.map((b:any)=><div key={b.id} className="glass-soft p-3 flex items-center gap-3"><MapPin size={15}/><b className="flex-1">{b.bairro}</b><span>{formatCurrency(Number(b.taxa))}{b.prazo_min?` · ${b.prazo_min} min`:''}</span><span className={b.ativo?'text-green-700':'text-gray-400'}>{b.ativo?'Ativo':'Inativo'}</span><button onClick={()=>setForm({...b,prazo_min:b.prazo_min||''})}>Editar</button><button className="text-red-600" onClick={()=>remove(b.id)}>Excluir</button></div>)}</div></>:<div className="glass p-6 space-y-4"><h2 className="text-lg font-semibold">Taxa por distância real</h2><div className="relative"><label>Origem da loja</label><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Busque o endereço de origem"/><div className="absolute z-20 bg-white shadow rounded-xl w-full">{suggestions.map(s=><button className="block w-full text-left p-2" key={s.id} onClick={()=>selectPlace(s)}>{s.label}</button>)}</div></div>{mapOk===false&&<div className="p-3 bg-amber-50 text-amber-800 rounded-xl">Mapa indisponível: configure MAPBOX_ACCESS_TOKEN no servidor. Bairro continua funcionando.</div>}<CoordinateMap value={data.origem} onChange={(p:any)=>setData((d:any)=>({...d,origem:{...d.origem,...p}}))}/><div className="grid md:grid-cols-4 gap-3"><FieldNum label="R$/km" value={data.config.valor_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,valor_km:v}}))}/><FieldNum label="Taxa mínima" value={data.config.minimo} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,minimo:v}}))}/><FieldNum label="Raio máximo (km)" value={data.config.max_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,max_km:v}}))}/><label>Arredondamento<select value={data.config.arredondamento} onChange={e=>setData((d:any)=>({...d,config:{...d.config,arredondamento:e.target.value}}))}><option value="ceil">Para cima</option><option value="round">Mais próximo</option><option value="none">Centavos</option></select></label></div><button className="btn-primary" onClick={saveKm}>Salvar taxa por km</button><div className="border-t pt-4"><h3 className="font-semibold">Prévia de rota</h3><input className="mt-2" placeholder="Longitude destino" onChange={e=>setPreview({...preview,longitude:Number(e.target.value)})}/><input className="mt-2" placeholder="Latitude destino" onChange={e=>setPreview({...preview,latitude:Number(e.target.value)})}/><button className="btn-ghost mt-2" onClick={calcPreview}>Calcular rota</button>{preview?.km&&<p className="mt-2"><b>{preview.km.toFixed(2)} km</b> · {preview.minutos} min · taxa {formatCurrency(preview.taxa)}</p>}</div></div>}{msg&&<p className="text-sm text-center">{msg}</p>}
+    {metodo==='bairro'?<><div className="glass p-6"><h2 className="text-lg font-semibold mb-4">{form.id?'Editar':'Novo'} bairro</h2><div className="grid md:grid-cols-5 gap-3"><input placeholder="Bairro" value={form.bairro} onChange={e=>setForm({...form,bairro:e.target.value})} className="form-input"/><input type="number" step=".01" placeholder="Taxa" value={form.taxa} onChange={e=>setForm({...form,taxa:Number(e.target.value)})} className="form-input"/><input type="number" placeholder="Prazo (min)" value={form.prazo_min} onChange={e=>setForm({...form,prazo_min:e.target.value})} className="form-input"/><label className="flex items-center gap-2"><input type="checkbox" checked={form.ativo} onChange={e=>setForm({...form,ativo:e.target.checked})}/>Ativo</label><button className="btn-primary justify-center" onClick={saveBairro}><Save size={14}/>Salvar</button></div></div><div className="glass p-6 space-y-2">{data.bairros.map((b:any)=><div key={b.id} className="glass-soft p-3 flex items-center gap-3"><MapPin size={15}/><b className="flex-1">{b.bairro}</b><span>{formatCurrency(Number(b.taxa))}{b.prazo_min?` · ${b.prazo_min} min`:''}</span><span className={b.ativo?'text-green-700':'text-gray-400'}>{b.ativo?'Ativo':'Inativo'}</span><button onClick={()=>setForm({...b,prazo_min:b.prazo_min||''})}>Editar</button><button className="text-red-600" onClick={()=>remove(b.id)}>Excluir</button></div>)}</div></>:<div className="glass p-6 space-y-4"><h2 className="text-lg font-semibold">Taxa por distância real</h2><div className="relative"><label>Origem da loja</label><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Busque o endereço de origem" className="form-input"/><div className="absolute z-20 bg-white shadow rounded-xl w-full">{suggestions.map(s=><button className="block w-full text-left p-2" key={s.id} onClick={()=>selectPlace(s)}>{s.label}</button>)}</div></div>{mapOk===false&&<div className="p-3 bg-amber-50 text-amber-800 rounded-xl">Mapa indisponível: configure MAPBOX_ACCESS_TOKEN no servidor. Bairro continua funcionando.</div>}<CoordinateMap value={data.origem} onChange={(p:any)=>setData((d:any)=>({...d,origem:{...d.origem,...p}}))}/><div className="grid md:grid-cols-4 gap-3"><FieldNum label="R$/km" value={data.config.valor_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,valor_km:v}}))}/><FieldNum label="Taxa mínima" value={data.config.minimo} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,minimo:v}}))}/><FieldNum label="Raio máximo (km)" value={data.config.max_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,max_km:v}}))}/><label>Arredondamento<select value={data.config.arredondamento} onChange={e=>setData((d:any)=>({...d,config:{...d.config,arredondamento:e.target.value}}))} className="form-input"><option value="ceil">Para cima</option><option value="round">Mais próximo</option><option value="none">Centavos</option></select></label></div><button className="btn-primary" onClick={saveKm}>Salvar taxa por km</button><div className="border-t pt-4"><h3 className="font-semibold">Prévia de rota</h3><input className="form-input mt-2" placeholder="Longitude destino" onChange={e=>setPreview({...preview,longitude:Number(e.target.value)})}/><input className="form-input mt-2" placeholder="Latitude destino" onChange={e=>setPreview({...preview,latitude:Number(e.target.value)})}/><button className="btn-ghost mt-2" onClick={calcPreview}>Calcular rota</button>{preview?.km&&<p className="mt-2"><b>{preview.km.toFixed(2)} km</b> · {preview.minutos} min · taxa {formatCurrency(preview.taxa)}</p>}</div></div>}{msg&&<p className="text-sm text-center">{msg}</p>}
   </div>
 }
 
@@ -523,12 +519,97 @@ function PagamentosTab({ tenant }: { tenant: any }) {
 }
 
 function PerfilEditavel({tenant,onSaved}:{tenant:any;onSaved:()=>Promise<void>}) {
-  const [form,setForm]=useState<any>(tenant||{}); const [status,setStatus]=useState<any>(null); const [saving,setSaving]=useState(false); const [uploading,setUploading]=useState(false)
-  useEffect(()=>setForm(tenant||{}),[tenant])
+  const [form,setForm]=useState<any>({});
+  const [status,setStatus]=useState<any>(null);
+  const [saving,setSaving]=useState(false);
+  const [uploading,setUploading]=useState(false)
+
+  // Inicializa form quando tenant carrega
+  useEffect(()=>{
+    if(tenant){
+      setForm({
+        nome: tenant.nome || '',
+        cpf: tenant.cpf || '',
+        cnpj: tenant.cnpj || '',
+        telefone: tenant.telefone || '',
+        endereco: tenant.endereco || '',
+        numero: tenant.numero || '',
+        cidade: tenant.cidade || '',
+        estado: tenant.estado || '',
+        slug: tenant.slug || '',
+        logo_url: tenant.logo_url || '',
+        cor_principal: tenant.cor_principal || '',
+        tipo_estabelecimento: tenant.tipo_estabelecimento || '',
+      })
+    }
+  },[tenant])
+
   useEffect(()=>{if(!form.slug)return;const timer=setTimeout(async()=>{const r=await fetch(`/api/perfil-loja?slug=${encodeURIComponent(form.slug)}`);setStatus(await r.json())},350);return()=>clearTimeout(timer)},[form.slug])
   const change=(key:string,value:any)=>setForm((f:any)=>({...f,[key]:value}))
   const upload=async(file:File)=>{setUploading(true);const fd=new FormData();fd.append('file',file);const r=await fetch('/api/upload-logo',{method:'POST',body:fd});const b=await r.json();setUploading(false);if(r.ok)change('logo_url',b.url);else alert(b.error)}
   const save=async()=>{setSaving(true);const r=await fetch('/api/perfil-loja',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const b=await r.json();setSaving(false);if(!r.ok)return alert(b.error);change('slug',b.slug);await onSaved();alert('Perfil atualizado.')}
-  const fields=[['nome','Nome do negócio'],['cpf','CPF do responsável'],['cnpj','CNPJ'],['categoria','Categoria'],['telefone','WhatsApp'],['endereco','Endereço'],['numero','Número'],['cidade','Cidade'],['estado','UF']]
-  return <div className="space-y-5"><div className="glass p-6"><h2 className="text-lg font-semibold mb-4">Logo da loja</h2><div className="flex items-center gap-4">{form.logo_url?<img src={form.logo_url} className="size-24 rounded-2xl object-contain bg-white" alt="Logo"/>:<div className="size-24 rounded-2xl bg-gray-100 grid place-items-center"><ImageIcon/></div>}<label className="btn-ghost cursor-pointer"><Upload size={15}/>{uploading?'Enviando...':'Alterar logo'}<input hidden type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={e=>{const f=e.target.files?.[0];if(f)upload(f)}}/></label></div></div><div className="glass p-6"><h2 className="text-lg font-semibold mb-4">Dados do estabelecimento</h2><div className="grid md:grid-cols-2 gap-4">{fields.map(([key,label])=><label key={key}>{label}<input value={form[key]||''} onChange={e=>change(key,e.target.value)}/></label>)}<label className="md:col-span-2">Slug público<div className="flex gap-2"><span className="py-3 text-sm">wedelivery.site/cardapio/</span><input value={form.slug||''} onChange={e=>change('slug',e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-'))}/></div>{status&&<p className={`text-xs mt-1 ${status.available?'text-green-700':'text-red-600'}`}>{status.available?'Disponível':'Indisponível'}{!status.available&&status.suggestions?.length?` · Sugestões: ${status.suggestions.join(', ')}`:''}</p>}</label></div><button className="btn-primary mt-5" disabled={saving||status?.available===false} onClick={save}><Save size={15}/>{saving?'Salvando...':'Salvar perfil'}</button></div></div>
+  const fields=[
+    ['nome','Nome do negócio'],
+    ['cpf','CPF do responsável'],
+    ['cnpj','CNPJ'],
+    ['telefone','WhatsApp'],
+    ['endereco','Endereço'],
+    ['numero','Número'],
+    ['cidade','Cidade'],
+    ['estado','UF'],
+  ]
+  return <div className="space-y-5">
+    <div className="glass p-6">
+      <h2 className="text-lg font-semibold mb-4">Logo da loja</h2>
+      <div className="flex items-center gap-4">
+        {form.logo_url?
+          <img src={form.logo_url} className="size-24 rounded-2xl object-contain bg-white" alt="Logo"/>:
+          <div className="size-24 rounded-2xl bg-gray-100 grid place-items-center"><ImageIcon/></div>
+        }
+        <label className="btn-ghost cursor-pointer">
+          <Upload size={15}/>
+          {uploading?'Enviando...':'Alterar logo'}
+          <input hidden type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={e=>{const f=e.target.files?.[0];if(f)upload(f)}}/>
+        </label>
+      </div>
+    </div>
+    <div className="glass p-6">
+      <h2 className="text-lg font-semibold mb-4">Dados do estabelecimento</h2>
+      <div className="grid md:grid-cols-2 gap-4">
+        {fields.map(([key,label])=>(
+          <div key={key}>
+            <label className="block text-sm font-medium mb-1">{label}</label>
+            <input
+              className="form-input w-full"
+              value={form[key]||''}
+              onChange={e=>change(key,e.target.value)}
+              placeholder={label}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="mt-4">
+        <label className="block text-sm font-medium mb-1">Slug público</label>
+        <div className="flex gap-2 items-center">
+          <span className="py-3 text-sm text-gray-500">wedelivery.site/cardapio/</span>
+          <input
+            className="form-input flex-1"
+            value={form.slug||''}
+            onChange={e=>change('slug',e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-'))}
+            placeholder="nome-da-loja"
+          />
+        </div>
+        {status&&(
+          <p className={`text-xs mt-1 ${status.available?'text-green-700':'text-red-600'}`}>
+            {status.available?'✓ Disponível':`✗ Indisponível${status.suggestions?.length?`. Sugestões: ${status.suggestions.join(', ')}`:''}`}
+          </p>
+        )}
+      </div>
+      <button className="btn-primary mt-5" disabled={saving||status?.available===false} onClick={save}>
+        <Save size={15}/>
+        {saving?'Salvando...':'Salvar perfil'}
+      </button>
+    </div>
+  </div>
+}
 }
