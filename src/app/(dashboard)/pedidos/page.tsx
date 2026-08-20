@@ -94,6 +94,60 @@ const NEXT_STATUS: Record<PedidoStatus, PedidoStatus | null> = {
 // Status que devem aparecer na barra de estatísticas (exclui 'todos' que é calculado)
 const STATUS_LISTA: PedidoStatus[] = ['novo', 'preparando', 'pronto', 'saiu', 'entregue', 'cancelado']
 
+// Componente para mostrar os itens do pedido (carrega sob demanda)
+function ItensPedido({ pedidoId }: { pedidoId: string }) {
+  const [itens, setItens] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
+
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      const { data } = await supabase
+        .from('pedido_itens')
+        .select('*')
+        .eq('pedido_id', pedidoId)
+      if (mounted) {
+        setItens(data || [])
+        setLoading(false)
+      }
+    }
+    load()
+    return () => { mounted = false }
+  }, [pedidoId])
+
+  if (loading) return <div className="mt-3 text-xs text-gray-400">Carregando itens...</div>
+  if (!itens.length) return null
+
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-100">
+      <p className="text-xs font-medium text-gray-500 mb-2">🛒 ITENS ({itens.length}):</p>
+      <div className="space-y-1">
+        {itens.map((item) => {
+          const comps = Array.isArray(item.complementos)
+            ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
+            : []
+          return (
+            <div key={item.id} className="text-sm">
+              <div className="flex justify-between">
+                <span>➡️ <strong>{item.quantidade}x {item.nome}</strong>{item.variante_nome ? ` (${item.variante_nome})` : ''}</span>
+                <span>{formatCurrency(item.valor_unitario * item.quantidade)}</span>
+              </div>
+              {comps.length > 0 && (
+                <div className="ml-4 text-xs text-gray-500">
+                  {comps.map((c: any, i: number) => (
+                    <div key={i}>## {c.nome}{c.quantidade > 1 ? ` x${c.quantidade}` : ''}{c.valor > 0 ? ` (${formatCurrency(c.valor * c.quantidade)})` : ''}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
@@ -402,9 +456,6 @@ export default function PedidosPage() {
             const isExpanded = detalhesExpandidos.has(pedido.id)
             const isNovo = pedido.status === 'novo'
 
-            // Pega o motoboy atribuído
-            const motoboyAtribuido = motoboys.find(m => m.id === (pedido as any).motoboy_id)
-
             return (
               <div
                 key={pedido.id}
@@ -428,22 +479,53 @@ export default function PedidosPage() {
                         </span>
                       </div>
 
+                      {/* Data e hora */}
+                      <p className="text-sm text-gray-500 mb-1">
+                        🕐 {formatDateFull(pedido.data_criacao)}
+                      </p>
+
+                      {/* Tipo de entrega + Estimativa */}
+                      <div className="flex gap-2 text-xs text-gray-500 mb-2">
+                        <span>📦 {((pedido as any).tipo_entrega === 'retirada') ? 'Retirada' : 'Delivery'}</span>
+                        {(pedido as any).tempo_estimado_min && (
+                          <span>⏱️ {Math.round((pedido as any).tempo_estimado_min * 0.9)}-{Math.round((pedido as any).tempo_estimado_min * 1.2)} min</span>
+                        )}
+                      </div>
+
+                      <hr className="my-2 border-gray-200" />
+
                       {/* Nome do cliente */}
-                      <p className="font-semibold text-gray-900 mb-1">
-                        {(pedido as any).cliente_nome || 'Cliente não identificado'}
+                      <p className="text-sm text-gray-700 mb-1">
+                        <strong>NOME:</strong> {(pedido as any).cliente_nome || 'Não identificado'}
                       </p>
 
                       {/* WhatsApp */}
                       {(pedido as any).cliente_whatsapp && (
-                        <p className="text-sm text-gray-500 mb-1">
-                          📱 {(pedido as any).cliente_whatsapp}
+                        <p className="text-sm text-gray-700 mb-1">
+                          <strong>Fone:</strong> {(pedido as any).cliente_whatsapp}
                         </p>
                       )}
 
-                      {/* Data e hora */}
-                      <p className="text-sm text-gray-500 mb-2">
-                        🕐 {formatDateFull(pedido.data_criacao)}
-                      </p>
+                      {/* Endereço completo */}
+                      {((pedido as any).tipo_entrega !== 'retirada') && (
+                        <>
+                          {(pedido as any).endereco_entrega && (
+                            <p className="text-sm text-gray-700 mb-1">
+                              <strong>Endereço:</strong> {(pedido as any).endereco_entrega}{(pedido as any).numero_entrega ? `, ${(pedido as any).numero_entrega}` : ''}
+                            </p>
+                          )}
+                          {(pedido as any).bairro_entrega && (
+                            <p className="text-sm text-gray-700 mb-1">
+                              <strong>Bairro:</strong> {(pedido as any).bairro_entrega}
+                            </p>
+                          )}
+                          {(pedido as any).complemento_entrega && (
+                            <p className="text-sm text-gray-700 mb-1">
+                              <strong>Complemento:</strong> {(pedido as any).complemento_entrega}
+                            </p>
+                          )}
+                        </>
+                      )}
                     </div>
 
                     {/* Lado direito - Valor e ações */}
@@ -488,21 +570,41 @@ export default function PedidosPage() {
                     </div>
                   </div>
 
-                  {/* Resumo dos itens (sempre visível) */}
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <p className="text-sm font-medium text-gray-700 mb-2">📋 Resumo do pedido:</p>
-                    <p className="text-sm text-gray-600">
-                      {(pedido as any).tipo_entrega === 'retirada'
-                        ? '🏪 Retirada no local'
-                        : `📍 ${(pedido as any).endereco_entrega || '-'}${((pedido as any).numero_entrega ? `, ${(pedido as any).numero_entrega}` : '')}${((pedido as any).bairro_entrega ? ` - ${(pedido as any).bairro_entrega}` : '')}`
-                      }
-                    </p>
-                    {(pedido as any).observacoes && (
-                      <p className="text-sm text-amber-600 mt-1">
-                        📝 Obs: {(pedido as any).observacoes}
-                      </p>
+                  {/* ITENS DO PEDIDO - SEMPRE VISÍVEL */}
+                  <ItensPedido pedidoId={pedido.id} />
+
+                  {/* TOTAIS */}
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600">Subtotal:</span>
+                      <span className="font-medium">{formatCurrency((pedido as any).valor_subtotal || ((pedido as any).valor_total - ((pedido as any).taxa_entrega || 0)))}</span>
+                    </div>
+                    {((pedido as any).valor_desconto > 0) && (
+                      <div className="flex justify-between text-sm mb-1 text-green-600">
+                        <span>Desconto:</span>
+                        <span>-{formatCurrency((pedido as any).valor_desconto)}</span>
+                      </div>
                     )}
+                    {((pedido as any).taxa_entrega > 0) && (
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">Entrega:</span>
+                        <span>{formatCurrency((pedido as any).taxa_entrega)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-base pt-2 border-t border-gray-200">
+                      <span>TOTAL:</span>
+                      <span className="text-green-600">{formatCurrency(pedido.valor_total)}</span>
+                    </div>
                   </div>
+
+                  {/* Observações */}
+                  {(pedido as any).observacoes && (
+                    <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-800">
+                        📝 <strong>Obs:</strong> {(pedido as any).observacoes}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Botão para expandir/colapsar mais detalhes */}
                   <button
