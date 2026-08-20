@@ -1,9 +1,12 @@
 # Progresso We Delivery — 2026-08-19
 
-## Sessão de hoje
+## Sessão de hoje (manhã)
 
 ### Git + Deploy
-- **Commit**: `8237272` — feat: gestão de matéria-prima, estoque e refatoração de pedidos
+- **Commits**: 
+  - `8237272` — feat: gestão de matéria-prima, estoque e refatoração de pedidos
+  - `4be8867` — docs: atualizar progresso 2026-08-19
+  - `20b4c57` — security: correções de segurança no banco
 - **GitHub**: https://github.com/typeacai-design/delivery-saas
 - **Deploy**: https://wedelivery.site (produção)
 
@@ -22,13 +25,20 @@
 - `src/components/admin/ProdutoFormModal.tsx` — Melhorias no formulário (+65 linhas)
 - `src/app/api/configuracoes/entregas/route.ts` — Config de entregas
 - `src/app/api/pedidos/public/route.ts` — API pública de pedidos
-- `src/app/(dashboard)/configuracoes/page.tsx` — Ajustes gerais
-- `src/app/(dashboard)/cardapio/page.tsx` — +1 linha
-- `src/app/cardapio/[slug]/page.tsx` — +1 linha
-- `src/components/cardapio-cliente.tsx` — Ajustes visuais
+- `supabase/migrations/049_seguranca_correcoes.sql` — Correções de segurança
 
 ### Bugs corrigidos no banco
 - Função `criar_pedido_atomico` agora verifica estoque corretamente
+
+### Correções de Segurança ✅
+- [x] `criar_pedido_atomico` — REVOGADO do anon
+- [x] `search_path` fixo em 6 funções
+- [x] RLS policies para `pagamentos` (CRUD por tenant)
+- [x] RLS policies para `api_rate_limits` (público para rate limit)
+- [x] RLS policies para `convites_loja` (público insert, tenant select)
+
+### ⚠️ Pendente (requer ação manual)
+- [ ] **Leaked Password Protection** — Ativar no Supabase Dashboard > Auth > Users > Password Security
 
 ---
 
@@ -85,7 +95,7 @@
 - [ ] App PWA entregadores
 
 ### Segurança (BANCO)
-- [ ] Corrigir `criar_pedido_atomico` executável por `anon` — CRÍTICO
-- [ ] Adicionar `search_path` fixo nas funções
-- [ ] Criar RLS policies para `pagamentos`, `api_rate_limits`, `convites_loja`
-- [ ] Ativar leaked password protection no Auth
+- [x] Corrigir `criar_pedido_atomico` executável por `anon` — ✅
+- [x] Adicionar `search_path` fixo nas funções — ✅
+- [x] Criar RLS policies para `pagamentos`, `api_rate_limits`, `convites_loja` — ✅
+- [ ] Ativar leaked password protection no Auth — ⚠️ MANUAL
