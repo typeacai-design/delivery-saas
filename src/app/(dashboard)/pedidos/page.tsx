@@ -77,11 +77,85 @@ export default function PedidosPage() {
   const { tocarSomNovosPedidos, inicializarIds } = useSomNovoPedido(somAtivado)
 
   useEffect(() => {
-    loadPedidos()
+    let subscription: any = null
 
-    // Subscribe para novos pedidos (polling simples)
-    const interval = setInterval(loadPedidos, 10000)
-    return () => clearInterval(interval)
+    const setupRealtime = async () => {
+      const tenantId = await activeTenantId()
+      if (!tenantId) { setLoading(false); return }
+
+      // 1. Carrega pedidos iniciais
+      const { data } = await supabase
+        .from('pedidos')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('data_criacao', { ascending: false })
+        .limit(50)
+
+      const pedidosData = data || []
+      inicializarIds(pedidosData)
+
+      const countNovos = pedidosData.filter((p) => p.status === 'novo').length
+      setNovosPedidosCount(countNovos)
+      setPedidos(pedidosData)
+
+      const { data: entregadores } = await supabase.from('motoboys').select('*').eq('tenant_id', tenantId).order('nome')
+      setMotoboys(entregadores || [])
+      setLoading(false)
+
+      // 2. Inscreve para receber novos pedidos INSTANTANEAMENTE
+      subscription = supabase
+        .channel('pedidos-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'pedidos',
+            filter: `tenant_id=eq.${tenantId}`,
+          },
+          (payload) => {
+            const novoPedido = payload.new as Pedido
+            // Verifica se já não está na lista
+            setPedidos((prev) => {
+              if (prev.some(p => p.id === novoPedido.id)) return prev
+              const novosPedidos = [novoPedido, ...prev]
+              // Toca som e conta novos
+              tocarSomNovosPedidos(novosPedidos)
+              const count = novosPedidos.filter((p) => p.status === 'novo').length
+              setNovosPedidosCount(count)
+              return novosPedidos
+            })
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'pedidos',
+            filter: `tenant_id=eq.${tenantId}`,
+          },
+          (payload) => {
+            const atualizado = payload.new as Pedido
+            setPedidos((prev) => prev.map(p => p.id === atualizado.id ? atualizado : p))
+            // Atualiza contagem de novos
+            setPedidos((prev) => {
+              const count = prev.filter((p) => p.status === 'novo').length
+              setNovosPedidosCount(count)
+              return prev
+            })
+          }
+        )
+        .subscribe()
+    }
+
+    setupRealtime()
+
+    return () => {
+      if (subscription) {
+        supabase.removeChannel(subscription)
+      }
+    }
   }, [])
 
   const loadPedidos = async () => {
