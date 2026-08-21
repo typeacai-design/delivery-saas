@@ -584,7 +584,7 @@ function PerfilEditavel({tenant,onSaved,onReload}:{tenant:any;onSaved:()=>Promis
     }
   },[tenant])
 
-  useEffect(()=>{if(!form.slug)return;const timer=setTimeout(async()=>{const r=await fetch(`/api/perfil-loja?slug=${encodeURIComponent(form.slug)}`);setStatus(await r.json())},350);return()=>clearTimeout(timer)},[form.slug])
+  useEffect(()=>{if(!form || !form.slug)return;const timer=setTimeout(async()=>{const r=await fetch(`/api/perfil-loja?slug=${encodeURIComponent(form.slug)}`);setStatus(await r.json())},350);return()=>clearTimeout(timer)},[form?.slug])
   const change=(key:string,value:any)=>setForm((f:any)=>({...f,[key]:value}))
   const upload=async(file:File)=>{setUploading(true);const fd=new FormData();fd.append('file',file);const r=await fetch('/api/upload-logo',{method:'POST',body:fd});const b=await r.json();setUploading(false);if(r.ok)change('logo_url',b.url);else alert(b.error)}
   const save=async()=>{setSaving(true);const r=await fetch('/api/perfil-loja',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const b=await r.json();setSaving(false);if(!r.ok)return alert(b.error);change('slug',b.slug);await onSaved();alert('Perfil atualizado.')}
