@@ -561,7 +561,7 @@ function PerfilEditavel({tenant,onSaved,onReload}:{tenant:any;onSaved:()=>Promis
 
   // Inicializa form quando tenant carrega
   useEffect(()=>{
-    if(tenant && Object.keys(tenant).length > 0){
+    if(tenant){
       setForm({
         nome: tenant.nome || '',
         cpf: tenant.cpf || '',

@@ -20,6 +20,7 @@ import {
   Star,
 } from 'lucide-react'
 import { SidebarNav } from '@/components/sidebar-nav'
+import ErrorBoundary from '@/components/error-boundary'
 import { createClient } from '@/lib/supabase/client'
 
 export default function DashboardLayout({
@@ -171,7 +172,7 @@ export default function DashboardLayout({
               </button>
             </header>
 
-            <main className="flex-1 min-w-0">{children}</main>
+            <main className="flex-1 min-w-0"><ErrorBoundary>{children}</ErrorBoundary></main>
           </div>
         </div>
       </div>
