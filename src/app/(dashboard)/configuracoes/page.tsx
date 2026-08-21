@@ -32,15 +32,35 @@ export default function ConfiguracoesPage() {
   }, [])
 
   const loadTenant = async () => {
+    try {
+      // Usa a API server-side para carregar o tenant (mais confiável que client-side)
+      console.log('[Perfil] Carregando tenant via API...')
+      const r = await fetch('/api/perfil-loja', { cache: 'no-store' })
+      const body = await r.json()
+      console.log('[Perfil] Resposta API:', { status: r.status, body })
+      if (r.ok && body && !body.error) {
+        setTenant(body)
+        return
+      }
+      console.error('[Perfil] API retornou erro:', body.error)
+    } catch (e) {
+      console.error('[Perfil] Erro ao chamar API:', e)
+    }
+
+    // Fallback: client-side
+    console.log('[Perfil] Tentando fallback client-side...')
     const { data: user } = await supabase.auth.getUser()
+    console.log('[Perfil] User:', user?.user?.id)
     if (!user.user) return
     const tid = await activeTenantId()
+    console.log('[Perfil] TenantId via activeTenantId:', tid)
     if (!tid) return
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('tenants')
       .select('*')
       .eq('id', tid)
       .single()
+    console.log('[Perfil] Tenant via client-side:', { data, error })
     setTenant(data)
   }
 
@@ -536,6 +556,10 @@ function PerfilEditavel({tenant,onSaved}:{tenant:any;onSaved:()=>Promise<void>})
         numero: tenant.numero || '',
         cidade: tenant.cidade || '',
         estado: tenant.estado || '',
+        bairro: tenant.bairro || '',
+        complemento: tenant.complemento || '',
+        cep: tenant.cep || '',
+        email: tenant.email || '',
         slug: tenant.slug || '',
         logo_url: tenant.logo_url || '',
         cor_principal: tenant.cor_principal || '',
@@ -553,8 +577,12 @@ function PerfilEditavel({tenant,onSaved}:{tenant:any;onSaved:()=>Promise<void>})
     ['cpf','CPF do responsável'],
     ['cnpj','CNPJ'],
     ['telefone','WhatsApp'],
+    ['email','E-mail'],
     ['endereco','Endereço'],
     ['numero','Número'],
+    ['bairro','Bairro'],
+    ['complemento','Complemento'],
+    ['cep','CEP'],
     ['cidade','Cidade'],
     ['estado','UF'],
   ]

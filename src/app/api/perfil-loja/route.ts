@@ -13,8 +13,13 @@ export async function GET(request: Request) {
     const slug=slugify(check); const { count }=await supabase.from('tenants').select('id',{count:'exact',head:true}).ilike('slug',slug).neq('id',tenantId)
     return out({slug,available:slug.length>=3&&!RESERVED.has(slug)&&!count,suggestions:[`${slug}-delivery`,`${slug}-${String(tenantId).slice(0,4)}`]})
   }
-  const {data,error}=await supabase.from('tenants').select('nome,cpf,cnpj,categoria,tipo_estabelecimento,logo_url,telefone,endereco,numero,cidade,estado,bairro,complemento,cep,slug,email').eq('id',tenantId).single()
-  return error?out({error:error.message},400):out(data)
+  // Pega TODOS os dados do cadastro para exibir em "Meu Perfil"
+  const {data,error}=await supabase.from('tenants').select('nome,cpf,cnpj,categoria,tipo_estabelecimento,logo_url,telefone,endereco,numero,cidade,estado,bairro,complemento,cep,slug,email,nome_responsavel,created_at,updated_at').eq('id',tenantId).single()
+  if (error) {
+    console.error('Erro ao carregar tenant:', error)
+    return out({error:error.message},400)
+  }
+  return out(data)
 }
 
 export async function PUT(request: Request) {
