@@ -367,6 +367,11 @@ export default function PedidosPage() {
   const [itensEditando, setItensEditando] = useState<any[]>([])
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
   const [tenantIdAtual, setTenantIdAtual] = useState<string>('')
+  const [modalCancelarAberto, setModalCancelarAberto] = useState(false)
+  const [pedidoCancelando, setPedidoCancelando] = useState<any>(null)
+  const [motivoSelecionado, setMotivoSelecionado] = useState('')
+  const [motivoDetalhe, setMotivoDetalhe] = useState('')
+  const [salvandoCancelamento, setSalvandoCancelamento] = useState(false)
   const supabase = createClient()
   const { inicializarIds, adicionarAoLoop, removerDoLoop, verificarMudancaStatus } = useSomNovoPedido(somAtivado)
 
@@ -498,18 +503,28 @@ export default function PedidosPage() {
     alert('Novo convite copiado. O link anterior foi invalidado.')
   }
 
-  const updateStatus = async (pedido: Pedido, newStatus: PedidoStatus) => {
+  const updateStatus = async (pedido: Pedido, newStatus: PedidoStatus, motivo?: { tipo: string; descricao?: string }) => {
     // Remove do loop de som se estiver mudando de "novo"
     if (pedido.status === 'novo') {
       removerDoLoop(pedido.id)
     }
 
+    const updates: any = {
+      status: newStatus,
+      data_atualizacao: new Date().toISOString()
+    }
+
+    // Se for cancelamento, salva motivo
+    if (newStatus === 'cancelado' && motivo) {
+      updates.motivo_cancelamento = motivo.tipo
+      updates.motivo_cancelamento_detalhe = motivo.descricao || null
+      updates.cancelado_por = 'lojista'
+      updates.cancelado_em = new Date().toISOString()
+    }
+
     const { error } = await supabase
       .from('pedidos')
-      .update({
-        status: newStatus,
-        data_atualizacao: new Date().toISOString()
-      })
+      .update(updates)
       .eq('id', pedido.id)
 
     if (error) {
@@ -518,6 +533,37 @@ export default function PedidosPage() {
     } else {
       loadPedidos()
     }
+  }
+
+  // Modal de cancelamento
+  const abrirModalCancelamento = (pedido: any) => {
+    setPedidoCancelando(pedido)
+    setMotivoSelecionado('')
+    setMotivoDetalhe('')
+    setModalCancelarAberto(true)
+  }
+
+  const confirmarCancelamento = async () => {
+    if (!pedidoCancelando) return
+    if (!motivoSelecionado) {
+      alert('Selecione um motivo para o cancelamento')
+      return
+    }
+    if (motivoSelecionado === 'outro' && !motivoDetalhe.trim()) {
+      alert('Descreva o motivo do cancelamento')
+      return
+    }
+
+    setSalvandoCancelamento(true)
+    await updateStatus(pedidoCancelando, 'cancelado', {
+      tipo: motivoSelecionado,
+      descricao: motivoDetalhe.trim() || undefined
+    })
+    setSalvandoCancelamento(false)
+    setModalCancelarAberto(false)
+    setPedidoCancelando(null)
+    setMotivoSelecionado('')
+    setMotivoDetalhe('')
   }
 
   // Confirmar pedido via WPP (envia msg ao cliente)
@@ -925,7 +971,7 @@ export default function PedidosPage() {
                     {/* Cancelar */}
                     {pedido.status !== 'cancelado' && pedido.status !== 'entregue' && (
                       <button
-                        onClick={() => updateStatus(pedido, 'cancelado')}
+                        onClick={() => abrirModalCancelamento(pedido)}
                         className="col-span-4 px-2 py-1.5 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 flex items-center justify-center gap-1"
                         title="Cancelar pedido"
                       >
@@ -1139,6 +1185,106 @@ export default function PedidosPage() {
                   </a>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CANCELAMENTO */}
+      {modalCancelarAberto && pedidoCancelando && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md overflow-hidden">
+            <div className="p-5 bg-red-50 border-b border-red-200">
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-xl bg-red-100 flex items-center justify-center">
+                  <X className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-red-900">Cancelar pedido?</h2>
+                  <p className="text-sm text-red-700">
+                    {pedidoCancelando.codigo || `#${pedidoCancelando.id.slice(0, 8)}`} - {pedidoCancelando.cliente_nome || 'Cliente'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  ⚠️ Tem certeza que deseja cancelar este pedido?
+                </p>
+                <p className="text-xs text-gray-500 mb-4">
+                  Esta ação não pode ser desfeita. O pedido não será mais processado.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Motivo do cancelamento *
+                </label>
+                <div className="space-y-2">
+                  {[
+                    { id: 'cliente_desistiu', label: 'Cliente desistiu do pedido' },
+                    { id: 'nao_conseguimos_atender', label: 'Não conseguimos atender' },
+                    { id: 'fora_area_entrega', label: 'Fora da área de entrega' },
+                    { id: 'cliente_nao_respondeu', label: 'Cliente não respondeu' },
+                    { id: 'pagamento_recusado', label: 'Pagamento recusado' },
+                    { id: 'produto_indisponivel', label: 'Produto indisponível' },
+                    { id: 'erro_pedido', label: 'Erro no pedido (lojista)' },
+                    { id: 'outro', label: 'Outro motivo' },
+                  ].map((op) => (
+                    <label key={op.id} className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-50"
+                      style={{ borderColor: motivoSelecionado === op.id ? 'var(--green)' : '#E5E7EB', background: motivoSelecionado === op.id ? 'rgba(22,163,74,.06)' : 'transparent' }}>
+                      <input
+                        type="radio"
+                        name="motivo"
+                        checked={motivoSelecionado === op.id}
+                        onChange={() => setMotivoSelecionado(op.id)}
+                        className="size-4"
+                      />
+                      <span className="text-sm">{op.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {(motivoSelecionado === 'outro' || motivoSelecionado) && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                    Detalhes {motivoSelecionado === 'outro' ? '*' : '(opcional)'}
+                  </label>
+                  <textarea
+                    className="form-input w-full"
+                    rows={3}
+                    value={motivoDetalhe}
+                    onChange={(e) => setMotivoDetalhe(e.target.value)}
+                    placeholder="Descreva o motivo do cancelamento..."
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setModalCancelarAberto(false)
+                  setPedidoCancelando(null)
+                  setMotivoSelecionado('')
+                  setMotivoDetalhe('')
+                }}
+                className="px-4 py-2 border rounded-lg text-sm"
+                disabled={salvandoCancelamento}
+              >
+                Voltar
+              </button>
+              <button
+                onClick={confirmarCancelamento}
+                disabled={salvandoCancelamento || !motivoSelecionado}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-1"
+              >
+                <X className="w-4 h-4" />
+                {salvandoCancelamento ? 'Cancelando...' : 'Confirmar cancelamento'}
+              </button>
             </div>
           </div>
         </div>
