@@ -31,29 +31,43 @@ export default function ConfiguracoesPage() {
     if (new URLSearchParams(window.location.search).get('tab') === 'perfil') setTab('perfil')
   }, [])
 
+  // Recarrega tenant quando muda pra aba perfil
+  useEffect(() => {
+    if (tab === 'perfil' && !tenant) {
+      console.log('[Config] Mudou pra aba perfil, recarregando tenant...')
+      loadTenant()
+    }
+  }, [tab])
+
   const loadTenant = async () => {
     try {
-      // Usa a API server-side para carregar o tenant (mais confiável que client-side)
-      console.log('[Perfil] Carregando tenant via API...')
-      const r = await fetch('/api/perfil-loja', { cache: 'no-store' })
+      console.log('[Perfil] Carregando tenant via /api/auth/meu-tenant...')
+      const r = await fetch('/api/auth/meu-tenant', { cache: 'no-store' })
       const body = await r.json()
-      console.log('[Perfil] Resposta API:', { status: r.status, body })
+      console.log('[Perfil] Resposta API meu-tenant:', { status: r.status, body })
       if (r.ok && body && !body.error) {
         setTenant(body)
         return
       }
-      console.error('[Perfil] API retornou erro:', body.error)
+      console.warn('[Perfil] API meu-tenant retornou erro, tentando /api/perfil-loja')
     } catch (e) {
-      console.error('[Perfil] Erro ao chamar API:', e)
+      console.error('[Perfil] Erro ao chamar /api/auth/meu-tenant:', e)
     }
 
-    // Fallback: client-side
-    console.log('[Perfil] Tentando fallback client-side...')
+    try {
+      // Fallback 1: API perfil-loja
+      const r = await fetch('/api/perfil-loja', { cache: 'no-store' })
+      const body = await r.json()
+      if (r.ok && body && !body.error) {
+        setTenant(body)
+        return
+      }
+    } catch {}
+
+    // Fallback 2: client-side
     const { data: user } = await supabase.auth.getUser()
-    console.log('[Perfil] User:', user?.user?.id)
     if (!user.user) return
     const tid = await activeTenantId()
-    console.log('[Perfil] TenantId via activeTenantId:', tid)
     if (!tid) return
     const { data, error } = await supabase
       .from('tenants')
@@ -109,7 +123,7 @@ export default function ConfiguracoesPage() {
 
       {tab === 'horarios' && <HorariosTab tenant={tenant} loadTenantFromParent={loadTenant} />}
       {tab === 'entregas' && <EntregasTab />}
-      {tab === 'perfil' && <PerfilEditavel tenant={tenant} onSaved={loadTenant} />}
+      {tab === 'perfil' && <PerfilEditavel tenant={tenant} onSaved={loadTenant} onReload={loadTenant} />}
     </div>
   )
 }
@@ -538,15 +552,16 @@ function PagamentosTab({ tenant }: { tenant: any }) {
   )
 }
 
-function PerfilEditavel({tenant,onSaved}:{tenant:any;onSaved:()=>Promise<void>}) {
-  const [form,setForm]=useState<any>({});
+function PerfilEditavel({tenant,onSaved,onReload}:{tenant:any;onSaved:()=>Promise<void>;onReload?:()=>Promise<void>}) {
+  const [form,setForm]=useState<any>(null);
   const [status,setStatus]=useState<any>(null);
   const [saving,setSaving]=useState(false);
   const [uploading,setUploading]=useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   // Inicializa form quando tenant carrega
   useEffect(()=>{
-    if(tenant){
+    if(tenant && Object.keys(tenant).length > 0){
       setForm({
         nome: tenant.nome || '',
         cpf: tenant.cpf || '',
@@ -565,6 +580,7 @@ function PerfilEditavel({tenant,onSaved}:{tenant:any;onSaved:()=>Promise<void>})
         cor_principal: tenant.cor_principal || '',
         tipo_estabelecimento: tenant.tipo_estabelecimento || '',
       })
+      setLoaded(true)
     }
   },[tenant])
 
@@ -586,9 +602,39 @@ function PerfilEditavel({tenant,onSaved}:{tenant:any;onSaved:()=>Promise<void>})
     ['cidade','Cidade'],
     ['estado','UF'],
   ]
+  if (!form) {
+    return (
+      <div className="space-y-5">
+        <div className="glass p-6 text-center">
+          <p className="hint mb-3">Carregando dados do seu cadastro...</p>
+          {onReload && (
+            <button onClick={onReload} className="btn-primary">
+              🔄 Recarregar dados
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return <div className="space-y-5">
+    {!loaded && onReload && (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex items-center justify-between">
+        <p className="text-sm text-yellow-800">⚠️ Dados não carregados</p>
+        <button onClick={onReload} className="text-sm px-3 py-1 bg-yellow-600 text-white rounded-lg">
+          🔄 Recarregar
+        </button>
+      </div>
+    )}
     <div className="glass p-6">
-      <h2 className="text-lg font-semibold mb-4">Logo da loja</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">Logo da loja</h2>
+        {onReload && (
+          <button onClick={onReload} className="text-xs text-blue-600 hover:underline">
+            🔄 Recarregar dados
+          </button>
+        )}
+      </div>
       <div className="flex items-center gap-4">
         {form.logo_url?
           <img src={form.logo_url} className="size-24 rounded-2xl object-contain bg-white" alt="Logo"/>:
