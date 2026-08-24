@@ -91,6 +91,11 @@ export type Pedido = {
   motoboy_comissao?: number
   data_criacao: string
   data_atualizacao: string
+  deleted_at?: string | null
+  apagado_por?: string | null
+  pago?: boolean
+  pago_em?: string
+  pago_por?: string
 }
 
 export type PedidoItem = {

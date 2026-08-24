@@ -11,6 +11,7 @@ export interface ItemPedido {
 
 export interface DadosPedido {
   pedidoId: string
+  pedidoCodigo?: string // codigo formatado (00001/26)
   tenantNome: string
   clienteNome: string
   clienteWhatsapp: string
@@ -31,8 +32,12 @@ export interface DadosPedido {
 }
 
 export function gerarMensagemWhatsApp(d: DadosPedido): string {
+  // Usar codigo formatado (00001/26) ao inves de UUID
+  const codigoExibir = d.pedidoCodigo || `#${d.pedidoId.slice(-6)}`
+  const linkPedido = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://wedelivery.site'}/pedido/${d.pedidoCodigo || d.pedidoId}`
+
   let texto = `🛒 *PEDIDO - ${d.tenantNome}*\n`
-  texto += `📋 *#${d.pedidoId.slice(-6)}*\n`
+  texto += `📋 *#${codigoExibir}*\n`
   texto += `\n`
 
   texto += `👤 *Cliente:* ${d.clienteNome}\n`
@@ -87,7 +92,7 @@ export function gerarMensagemWhatsApp(d: DadosPedido): string {
   }
 
   texto += `─────────────────────\n`
-  texto += `Acompanhe seu pedido: ${process.env.NEXT_PUBLIC_BASE_URL || 'https://wedelivery.site'}/pedido/${d.pedidoId}`
+  texto += `Acompanhe seu pedido: ${linkPedido}`
 
   return texto
 }

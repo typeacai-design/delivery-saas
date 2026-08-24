@@ -109,13 +109,34 @@ export default async function CardapioPublicoPage({
   const horario = config.horario || { abre: '08:00', fecha: '22:00' }
   const layout = config.cardapio_layout || 'classico'
   const paleta = config.cardapio_paleta || 'verde-classica'
-  const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Fortaleza' }))
-  const diaAtual = agora.getDay()
-  const minutosAgora = agora.getHours() * 60 + agora.getMinutes()
-  const horariosDia = Array.isArray(config.horarios_dias) ? config.horarios_dias.find((item: any) => Number(item.dia ?? item.dia_semana) === diaAtual) : null
-  const inicio = String(horariosDia?.abre || horariosDia?.inicio || horario.abre || '00:00').split(':').map(Number)
-  const fim = String(horariosDia?.fecha || horariosDia?.fim || horario.fecha || '23:59').split(':').map(Number)
-  const dentroHorario = horariosDia?.ativo === false ? false : minutosAgora >= inicio[0] * 60 + inicio[1] && minutosAgora <= fim[0] * 60 + fim[1]
+
+  // Logica melhorada de horario - usar timezone do Brasilia
+  const agora = new Date()
+  // Ajustar para timezone de Brasilia (UTC-3)
+  const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+  const diaAtual = brasilia.getDay()
+  const minutosAgora = brasilia.getHours() * 60 + brasilia.getMinutes()
+
+  // Pegar horarios_dias - pode ser array de 7 dias (0-6) ou objeto com chaves
+  let horariosDia = null
+  if (Array.isArray(config.horarios_dias)) {
+    horariosDia = config.horarios_dias.find((item: any) => Number(item.dia ?? item.dia_semana) === diaAtual)
+  }
+
+  const parseTime = (s: any) => {
+    if (!s) return null
+    const parts = String(s).split(':').map(Number)
+    return parts.length >= 2 ? parts[0] * 60 + parts[1] : null
+  }
+
+  const inicioMin = parseTime(horariosDia?.abre || horariosDia?.inicio) ?? parseTime(horario.abre) ?? 480 // 08:00 default
+  const fimMin = parseTime(horariosDia?.fecha || horariosDia?.fim) ?? parseTime(horario.fecha) ?? 1320 // 22:00 default
+
+  // Verificar se o dia está marcado como inativo
+  const diaInativo = horariosDia?.ativo === false
+  const dentroHorario = !diaInativo && minutosAgora >= inicioMin && minutosAgora <= fimMin
+
+  // Loja aberta: combinacao de toggle manual + horario
   const lojaAberta = config.loja_aberta !== false && dentroHorario
   const totalAvaliacoes = avaliacoesAprovadas?.length || 0
   const avaliacaoMedia = totalAvaliacoes ? Math.round((avaliacoesAprovadas || []).reduce((s: number, item: any) => s + Number(item.nota), 0) / totalAvaliacoes * 10) / 10 : 0

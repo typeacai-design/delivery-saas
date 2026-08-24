@@ -440,11 +440,12 @@ export default function PedidosPage() {
       if (!tenantId) { setLoading(false); return }
       setTenantIdAtual(tenantId)
 
-      // 1. Carrega pedidos iniciais
+      // 1. Carrega pedidos iniciais (excluir apagados)
       const { data } = await supabase
         .from('pedidos')
         .select('*')
         .eq('tenant_id', tenantId)
+        .is('deleted_at', null)
         .order('data_criacao', { ascending: false })
         .limit(50)
 
@@ -473,8 +474,10 @@ export default function PedidosPage() {
           (payload) => {
             const novoPedido = payload.new as Pedido
             setPedidos((prev) => {
-              if (prev.some(p => p.id === novoPedido.id)) return prev
-              const novosPedidos = [novoPedido, ...prev]
+              // Filtrar pedidos apagados
+              const filtrados = prev.filter(p => !p.deleted_at)
+              if (filtrados.some(p => p.id === novoPedido.id)) return filtrados
+              const novosPedidos = [novoPedido, ...filtrados]
               adicionarAoLoop(novoPedido.id)
               const count = novosPedidos.filter((p) => p.status === 'novo').length
               setNovosPedidosCount(count)
@@ -493,6 +496,10 @@ export default function PedidosPage() {
           (payload) => {
             const atualizado = payload.new as Pedido
             setPedidos((prev) => {
+              // Se foi apagado, remover da lista
+              if (atualizado.deleted_at) {
+                return prev.filter(p => p.id !== atualizado.id)
+              }
               const novos = prev.map(p => p.id === atualizado.id ? atualizado : p)
               // Remove do loop se status mudou de "novo"
               if (atualizado.status !== 'novo') {
@@ -599,12 +606,13 @@ export default function PedidosPage() {
       const res = await fetch(`/api/pedidos/${pedido.id}/pago`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ pedido_id: pedido.id, pago: novoStatus })
       })
       const data = await res.json()
       if (!res.ok) {
         console.error('Erro ao marcar pago:', data.error)
-        alert('Erro ao marcar como pago')
+        alert('Erro ao marcar como pago: ' + (data.error || 'Erro desconhecido'))
       } else {
         loadPedidos()
       }
@@ -648,7 +656,8 @@ export default function PedidosPage() {
   // Confirmar pedido via WPP (envia msg ao cliente)
   const confirmarPedidoWPP = (pedido: any) => {
     const mensagem = gerarMensagemWhatsApp({
-      pedidoId: pedido.codigo || pedido.id,
+      pedidoId: pedido.id,
+      pedidoCodigo: pedido.codigo || null,
       tenantNome: 'Nossa Loja', // Será substituído depois pelo tenant real
       clienteNome: pedido.cliente_nome || '',
       clienteWhatsapp: pedido.cliente_whatsapp || '',
@@ -762,18 +771,71 @@ export default function PedidosPage() {
   }
 
   // Dar desconto
+  const [showDescontoModal, setShowDescontoModal] = useState(false)
+  const [pedidoDesconto, setPedidoDesconto] = useState<any>(null)
+  const [valorDesconto, setValorDesconto] = useState('')
+  const [tipoDesconto, setTipoDesconto] = useState<'valor' | 'percentual'>('valor')
+
   const abrirModalDesconto = (pedido: any) => {
-    const valor = prompt(`Desconto em R$ (valor atual: R$ ${(pedido.valor_desconto || 0).toFixed(2)})`, String(pedido.valor_desconto || 0))
-    if (valor === null) return
-    const novoDesconto = parseFloat(valor) || 0
-    const novoTotal = (pedido.valor_total + (pedido.valor_desconto || 0)) - novoDesconto
-    supabase.from('pedidos').update({
-      valor_desconto: novoDesconto,
-      valor_total: novoTotal
-    }).eq('id', pedido.id).then(({ error }) => {
-      if (error) alert('Erro ao aplicar desconto')
-      else loadPedidos()
-    })
+    setPedidoDesconto(pedido)
+    setValorDesconto(String(pedido.valor_desconto || 0))
+    setTipoDesconto('valor')
+    setShowDescontoModal(true)
+  }
+
+  const aplicarDesconto = async () => {
+    if (!pedidoDesconto) return
+    const descontoNum = parseFloat(valorDesconto) || 0
+    let novoDesconto = 0
+
+    if (tipoDesconto === 'valor') {
+      novoDesconto = descontoNum
+    } else {
+      // Percentual
+      novoDesconto = (pedidoDesconto.valor_subtotal || pedidoDesconto.valor_total) * (descontoNum / 100)
+    }
+
+    const novoTotal = (pedidoDesconto.valor_total + (pedidoDesconto.valor_desconto || 0)) - novoDesconto
+
+    try {
+      const res = await fetch(`/api/pedidos/${pedidoDesconto.id}/desconto`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          valor_desconto: Math.round(novoDesconto * 100) / 100,
+          valor_total: Math.max(0, Math.round(novoTotal * 100) / 100)
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || 'Erro ao aplicar desconto')
+      } else {
+        setShowDescontoModal(false)
+        loadPedidos()
+      }
+    } catch (err) {
+      alert('Erro ao aplicar desconto')
+    }
+  }
+
+  // Apagar pedido cancelado
+  const apagarPedido = async (pedido: any) => {
+    if (!confirm(`Apagar o pedido ${pedido.codigo || '#' + pedido.id.slice(0,8)}?\n\nEsta ação não pode ser desfeita.\nO registro será mantido apenas para auditoria do admin.`)) return
+
+    try {
+      const res = await fetch(`/api/pedidos/${pedido.id}/apagar`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || 'Erro ao apagar pedido')
+      } else {
+        loadPedidos()
+      }
+    } catch (err) {
+      alert('Erro ao apagar pedido')
+    }
   }
 
   // Editar pedido - abre modal real
@@ -1189,15 +1251,26 @@ export default function PedidosPage() {
                       Imprimir
                     </button>
 
-                    {/* Cancelar */}
-                    <button
-                      onClick={() => abrirModalCancelamento(pedido)}
-                      className="flex items-center justify-center gap-2 px-3 py-3 bg-red-100 text-red-700 rounded-xl text-sm font-semibold hover:bg-red-200 border-2 border-red-300 transition-all active:scale-95"
-                      title="Cancelar pedido"
-                    >
-                      <X className="w-5 h-5" />
-                      Cancelar
-                    </button>
+                    {/* Cancelar ou Apagar */}
+                    {pedido.status === 'cancelado' ? (
+                      <button
+                        onClick={() => apagarPedido(pedido)}
+                        className="flex items-center justify-center gap-2 px-3 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-red-100 hover:text-red-700 border-2 border-gray-300 transition-all active:scale-95"
+                        title="Apagar pedido (somente cancelados)"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                        Apagar
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => abrirModalCancelamento(pedido)}
+                        className="flex items-center justify-center gap-2 px-3 py-3 bg-red-100 text-red-700 rounded-xl text-sm font-semibold hover:bg-red-200 border-2 border-red-300 transition-all active:scale-95"
+                        title="Cancelar pedido"
+                      >
+                        <X className="w-5 h-5" />
+                        Cancelar
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1207,7 +1280,7 @@ export default function PedidosPage() {
           <div className="col-span-full bg-white rounded-xl border p-12 text-center">
             <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido</h3>
-            <p className="text-gray-500">Os pedidos aparecerão aqui quando chegarem</p>
+            <p className="hint">Os pedidos aparecerão aqui quando chegarem</p>
           </div>
         )}
       </div>
@@ -1404,6 +1477,96 @@ export default function PedidosPage() {
                   </a>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE DESCONTO */}
+      {showDescontoModal && pedidoDesconto && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Aplicar Desconto</h2>
+              <button onClick={() => setShowDescontoModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Pedido: <strong>{pedidoDesconto.codigo || '#' + pedidoDesconto.id.slice(0, 8)}</strong>
+            </p>
+            <p className="text-sm text-gray-600 mb-4">
+              Subtotal atual: <strong>{formatCurrency(pedidoDesconto.valor_subtotal || pedidoDesconto.valor_total)}</strong>
+            </p>
+
+            {/* Tipo de desconto */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Tipo de desconto</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setTipoDesconto('valor')}
+                  className={`p-3 rounded-xl border-2 font-medium transition ${
+                    tipoDesconto === 'valor' ? 'border-green-500 bg-green-50' : 'border-gray-200'
+                  }`}
+                >
+                  Valor (R$)
+                </button>
+                <button
+                  onClick={() => setTipoDesconto('percentual')}
+                  className={`p-3 rounded-xl border-2 font-medium transition ${
+                    tipoDesconto === 'percentual' ? 'border-green-500 bg-green-50' : 'border-gray-200'
+                  }`}
+                >
+                  Percentual (%)
+                </button>
+              </div>
+            </div>
+
+            {/* Valor */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">
+                {tipoDesconto === 'valor' ? 'Valor do desconto (R$)' : 'Percentual de desconto (%)'}
+              </label>
+              <input
+                type="number"
+                step={tipoDesconto === 'valor' ? '0.01' : '0.1'}
+                value={valorDesconto}
+                onChange={(e) => setValorDesconto(e.target.value)}
+                placeholder={tipoDesconto === 'valor' ? '0,00' : '0'}
+                className="form-input w-full text-xl"
+                autoFocus
+              />
+            </div>
+
+            {/* Preview */}
+            {(() => {
+              const valor = parseFloat(valorDesconto) || 0
+              const desconto = tipoDesconto === 'valor'
+                ? valor
+                : (pedidoDesconto.valor_subtotal || pedidoDesconto.valor_total) * (valor / 100)
+              const novoTotal = Math.max(0, (pedidoDesconto.valor_total + (pedidoDesconto.valor_desconto || 0)) - desconto)
+              return (
+                <div className="mb-4 p-4 bg-green-50 rounded-xl">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Desconto:</span>
+                    <span className="font-bold text-red-600">-{formatCurrency(desconto)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>Novo total:</span>
+                    <span className="text-green-600">{formatCurrency(novoTotal)}</span>
+                  </div>
+                </div>
+              )
+            })()}
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowDescontoModal(false)} className="btn-secondary flex-1 justify-center">
+                Cancelar
+              </button>
+              <button onClick={aplicarDesconto} className="btn-primary flex-1 justify-center">
+                Aplicar
+              </button>
             </div>
           </div>
         </div>

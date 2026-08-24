@@ -168,21 +168,41 @@ function Accounts({orders,expenses,onNewExpense}:{orders:Order[];expenses:Expens
 }
 
 function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
+  // Sincronizar estado inicial com a config salva
   const initial=tenant?.config?.formas_pagamento_aceitas||{}
   const[values,setValues]=useState<Record<string,boolean>>(initial)
+  const[hasChanges,setHasChanges]=useState(false)
+
+  // Sincronizar quando tenant mudar
+  useEffect(()=>{
+    const config=tenant?.config?.formas_pagamento_aceitas||{}
+    setValues(config)
+    setHasChanges(false)
+  },[tenant])
 
   async function save(){
+    if(!hasChanges)return
     const response=await fetch('/api/financeiro',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({formas:values})})
     const body=await response.json()
-    if(response.ok){onSaved({...tenant,config:body.config});alert('Formas de pagamento salvas.')}
+    if(response.ok){onSaved({...tenant,config:body.config});setHasChanges(false);alert('Formas de pagamento salvas.')}
     else alert(body.error||'Não foi possível salvar.')
   }
 
-  const toggleValue=(key:string)=>setValues(v=>({...v,[key]:!v[key]}))
+  const toggleValue=(key:string)=>{
+    setValues(v=>({...v,[key]:!v[key]}))
+    setHasChanges(true)
+  }
 
   return <section className="glass p-5">
-    <h2 className="font-semibold mb-4">Formas aceitas no cardápio</h2>
-    <p className="hint text-sm mb-4">Ative ou desative as formas de pagamento disponíveis para seus clientes.</p>
+    <div className="flex items-center justify-between mb-4">
+      <div>
+        <h2 className="font-semibold">Formas aceitas no cardápio</h2>
+        <p className="hint text-sm">Ative ou desative as formas de pagamento disponíveis para seus clientes.</p>
+      </div>
+      {hasChanges && (
+        <span className="text-sm text-amber-600 font-medium">⚠️ Não salvo</span>
+      )}
+    </div>
     <div className="space-y-3">
       {[['dinheiro','Dinheiro','Pagamento em espécie na entrega'],['pix','PIX','Transferência instantânea'],['cartao_credito','Cartão de Crédito','Máquina na entrega'],['cartao_debito','Cartão de Débito','Máquina na entrega']].map(([id,label,desc])=>(
         <div key={id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
@@ -199,7 +219,17 @@ function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
         </div>
       ))}
     </div>
-    <button onClick={save} className="btn-primary mt-4 w-full justify-center">Salvar configurações</button>
+    <button
+      onClick={save}
+      disabled={!hasChanges}
+      className={`mt-4 w-full justify-center flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${
+        hasChanges
+          ? 'bg-green-600 text-white hover:bg-green-700 shadow-lg'
+          : 'bg-gray-100 text-gray-500 cursor-not-allowed'
+      }`}
+    >
+      {hasChanges ? '💾 Salvar alterações' : '✓ Salvo'}
+    </button>
   </section>
 }
 

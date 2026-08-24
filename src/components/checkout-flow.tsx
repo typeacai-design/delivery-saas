@@ -420,7 +420,9 @@ export function CheckoutDrawer({
   // ============================================================
   function enviarWhatsApp(pedido?: any) {
     const mensagemUnificada = gerarMensagemWhatsApp({
-      pedidoId: pedido?.id || String(Date.now()), tenantNome, clienteNome: cliente.nome,
+      pedidoId: pedido?.id || String(Date.now()),
+      pedidoCodigo: pedido?.codigo || null,
+      tenantNome, clienteNome: cliente.nome,
       clienteWhatsapp: cliente.whatsapp,
       itens: carrinhoLocal.map(item => ({ nome: item.nome, quantidade: item.quantidade,
         valor_unitario: item.valor_unitario + (item.variante_preco || 0), variante_nome: item.variante_nome,
