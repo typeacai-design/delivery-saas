@@ -130,11 +130,6 @@ export default function DashboardLayout({
               </div>
             </div>
 
-            <Link href="/mensalidade" className="btn-primary justify-center w-full">
-              <CreditCard size={16} />
-              Mensalidade
-            </Link>
-
             <SidebarNav role={role} />
 
             <button type="button" onClick={sair} className="glass w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-white/75 transition rounded-2xl" style={{ color: 'var(--ink-muted)' }}>

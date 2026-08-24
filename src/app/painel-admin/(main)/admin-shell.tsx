@@ -3,7 +3,6 @@
 import {
   LayoutDashboard,
   Users,
-  CreditCard,
   BarChart3,
   Settings,
   Shield,
@@ -36,7 +35,6 @@ export default function AdminShell({
     { href: '/painel-admin', label: 'Visão Geral', icon: LayoutDashboard },
     { href: '/painel-admin/lojistas', label: 'Lojistas', icon: Users },
     { href: '/painel-admin/faturamento', label: 'Cobrança 1%', icon: DollarSign },
-    { href: '/painel-admin/mensalidades', label: 'Mensalidades', icon: CreditCard },
     { href: '/painel-admin/relatorios', label: 'Relatórios', icon: BarChart3 },
     { href: '/painel-admin/configuracoes', label: 'Configurações', icon: Settings },
     { href: '/painel-admin/configuracoes?tab=admin', label: 'Perfil e segurança', icon: Shield },

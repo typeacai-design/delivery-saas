@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       categoria: categoria || 'Outros', telefone: telefone || null, estado: estado || null,
       cidade: cidade || null, endereco: endereco || null, numero: numero || null,
       nome_responsavel: nome_responsavel || null, cpf: cpf || null,
-      status: 'pending_approval', valor_mensalidade: 99.90, status_pagamento: 'pendente',
+      status: 'pending_approval', status_pagamento: 'pendente',
     }).select().single()
     if (tenantError) throw tenantError
 
