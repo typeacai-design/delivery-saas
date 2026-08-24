@@ -1,155 +1,182 @@
-# Progresso We Delivery — 2026-08-20
+# We Delivery - Progresso do Sistema
 
-## Sessão de hoje (manhã)
+## Última Atualização: 24/08/2026
 
-### Bugs Corrigidos
-
-1. **Erro ao finalizar pedido ("não foi possível concluir")**
-   - Causa: Trigger `fn_historico_status` tentava acessar `NEW.criado_por` na tabela `pedidos`
-   - Campo `criado_por` não existe em `pedidos` (só em `pedido_status_historico`)
-   - Solução: Corrigido trigger para usar `NULL` diretamente
-   - Migration: `050_corrigir_trigger_historico_status.sql`
-
-2. **QR Code PIX aparecendo na tela de confirmação**
-   - Causa: Código tentava processar pagamento PIX via API
-   - Solução: Removida toda lógica de processamento PIX
-   - Fluxo: Cliente seleciona forma pagamento → vai direto pro WhatsApp do lojista
-   - O lojista informa a chave PIX durante a conversa
-
-3. **Pedidos não apareciam instantaneamente no painel do lojista**
-   - Causa: Polling simples de 10 segundos
-   - Solução: Implementado Supabase Realtime
-   - Migration: `051_habilitar_realtime_pedidos.sql` (ALTER PUBLICATION)
-   - Agora pedidos aparecem INSTANTANEAMENTE quando cliente finaliza
-
-### Arquivos Modificados
-- `src/components/checkout-flow.tsx` — Removido processamento PIX
-- `src/app/(dashboard)/pedidos/page.tsx` — Realtime implementado
-- `supabase/migrations/050_corrigir_trigger_historico_status.sql`
-- `supabase/migrations/051_habilitar_realtime_pedidos.sql`
-
-### Git + Deploy
-- **Commits**:
-  - `2ec2296` — fix: corrigir trigger fn_historico_status
-  - `2a0008d` — fix: remover processamento de pagamento PIX
-  - `7a25f98` — feat: Realtime para pedidos
-- **GitHub**: https://github.com/typeacai-design/delivery-saas
-- **Deploy**: https://wedelivery.site (produção)
+## Deploy em Produção
+- **URL**: https://wedelivery.site
+- **Repositório**: https://github.com/typeacai-design/delivery-saas
+- **Último Commit**: a4c25ba (24/08/2026)
 
 ---
 
-## 2026-08-20 — Melhoramentos no Painel de Pedidos (Sessão 2 — Tarde)
+## Funcionalidades Implementadas
 
-### 1. Som em loop até confirmar
-- Som toca repetidamente até o lojista clicar em "Preparando"
-- Removido do loop quando o status muda de "novo"
-- Hook `useSomNovoPedido` com controle de loop
+### 1. Sistema de Pedidos
+- [x] Grid 3 colunas de pedidos
+- [x] Filtros por status (Novo, Preparando, Pronto, Saiu, Entregue, Cancelado)
+- [x] Filtro por data
+- [x] Código do pedido formatado (00001/26)
+- [x] Som de novo pedido em loop
+- [x] Badge de tempo no pedido
+- [x] Autocomplete de produtos no modal de edição
+- [x] Edição real de pedidos
+- [x] Modal de confirmação de cancelamento com motivo
+- [x] Cancelamento com confirmação
+- [x] Motoboy com comissões
 
-### 2. Código do pedido formatado (00001/26)
-- Migration 053 aplicada: coluna `codigo` adicionada
-- Função `gerar_codigo_pedido()` gera sequência por tenant/ano
-- Trigger automático atribui código ao criar pedido
-- Formato: 5 dígitos + "/" + 2 últimos dígitos do ano
-- Ex: 00001/26, 00002/26... em 2026; 00001/27, 00002/27... em 2027
+### 2. Botões de Ação (Atualizado em 24/08/2026)
+- [x] Botão "Avançar" - full-width, tamanho grande
+- [x] Botão "Pago" - verde quando pago, maior e mais visível
+- [x] Botão "Desconto" - com ícone
+- [x] Botão "WhatsApp" - para confirmar pedido
+- [x] Botão "Editar" - com autocomplete de produtos
+- [x] Botão "Imprimir" - para cupom
+- [x] Botão "Cancelar" - com confirmação
 
-### 3. Card de pedido com mais informações
-- Novo layout em formato de **card quadrado**
-- Informações visíveis:
-  - Código do pedido (00001/26)
-  - Nome do cliente
-  - WhatsApp
-  - Data/hora
-  - Valor total
-  - Forma de pagamento
-  - Tipo de entrega/endereço
-  - Observações
-- Detalhes extras em **dropdown colapsável** (Ver mais/menos)
+### 3. Sistema de Alertas de Tempo (Atualizado em 24/08/2026)
+- [x] Componente TempoAlerta no card do pedido
+- [x] Verde: No prazo (menos de 80% do tempo)
+- [x] Amarelo: Atenção (80% do tempo)
+- [x] Vermelho: ATRASADO (100%+ com animação)
+- [x] Atualização automática a cada 30 segundos
+- [x] Baseado no campo `tempo_estimado_min` do pedido
 
-### 4. Estatísticas incluem "Entregues"
-- Adicionado status `entregue` na barra de estatísticas
-- Agora mostra: Novo, Preparando, Pronto, Saiu, **Entregues**
+### 4. Formas de Pagamento (Corrigido em 24/08/2026)
+- [x] Dinheiro
+- [x] PIX
+- [x] Cartão de Crédito
+- [x] Cartão de Débito
+- [x] Configuração no painel do lojista
+- [x] Aplicação no cardápio público
+- [x] Migration 055 para corrigir IDs
 
-### 5. Removido filtro de motoboy
-- Removido select "Filtrar motoboy:" da barra superior
-- Mantido seletor individual por pedido
+### 5. Financeiro
+- [x] Aba de Financeiro no dashboard
+- [x] Entradas e saídas
+- [x] Saldo atual
+- [x] Lançamentos manuais
+- [x] Transações do tipo entrada/saída
+- [x] Toggle para formas de pagamento
+- [x] Resumo de entradas/saídas/saldo
+- [x] Status "Pago" nos pedidos
+- [x] Código do pedido correto
 
-### 6. Migrations aplicadas
-- 053_codigo_pedido_grants
-- 053_codigo_funcoes
-- 053_ajustar_trigger_codigo
-- 053_corrigir_updated_at
-- 053_atualizar_codigos_existentes (via função)
+### 6. Relatórios
+- [x] 5 tipos de relatório
+- [x] Filtros por período
+- [x] Faturamento total
+- [x] Comissões
+- [x] Produtos mais vendidos
+- [x] Métodos de pagamento
+- [x] Exportação
 
----
+### 7. Cobrança 1% (Implementado em 24/08/2026)
+- [x] Nova página: `/painel-admin/faturamento`
+- [x] Calcula 1% do faturamento por lojista
+- [x] Filtro por período (data início/fim)
+- [x] Botão marcar/desmarcar pago
+- [x] Cards de resumo: Total, Comissão, Cobrado, Pendente
+- [x] Tabela detalhada por lojista
 
-### Bug: Pedido some do painel do lojista após finalização pelo cliente
-
-**Sintoma:** Cliente finalizava pedido no cardápio digital, valor aparecia no faturamento, mas pedido NÃO aparecia na aba de pedidos.
-
-**4 ERROS IDENTIFICADOS E CORRIGIDOS:**
-
-#### ERRO 1: GRANT SELECT restritivo demais (CRÍTICO)
-- **Causa:** Migration 047 concedia apenas 12 colunas para `SELECT` em `pedidos`
-- **Impacto:** `cliente_nome`, `forma_pagamento`, `cliente_whatsapp`, `endereco_entrega`, `troco_para` retornavam `null`
-- **Correção:** Migration 052 aplicada — GRANT SELECT com todas as 29 colunas necessárias
-- **Arquivo:** `supabase/migrations/052_expandir_grants_pedidos_corrigido.sql`
-
-#### ERRO 2: Campos ausentes na resposta da API
-- **Causa:** API `/api/pedidos/public` não retornava `cliente_nome` nem `cliente_whatsapp`
-- **Impacto:** Lojista não conseguia ver dados do cliente no painel
-- **Correção:** Adicionados campos na resposta JSON da API
-- **Arquivo:** `src/app/api/pedidos/public/route.ts`
-
-#### ERRO 3: Forma de pagamento como array não manipulado
-- **Causa:** Código usava `pedido.forma_pagamento.join(', ')` sem verificar se é array
-- **Impacto:** Se `forma_pagamento` fosse `null` ou string, `.join()` falhava
-- **Correção:** Adicionado `Array.isArray()` para verificação defensiva
-- **Arquivo:** `src/app/(dashboard)/pedidos/page.tsx`
-
-#### ERRO 4: Grant em coluna inexistente
-- **Causa:** `pedido_itens` não tem coluna `created_at` — migration falhava silenciosamente
-- **Correção:** Removida coluna inexistente do GRANT
-- **Arquivo:** `supabase/migrations/052_expandir_grants_pedidos_corrigido.sql`
-
-### Commit
-- Migration aplicada diretamente no Supabase via MCP
-- Commits de código no repositório
-
----
-
-### Correções de Segurança ✅
-- [x] `criar_pedido_atomico` — REVOGADO do anon
-- [x] `search_path` fixo em 6 funções
-- [x] RLS policies para `pagamentos`, `api_rate_limits`, `convites_loja`
-- [ ] Leaked Password Protection — ⚠️ Pendente (manual no Supabase Dashboard)
-
-### Infraestrutura
-- **Git inicializado** no projeto
-- **Repo no GitHub**: https://github.com/typeacai-design/delivery-saas
-- **Deploy**: GitHub + Vercel CLI (`npx vercel --prod --force`)
-- **Banco**: Supabase (iqacuakyyzhrsrjzlnai)
+### 8. Painel Admin
+- [x] Visão Geral
+- [x] Gestão de Lojistas (aprovar, suspender, reativar)
+- [x] Cobrança 1%
+- [x] Mensalidades
+- [x] Relatórios
+- [x] Configurações
 
 ---
 
-## Próxima sessão — Pontos a retomar
+## Estrutura do Banco de Dados
 
-### Sprint 5: Motoboys + Avaliações
-- [ ] Implementar motoboys próprios da loja
-- [ ] Sistema de avaliações com estrelas + comentário
+### Tabelas Principais
+- `tenants` - Lojistas
+- `usuarios_loja` - Usuários
+- `pedidos` - Pedidos
+- `produtos` - Produtos
+- `categorias` - Categorias
+- `despesas` - Despesas fixas
+- `movimentacoes_financeiras` - Transações manuais
+- `enderecos_entrega` - Bairros e prazos
+- `avaliacoes` - Avaliações
+- `embaixadores` - Programa de indicação
 
-### Sprint 6: Embaixadores + Sorteios
-- [ ] Programa de embaixadores
-- [ ] Sorteios por campanha
+### Campos Importantes
+- `pedidos.pago` - Status de pagamento
+- `pedidos.pago_em` - Data do pagamento
+- `pedidos.pago_por` - Quem marcou como pago
+- `pedidos.tempo_estimado_min` - Tempo estimado
+- `pedidos.codigo` - Código formatado
+- `produtos.tempo_preparo_min` - Tempo de preparo
+- `enderecos_entrega.prazo_min` - Prazo por bairro
 
-### Integrações
-- [ ] Z-API para WhatsApp real
-- [ ] Gateway PIX automático (Yampi/Mercado Pago) — **atenção: agora o fluxo é via WhatsApp**
-- [ ] App PWA entregadores
+---
 
-### Bugs reportados por lojistas
-- [ ] Testar fluxo completo de pedido do cliente ao lojista
-- [ ] Verificar se todos os status funcionam corretamente
-- [ ] Testar notificação por e-mail/SMS ao lojista (opcional)
+## Migrations Recentes
 
-### Segurança
-- [ ] Leaked Password Protection — Ativar no Supabase Dashboard
+| # | Nome | Descrição |
+|---|------|-----------|
+| 054 | status_pagamento_pedido | Campos pago, pago_em, pago_por |
+| 055 | corrigir_formas_pagamento_ids | Corrige credit->cartao_credito |
+
+---
+
+## Para Testar
+
+1. **lojista** → https://wedelivery.site/configuracoes → Pagamentos
+   - Desative uma forma de pagamento
+   - Acesse o cardápio público
+   - Verifique que a forma não aparece
+
+2. **lojista** → https://wedelivery.site/pedidos
+   - Verifique botões grandes
+   - Observe alerta de tempo
+
+3. **admin** → https://wedelivery.site/painel-admin/faturamento
+   - Selecione período
+   - Veja faturamento e comissão 1%
+   - Marque como pago
+
+---
+
+## URLs Importantes
+
+| Página | URL |
+|--------|-----|
+| Homepage | https://wedelivery.site |
+| Login Lojista | https://wedelivery.site/login |
+| Registro | https://wedelivery.site/registro |
+| Dashboard | https://wedelivery.site/dashboard |
+| Pedidos | https://wedelivery.site/pedidos |
+| Financeiro | https://wedelivery.site/financeiro |
+| Relatórios | https://wedelivery.site/relatorios |
+| Configurações | https://wedelivery.site/configuracoes |
+| Painel Admin | https://wedelivery.site/painel-admin |
+| Faturamento Admin | https://wedelivery.site/painel-admin/faturamento |
+
+---
+
+## Comandos Úteis
+
+```bash
+# Deploy produção
+cd C:\Users\ranie\.claude\PROJETOS\delivery-saas
+vercel --prod --force
+
+# Verificar banco (Supabase MCP)
+# Já disponível via MCP
+
+# Ver logs
+vercel logs delivery-saas
+```
+
+---
+
+## Notas para Manutenção
+
+1. **Autenticação**: Usa Supabase Auth com RLS
+2. **Admin**: Login via `/api/admin/login` com hash de senha
+3. **Cardápio público**: Não requer autenticação
+4. **Tempo de cache**: Cardápio revida a cada 30s
+5. **Som de pedido**: Arquivo em `/public/sounds/pedido-novo.mp3`
