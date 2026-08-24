@@ -17,14 +17,19 @@ export async function GET() {
   try {
     const { supabase, tenantId } = await authenticatedTenant(['owner'])
     if (!tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
-    const [orders, expenses, movements, tenant] = await Promise.all([
-      allRows((from, to) => supabase.from('pedidos').select('id,created_at,valor_total,taxa_entrega,forma_pagamento,status').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
-      allRows((from, to) => supabase.from('despesas').select('id,nome,valor,dia_vencimento,recorrencia,created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
-      allRows((from, to) => supabase.from('movimentacoes_estoque').select('id,tipo,quantidade,created_at,observacao,insumos!inner(nome,unidade,custo_unitario,tenant_id)').eq('insumos.tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
+
+    const [orders, expenses, transactions, tenant] = await Promise.all([
+      // Pedidos com código
+      allRows((from, to) => supabase.from('pedidos').select('id,codigo,created_at,valor_total,taxa_entrega,forma_pagamento,status,pago,pago_em').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
+      // Despesas
+      allRows((from, to) => supabase.from('despesas').select('id,nome,valor,dia_vencimento,recorrencia,created_at,pago').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
+      // Transações manuais
+      allRows((from, to) => supabase.from('movimentacoes_financeiras').select('id,tipo,descricao,valor,data,categoria').eq('tenant_id', tenantId).order('data', { ascending: false }).range(from, to)),
       supabase.from('tenants').select('id,config').eq('id', tenantId).single(),
     ])
+
     if (tenant.error) throw tenant.error
-    return NextResponse.json({ orders, expenses, movements, tenant: tenant.data }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ orders, expenses, transactions, tenant: tenant.data }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('financeiro_read_failed', error)
     return NextResponse.json({ error: 'Não foi possível carregar os dados financeiros' }, { status: 500 })
@@ -34,11 +39,18 @@ export async function GET() {
 export async function PUT(request: Request) {
   const { supabase, tenantId } = await authenticatedTenant(['owner'])
   if (!tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
-  const body = await request.json(); const allowed = ['dinheiro','pix','cartao_credito','cartao_debito']
+
+  const body = await request.json()
+  const allowed = ['dinheiro','pix','cartao_credito','cartao_debito']
   const formas = Object.fromEntries(allowed.map(key => [key, body.formas?.[key] === true]))
-  const { data: tenant, error: readError } = await supabase.from('tenants').select('config').eq('id', tenantId).single()
-  if (readError) return NextResponse.json({ error: 'Não foi possível salvar' }, { status: 500 })
+
+  const { data: tenant } = await supabase.from('tenants').select('config').eq('id', tenantId).single()
+  if (!tenant) return NextResponse.json({ error: 'Não foi possível salvar' }, { status: 500 })
+
   const config = { ...((tenant.config || {}) as Record<string, unknown>), formas_pagamento_aceitas: formas }
   const { error } = await supabase.from('tenants').update({ config }).eq('id', tenantId)
-  return error ? NextResponse.json({ error: 'Não foi possível salvar' }, { status: 500 }) : NextResponse.json({ config })
+
+  return error
+    ? NextResponse.json({ error: 'Não foi possível salvar' }, { status: 500 })
+    : NextResponse.json({ config })
 }

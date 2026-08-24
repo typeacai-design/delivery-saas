@@ -92,7 +92,7 @@ const NEXT_STATUS: Record<PedidoStatus, PedidoStatus | null> = {
   cancelado: null,
 }
 
-// Status que devem aparecer na barra de estatísticas (exclui 'todos' que é calculado)
+// Status que devem aparecer na barra de estatísticas (cancelado fica por último)
 const STATUS_LISTA: PedidoStatus[] = ['novo', 'preparando', 'pronto', 'saiu', 'entregue', 'cancelado']
 
 // Componente para editar UM item com autocomplete de produtos do banco
@@ -364,7 +364,7 @@ export default function PedidosPage() {
   const [novosPedidosCount, setNovosPedidosCount] = useState(0)
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
-  const [filtroStatus, setFiltroStatus] = useState<string | null>(null) // null = todos
+  const [filtroStatus, setFiltroStatus] = useState<string | null>('novo') // Padrão: novo
   const [filtroData, setFiltroData] = useState<string>(new Date().toISOString().split('T')[0]) // Data atual como padrão
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
@@ -534,6 +534,26 @@ export default function PedidosPage() {
     if (error) {
       console.error('Erro ao atualizar status:', error)
       alert('Erro ao atualizar status')
+    } else {
+      loadPedidos()
+    }
+  }
+
+  // Toggle pago/nao pago
+  const togglePago = async (pedido: any) => {
+    const novoStatus = !pedido.pago
+    const { error } = await supabase
+      .from('pedidos')
+      .update({
+        pago: novoStatus,
+        pago_em: novoStatus ? new Date().toISOString() : null,
+        pago_por: novoStatus ? 'lojista' : null
+      })
+      .eq('id', pedido.id)
+
+    if (error) {
+      console.error('Erro ao marcar pago:', error)
+      alert('Erro ao marcar como pago')
     } else {
       loadPedidos()
     }
@@ -888,20 +908,7 @@ export default function PedidosPage() {
 
       {/* Stats Bar - BOTOES PEQUENOS E CLICAVEIS */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        {/* Card "Todos" - mostra total */}
-        <button
-          onClick={() => setFiltroStatus(null)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
-            filtroStatus === null
-              ? 'bg-gray-800 text-white shadow-md'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          <span>Todos</span>
-          <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs font-bold">{pedidos.length}</span>
-        </button>
-
-        {STATUS_LISTA.map((status) => {
+        {STATUS_LISTA.filter(s => s !== 'cancelado').map((status) => {
           const count = pedidos.filter((p) => p.status === status).length
           const config = STATUS_CONFIG[status]
           const isActive = filtroStatus === status
@@ -917,6 +924,38 @@ export default function PedidosPage() {
             </button>
           )
         })}
+
+        {/* Card "Todos" - mostra total */}
+        <button
+          onClick={() => setFiltroStatus(null)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+            filtroStatus === null
+              ? 'bg-gray-800 text-white shadow-md'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <span>Todos</span>
+          <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs font-bold">{pedidos.length}</span>
+        </button>
+
+        {/* Cancelado - sempre por último */}
+        {(() => {
+          const status = 'cancelado'
+          const count = pedidos.filter((p) => p.status === status).length
+          const config = STATUS_CONFIG[status]
+          const isActive = filtroStatus === status
+          return (
+            <button
+              key={status}
+              onClick={() => setFiltroStatus(isActive ? null : status)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? config.bgColor + ' ' + config.color + ' shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+            >
+              <config.icon className="w-3 h-3" />
+              <span>{config.label}</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+            </button>
+          )
+        })()}
       </div>
 
       {/* Pedidos filtrados ou todos */}
@@ -1030,8 +1069,26 @@ export default function PedidosPage() {
                       <span>TOTAL:</span>
                       <span className="text-green-600">{formatCurrency(pedido.valor_total)}</span>
                     </div>
-                    <div className="text-right text-gray-500 text-xs">
-                      {formatFormaPagamento((pedido as any).forma_pagamento)}
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-500">{formatFormaPagamento((pedido as any).forma_pagamento)}</span>
+                      <button
+                        onClick={() => togglePago(pedido)}
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 transition-colors ${
+                          (pedido as any).pago
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                            : 'bg-gray-100 text-gray-500 hover:bg-green-100 hover:text-green-700'
+                        }`}
+                        title={(pedido as any).pago ? 'Pago - clique para desmarcar' : 'Marcar como pago'}
+                      >
+                        {(pedido as any).pago ? (
+                          <>
+                            <Check className="w-3 h-3" />
+                            Pago
+                          </>
+                        ) : (
+                          'Marcar pago'
+                        )}
+                      </button>
                     </div>
                   </div>
 

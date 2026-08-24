@@ -44,25 +44,32 @@ export default function VisaoGeralPage() {
       primeiroDia.setDate(1)
       primeiroDia.setHours(0, 0, 0, 0)
 
-      const { data: vendasHoje } = await supabase
+      const { data: vendasHojeRaw } = await supabase
         .from('pedidos')
-        .select('valor_total')
+        .select('valor_total, pago, status, forma_pagamento')
         .eq('tenant_id', tenantId)
         .gte('data_criacao', hoje)
         .neq('status', 'cancelado')
 
-      setTotalHoje(vendasHoje?.reduce((s, p) => s + Number(p.valor_total), 0) || 0)
-      setPedidosHoje(vendasHoje?.length || 0)
+      // Faturamento: pago=true OU (entregue E dinheiro)
+      const vendasHoje = (vendasHojeRaw || []).filter(p =>
+        p.pago === true || (p.status === 'entregue' && p.forma_pagamento === 'dinheiro')
+      )
+      setTotalHoje(vendasHoje.reduce((s, p) => s + Number(p.valor_total), 0))
+      setPedidosHoje(vendasHoje.length)
 
-      const { data: vendasMes } = await supabase
+      const { data: vendasMesRaw } = await supabase
         .from('pedidos')
-        .select('valor_total')
+        .select('valor_total, pago, status, forma_pagamento')
         .eq('tenant_id', tenantId)
         .gte('data_criacao', primeiroDia.toISOString())
         .neq('status', 'cancelado')
 
-      setTotalMes(vendasMes?.reduce((s, p) => s + Number(p.valor_total), 0) || 0)
-      setPedidosMes(vendasMes?.length || 0)
+      const vendasMes = (vendasMesRaw || []).filter(p =>
+        p.pago === true || (p.status === 'entregue' && p.forma_pagamento === 'dinheiro')
+      )
+      setTotalMes(vendasMes.reduce((s, p) => s + Number(p.valor_total), 0))
+      setPedidosMes(vendasMes.length)
     } catch (err) {
       console.error('Erro loadData:', err)
     } finally {
