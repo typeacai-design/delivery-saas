@@ -414,15 +414,40 @@ function FieldNum({label,value,onChange}:{label:string,value:any,onChange:(v:num
 function PagamentosTab({ tenant }: { tenant: any }) {
   const supabase = createClient()
   const config = (tenant?.config || {}) as any
-  const [pagamentos, setPagamentos] = useState(config.formas_pagamento_aceitas || {
+
+  // Inicializa com os valores do config (ou defaults)
+  const initialFormas = config.formas_pagamento_aceitas || {
     dinheiro: true,
     pix: true,
     cartao_credito: false,
     cartao_debito: false,
-  })
+  }
+
+  const [pagamentos, setPagamentos] = useState(initialFormas)
   const [trocoMax, setTrocoMax] = useState(config.troco_maximo || 100)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  // Sincroniza estado quando tenant/config muda
+  useEffect(() => {
+    const configAtual = (tenant?.config || {}) as any
+    setPagamentos(configAtual.formas_pagamento_aceitas || {
+      dinheiro: true,
+      pix: true,
+      cartao_credito: false,
+      cartao_debito: false,
+    })
+    setTrocoMax(configAtual.troco_maximo || 100)
+    setHasChanges(false)
+  }, [tenant])
+
+  // Detecta mudanças
+  const handleToggle = (id: string) => {
+    const novo = { ...pagamentos, [id]: !pagamentos[id] }
+    setPagamentos(novo)
+    setHasChanges(true)
+  }
 
   const formas = [
     { id: 'dinheiro', nome: 'Dinheiro', desc: 'Pagamento em espécie na entrega', emoji: '💵' },
@@ -465,6 +490,7 @@ function PagamentosTab({ tenant }: { tenant: any }) {
       }) })
 
       setSaveMsg({ type: 'ok', text: 'Formas de pagamento salvas com sucesso!' })
+      setHasChanges(false)
     } catch (e: any) {
       setSaveMsg({ type: 'error', text: e.message || 'Erro ao salvar' })
     } finally {
@@ -476,16 +502,30 @@ function PagamentosTab({ tenant }: { tenant: any }) {
   return (
     <div className="space-y-5">
       <div className="glass p-6">
-        <div className="eyebrow mb-1">Aceitar</div>
-        <h2 className="text-lg font-semibold mb-5">Formas de pagamento</h2>
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <div className="eyebrow mb-1">Aceitar</div>
+            <h2 className="text-lg font-semibold">Formas de pagamento</h2>
+          </div>
+          {/* Indicador de status */}
+          <div className="flex items-center gap-2">
+            {saving ? (
+              <span className="text-sm text-gray-500">Salvando...</span>
+            ) : hasChanges ? (
+              <span className="text-sm text-amber-600 font-medium">⚠️ Alterações não salvas</span>
+            ) : (
+              <span className="text-sm text-green-600 font-medium">✓ Salvo</span>
+            )}
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {formas.map((f) => {
             const ativo = pagamentos[f.id]
             return (
               <button
                 key={f.id}
-                onClick={() => setPagamentos({ ...pagamentos, [f.id]: !ativo })}
-                className="text-left p-4 rounded-2xl flex items-center gap-3 transition"
+                onClick={() => handleToggle(f.id)}
+                className="text-left p-4 rounded-2xl flex items-center gap-3 transition border-2"
                 style={
                   ativo
                     ? { background: 'rgba(22,163,74,.08)', border: '2px solid rgba(22,163,74,.4)' }
@@ -543,9 +583,17 @@ function PagamentosTab({ tenant }: { tenant: any }) {
             {saveMsg.text}
           </div>
         )}
-        <button onClick={salvar} disabled={saving} className="btn-primary w-full justify-center">
+        <button
+          onClick={salvar}
+          disabled={saving}
+          className={`w-full justify-center flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${
+            hasChanges
+              ? 'bg-green-600 text-white hover:bg-green-700 shadow-lg'
+              : 'bg-gray-100 text-gray-500 cursor-not-allowed'
+          }`}
+        >
           <Save size={14} />
-          {saving ? 'Salvando...' : 'Salvar formas de pagamento'}
+          {saving ? 'Salvando...' : hasChanges ? '💾 Salvar alterações' : '✓ Salvo'}
         </button>
       </div>
     </div>
