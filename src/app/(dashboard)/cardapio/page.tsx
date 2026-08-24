@@ -6,7 +6,7 @@ import { activeTenantId } from '@/lib/active-tenant-client'
 import {
   Plus, Edit, Trash2, Image as ImageIcon, Check, X, Save,
   Palette, Layout as LayoutIcon, Sparkles, Utensils as UtensilsIcon,
-  Package, AlertCircle, Tag, Clock, Upload
+  Package, AlertCircle, Tag, Clock, Upload, ArrowUp, ArrowDown
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import ProdutoFormModal from '@/components/admin/ProdutoFormModal'
@@ -301,12 +301,56 @@ function ProdutosTab() {
     setShowCatModal(false)
     setEditingCat(null)
     loadData()
+    // Revalidar cache do cardapio publico
+    fetch('/api/revalidate-cardapio', { method: 'POST' }).catch(() => {})
   }
 
   const deletarCategoria = async (id: string) => {
     if (!confirm('Tem certeza? Produtos desta categoria ficarão sem categoria.')) return
     await supabase.from('categorias').update({ ativo: false }).eq('id', id)
     loadData()
+    fetch('/api/revalidate-cardapio', { method: 'POST' }).catch(() => {})
+  }
+
+  // Reordenar categoria (subir/descer)
+  const reordenarCategoria = async (index: number, direcao: 'up' | 'down') => {
+    const novos = [...categorias]
+    const targetIdx = direcao === 'up' ? index - 1 : index + 1
+    if (targetIdx < 0 || targetIdx >= novos.length) return
+
+    const atual = novos[index]
+    const vizinho = novos[targetIdx]
+
+    // Trocar ordens
+    const ordemAtual = atual.ordem ?? index
+    const ordemVizinho = vizinho.ordem ?? targetIdx
+
+    await Promise.all([
+      supabase.from('categorias').update({ ordem: ordemVizinho }).eq('id', atual.id),
+      supabase.from('categorias').update({ ordem: ordemAtual }).eq('id', vizinho.id)
+    ])
+    loadData()
+    fetch('/api/revalidate-cardapio', { method: 'POST' }).catch(() => {})
+  }
+
+  // Reordenar produto dentro de uma categoria
+  const reordenarProduto = async (categoriaId: string, index: number, direcao: 'up' | 'down') => {
+    const lista = produtos[categoriaId] || []
+    const targetIdx = direcao === 'up' ? index - 1 : index + 1
+    if (targetIdx < 0 || targetIdx >= lista.length) return
+
+    const atual = lista[index]
+    const vizinho = lista[targetIdx]
+
+    const ordemAtual = atual.ordem ?? index
+    const ordemVizinho = vizinho.ordem ?? targetIdx
+
+    await Promise.all([
+      supabase.from('produtos').update({ ordem: ordemVizinho }).eq('id', atual.id),
+      supabase.from('produtos').update({ ordem: ordemAtual }).eq('id', vizinho.id)
+    ])
+    loadData()
+    fetch('/api/revalidate-cardapio', { method: 'POST' }).catch(() => {})
   }
 
   const abrirModalProduto = (produto?: any) => {
@@ -368,10 +412,32 @@ function ProdutosTab() {
       )}
 
       {/* Lista de sessões */}
-      {categorias.map((cat) => (
+      {categorias.map((cat, idx) => (
         <div key={cat.id} className="glass p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">{cat.nome}</h2>
+            <div className="flex items-center gap-3">
+              {/* Botões de ordem */}
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => reordenarCategoria(idx, 'up')}
+                  disabled={idx === 0}
+                  className="p-1 text-gray-500 hover:text-green-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Subir"
+                >
+                  <ArrowUp size={14} />
+                </button>
+                <button
+                  onClick={() => reordenarCategoria(idx, 'down')}
+                  disabled={idx === categorias.length - 1}
+                  className="p-1 text-gray-500 hover:text-green-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Descer"
+                >
+                  <ArrowDown size={14} />
+                </button>
+              </div>
+              <h2 className="text-lg font-semibold">{cat.nome}</h2>
+              <span className="text-xs text-gray-400">#{idx + 1}</span>
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => { setEditingCat(cat); setNovaCat(cat.nome); setShowCatModal(true) }}
@@ -389,17 +455,37 @@ function ProdutosTab() {
           </div>
           {produtos[cat.id] && produtos[cat.id].length > 0 ? (
             <div className="space-y-2">
-              {produtos[cat.id].map((prod) => (
-                <ProdutoLinha
-                  key={prod.id}
-                  produto={prod}
-                  complementosCount={0}
-                  onEdit={() => abrirModalProduto(prod)}
-                  onToggleAtivo={async () => { await supabase.from('produtos').update({ ativo: !prod.ativo }).eq('id', prod.id); loadData(); }}
-                  onDuplicate={async () => { /* no-op */ }}
-                  onUpdate={async () => { /* no-op */ }}
-                  onDelete={() => deletarProduto(prod.id)}
-                />
+              {produtos[cat.id].map((prod, prodIdx) => (
+                <div key={prod.id} className="flex items-center gap-2 bg-white rounded-lg p-2 border">
+                  {/* Botões de ordem do produto */}
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      onClick={() => reordenarProduto(cat.id, prodIdx, 'up')}
+                      disabled={prodIdx === 0}
+                      className="p-1 text-gray-400 hover:text-green-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Subir"
+                    >
+                      <ArrowUp size={12} />
+                    </button>
+                    <button
+                      onClick={() => reordenarProduto(cat.id, prodIdx, 'down')}
+                      disabled={prodIdx === produtos[cat.id].length - 1}
+                      className="p-1 text-gray-400 hover:text-green-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Descer"
+                    >
+                      <ArrowDown size={12} />
+                    </button>
+                  </div>
+                  <ProdutoLinha
+                    produto={prod}
+                    complementosCount={0}
+                    onEdit={() => abrirModalProduto(prod)}
+                    onToggleAtivo={async () => { await supabase.from('produtos').update({ ativo: !prod.ativo }).eq('id', prod.id); loadData(); }}
+                    onDuplicate={async () => { /* no-op */ }}
+                    onUpdate={async () => { /* no-op */ }}
+                    onDelete={() => deletarProduto(prod.id)}
+                  />
+                </div>
               ))}
             </div>
           ) : (
