@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import {
-  FileText, BarChart3, Calendar, Package, Sparkles, Download, TrendingUp, DollarSign
+  FileText, BarChart3, Calendar, Package, Sparkles, Download, TrendingUp, DollarSign, Eye
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 

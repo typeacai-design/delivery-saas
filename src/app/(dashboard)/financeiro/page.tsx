@@ -93,9 +93,9 @@ function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{order
       date:t.data,
       label:t.descricao,
       value:t.tipo==='entrada'?Number(t.valor):-Number(t.valor),
-      kind:t.tipo as const,
-      pago:null,
-      status:null
+      kind:t.tipo as 'entrada' | 'saida',
+      pago:null as null,
+      status:null as null
     }))
   ].sort((a,b)=>+new Date(b.date)-+new Date(a.date))
 
