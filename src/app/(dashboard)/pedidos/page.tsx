@@ -592,23 +592,25 @@ export default function PedidosPage() {
     }
   }
 
-  // Toggle pago/nao pago
+  // Toggle pago/nao pago via API
   const togglePago = async (pedido: any) => {
     const novoStatus = !pedido.pago
-    const { error } = await supabase
-      .from('pedidos')
-      .update({
-        pago: novoStatus,
-        pago_em: novoStatus ? new Date().toISOString() : null,
-        pago_por: novoStatus ? 'lojista' : null
+    try {
+      const res = await fetch(`/api/pedidos/${pedido.id}/pago`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedido_id: pedido.id, pago: novoStatus })
       })
-      .eq('id', pedido.id)
-
-    if (error) {
-      console.error('Erro ao marcar pago:', error)
+      const data = await res.json()
+      if (!res.ok) {
+        console.error('Erro ao marcar pago:', data.error)
+        alert('Erro ao marcar como pago')
+      } else {
+        loadPedidos()
+      }
+    } catch (err) {
+      console.error('Erro ao marcar pago:', err)
       alert('Erro ao marcar como pago')
-    } else {
-      loadPedidos()
     }
   }
 

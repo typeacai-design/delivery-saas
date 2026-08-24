@@ -78,7 +78,7 @@ export default function VisaoGeralPage() {
   }
 
   const copyLink = async () => {
-    const url = `${window.location.origin}/cardapio/${slug}`
+    const url = `${window.location.origin}/${slug}`
     await navigator.clipboard.writeText(url)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -203,7 +203,7 @@ export default function VisaoGeralPage() {
             <div className="text-base font-semibold mb-0.5" style={{ color: 'var(--ink)' }}>
               {copied ? 'Link copiado!' : 'Copiar link do cardápio'}
             </div>
-            <div className="hint font-mono">/cardapio/{slug}</div>
+            <div className="hint font-mono">/{slug}</div>
           </div>
           {!copied && <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: 'var(--ink-faint)' }} />}
         </button>
