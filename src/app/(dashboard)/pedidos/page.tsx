@@ -3,11 +3,64 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search } from 'lucide-react'
+import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
+
+// Componente de alerta de tempo
+function TempoAlerta({ dataCriacao, tempoEstimadoMin }: { dataCriacao: string; tempoEstimadoMin?: number }) {
+  const [minutosDecorridos, setMinutosDecorridos] = useState(0)
+
+  useEffect(() => {
+    const calcular = () => {
+      const diff = (Date.now() - new Date(dataCriacao).getTime()) / 60000
+      setMinutosDecorridos(Math.floor(diff))
+    }
+    calcular()
+    const interval = setInterval(calcular, 30000) // Atualiza a cada 30s
+    return () => clearInterval(interval)
+  }, [dataCriacao])
+
+  if (!tempoEstimadoMin) return null
+
+  const percentual = (minutosDecorridos / tempoEstimadoMin) * 100
+
+  if (percentual >= 100) {
+    const atraso = minutosDecorridos - tempoEstimadoMin
+    return (
+      <div className="flex items-center gap-2 p-2 bg-red-100 border border-red-300 rounded-lg animate-pulse">
+        <span className="text-xl">⏰</span>
+        <div>
+          <p className="text-red-700 font-bold text-sm">ATRASADO</p>
+          <p className="text-red-600 text-xs">+{atraso} min de atraso</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (percentual >= 80) {
+    const restantes = tempoEstimadoMin - minutosDecorridos
+    return (
+      <div className="flex items-center gap-2 p-2 bg-amber-100 border border-amber-300 rounded-lg">
+        <AlertTriangle className="w-5 h-5 text-amber-600" />
+        <div>
+          <p className="text-amber-700 font-bold text-sm">ATENÇÃO</p>
+          <p className="text-amber-600 text-xs">Faltam ~{restantes} min</p>
+        </div>
+      </div>
+    )
+  }
+
+  const restantes = tempoEstimadoMin - minutosDecorridos
+  return (
+    <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+      <Check className="w-4 h-4 text-green-600" />
+      <span className="text-green-700 text-xs font-medium">⏱️ {restantes} min restantes</span>
+    </div>
+  )
+}
 
 // Hook para tocar som de novo pedido em LOOP
 function useSomNovoPedido(somAtivado: boolean) {
@@ -1046,112 +1099,104 @@ export default function PedidosPage() {
                   </div>
                 )}
 
+                {/* TEMPO ALERTA */}
+                {pedido.status !== 'entregue' && pedido.status !== 'cancelado' && (
+                  <div className="px-3 py-2 border-t">
+                    <TempoAlerta
+                      dataCriacao={pedido.data_criacao}
+                      tempoEstimadoMin={(pedido as any).tempo_estimado_min}
+                    />
+                  </div>
+                )}
+
                 {/* TOTAIS + AÇÕES */}
                 <div className="mt-auto p-3 bg-gray-50 border-t border-gray-200">
-                  <div className="space-y-0.5 text-xs mb-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Subtotal:</span>
-                      <span>{formatCurrency((pedido as any).valor_subtotal || ((pedido as any).valor_total - ((pedido as any).taxa_entrega || 0)))}</span>
+                  {/* Totais simplificados */}
+                  <div className="flex justify-between items-center text-sm mb-3">
+                    <div className="text-gray-600">
+                      <span className="text-xs">{formatFormaPagamento((pedido as any).forma_pagamento)}</span>
                     </div>
-                    {((pedido as any).valor_desconto > 0) && (
-                      <div className="flex justify-between text-green-600">
-                        <span>Desconto:</span>
-                        <span>-{formatCurrency((pedido as any).valor_desconto)}</span>
-                      </div>
-                    )}
-                    {((pedido as any).taxa_entrega > 0) && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Entrega:</span>
-                        <span>{formatCurrency((pedido as any).taxa_entrega)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between font-bold text-sm pt-1 border-t border-gray-300">
-                      <span>TOTAL:</span>
-                      <span className="text-green-600">{formatCurrency(pedido.valor_total)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-500">{formatFormaPagamento((pedido as any).forma_pagamento)}</span>
-                      <button
-                        onClick={() => togglePago(pedido)}
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 transition-colors ${
-                          (pedido as any).pago
-                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                            : 'bg-gray-100 text-gray-500 hover:bg-green-100 hover:text-green-700'
-                        }`}
-                        title={(pedido as any).pago ? 'Pago - clique para desmarcar' : 'Marcar como pago'}
-                      >
-                        {(pedido as any).pago ? (
-                          <>
-                            <Check className="w-3 h-3" />
-                            Pago
-                          </>
-                        ) : (
-                          'Marcar pago'
-                        )}
-                      </button>
-                    </div>
+                    <span className="font-bold text-green-600">{formatCurrency(pedido.valor_total)}</span>
                   </div>
 
-                  {/* GRID DE BOTÕES */}
-                  <div className="grid grid-cols-4 gap-1">
-                    {/* Confirmar/Avançar status */}
-                    {nextStatus && (
-                      <button
-                        onClick={() => updateStatus(pedido, nextStatus)}
-                        className="col-span-4 px-2 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 flex items-center justify-center gap-1"
-                        title={`Avançar para ${STATUS_CONFIG[nextStatus].label}`}
-                      >
-                        <ChevronRight className="w-3 h-3" />
-                        {STATUS_CONFIG[nextStatus].label}
-                      </button>
-                    )}
+                  {/* LINHA 1: Avançar status (GRANDE) */}
+                  {nextStatus && (
+                    <button
+                      onClick={() => updateStatus(pedido, nextStatus)}
+                      className="w-full px-4 py-3 mb-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
+                      title={`Avançar para ${STATUS_CONFIG[nextStatus].label}`}
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                      AVANÇAR PARA {STATUS_CONFIG[nextStatus].label.toUpperCase()}
+                    </button>
+                  )}
 
-                    {/* Botão WPP cliente (Confirmar pedido) */}
-                    {(pedido as any).cliente_whatsapp && (
-                      <button
-                        onClick={() => confirmarPedidoWPP(pedido)}
-                        className="px-2 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center justify-center"
-                        title="Confirmar pedido (enviar msg ao cliente)"
-                      >
-                        <MessageCircle className="w-3 h-3" />
-                      </button>
-                    )}
+                  {/* LINHA 2: Botões de ação (GRANDE) */}
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                    {/* Pago */}
+                    <button
+                      onClick={() => togglePago(pedido)}
+                      className={`flex flex-col items-center p-3 rounded-xl text-xs font-medium transition-all active:scale-95 ${
+                        (pedido as any).pago
+                          ? 'bg-green-500 text-white shadow-sm'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      }`}
+                      title={(pedido as any).pago ? 'Pago - clique para desmarcar' : 'Marcar como pago'}
+                    >
+                      <Check className="w-5 h-5 mb-1" />
+                      {(pedido as any).pago ? 'Pago ✓' : 'Pago'}
+                    </button>
 
                     {/* Desconto */}
                     <button
                       onClick={() => abrirModalDesconto(pedido)}
-                      className="px-2 py-1.5 bg-amber-500 text-white text-xs rounded hover:bg-amber-600 flex items-center justify-center"
+                      className="flex flex-col items-center p-3 bg-amber-100 text-amber-700 rounded-xl text-xs font-medium hover:bg-amber-200 transition-all active:scale-95"
                       title="Dar desconto"
                     >
-                      <Tag className="w-3 h-3" />
+                      <Percent className="w-5 h-5 mb-1" />
+                      Desconto
                     </button>
+
+                    {/* WhatsApp */}
+                    {(pedido as any).cliente_whatsapp && (
+                      <button
+                        onClick={() => confirmarPedidoWPP(pedido)}
+                        className="flex flex-col items-center p-3 bg-green-100 text-green-700 rounded-xl text-xs font-medium hover:bg-green-200 transition-all active:scale-95"
+                        title="Confirmar pedido (WhatsApp)"
+                      >
+                        <MessageCircle className="w-5 h-5 mb-1" />
+                        WhatsApp
+                      </button>
+                    )}
 
                     {/* Editar */}
                     <button
                       onClick={() => abrirModalEditar(pedido)}
-                      className="px-2 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 flex items-center justify-center"
+                      className="flex flex-col items-center p-3 bg-indigo-100 text-indigo-700 rounded-xl text-xs font-medium hover:bg-indigo-200 transition-all active:scale-95"
                       title="Editar pedido"
                     >
-                      <Pencil className="w-3 h-3" />
+                      <Pencil className="w-5 h-5 mb-1" />
+                      Editar
                     </button>
 
                     {/* Imprimir */}
                     <button
                       onClick={() => imprimirPedido(pedido)}
-                      className="px-2 py-1.5 bg-gray-700 text-white text-xs rounded hover:bg-gray-800 flex items-center justify-center"
+                      className="flex flex-col items-center p-3 bg-gray-100 text-gray-700 rounded-xl text-xs font-medium hover:bg-gray-200 transition-all active:scale-95"
                       title="Imprimir pedido"
                     >
-                      <Printer className="w-3 h-3" />
+                      <Printer className="w-5 h-5 mb-1" />
+                      Imprimir
                     </button>
 
                     {/* Cancelar */}
                     {pedido.status !== 'cancelado' && pedido.status !== 'entregue' && (
                       <button
                         onClick={() => abrirModalCancelamento(pedido)}
-                        className="col-span-4 px-2 py-1.5 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 flex items-center justify-center gap-1"
+                        className="flex flex-col items-center p-3 bg-red-100 text-red-700 rounded-xl text-xs font-medium hover:bg-red-200 transition-all active:scale-95"
                         title="Cancelar pedido"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-5 h-5 mb-1" />
                         Cancelar
                       </button>
                     )}
