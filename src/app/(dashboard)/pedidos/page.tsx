@@ -330,9 +330,12 @@ function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compact
                 <span className="font-medium whitespace-nowrap">{formatCurrency(item.valor_unitario * item.quantidade)}</span>
               </div>
               {comps.length > 0 && (
-                <div className="ml-2 text-gray-500 text-[10px]">
+                <div className="ml-2 text-gray-600 text-xs font-medium">
                   {comps.map((c: any, i: number) => (
-                    <span key={i} className="mr-1">+ {c.nome}{c.quantidade > 1 ? `x${c.quantidade}` : ''}</span>
+                    <div key={i} className="flex justify-between gap-4">
+                      <span>+ {c.quantidade > 1 ? `${c.quantidade}x` : ''} {c.nome}</span>
+                      <span className="whitespace-nowrap">{formatCurrency(c.valor * (c.quantidade || 1))}</span>
+                    </div>
                   ))}
                 </div>
               )}
@@ -362,6 +365,7 @@ export default function PedidosPage() {
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
   const [filtroStatus, setFiltroStatus] = useState<string | null>(null) // null = todos
+  const [filtroData, setFiltroData] = useState<string>(new Date().toISOString().split('T')[0]) // Data atual como padrão
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
   const [itensEditando, setItensEditando] = useState<any[]>([])
@@ -592,25 +596,92 @@ export default function PedidosPage() {
   }
 
   // Imprimir pedido
-  const imprimirPedido = (pedido: any) => {
+  const imprimirPedido = async (pedido: any) => {
     const janela = window.open('', '_blank', 'width=400,height=600')
     if (!janela) return alert('Permita popups para imprimir')
-    const itensHtml = (itensCache[pedido.id] || []).map(i => `<tr><td>${i.quantidade}x ${i.nome}</td><td>R$ ${(i.valor_unitario * i.quantidade).toFixed(2)}</td></tr>`).join('')
+
+    // Buscar itens com complementos do cache
+    const itensDoPedido = itensCache[pedido.id] || []
+
+    // Gerar HTML dos itens com complementos
+    const itensHtml = itensDoPedido.map((i: any) => {
+      const comps = Array.isArray(i.complementos)
+        ? (typeof i.complementos === 'string' ? JSON.parse(i.complementos) : i.complementos)
+        : []
+
+      let html = `<tr><td><strong>${i.quantidade}x ${i.nome}</strong>`
+      if (i.variante_nome) html += ` (${i.variante_nome})`
+      html += `</td><td style="text-align:right">R$ ${(i.valor_unitario * i.quantidade).toFixed(2)}</td></tr>`
+
+      // Complementos
+      comps.forEach((c: any) => {
+        const compValor = (c.valor || 0) * (c.quantidade || 1)
+        html += `<tr><td style="padding-left:15px;color:#666;font-size:11px">+ ${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}</td><td style="text-align:right;color:#666;font-size:11px">R$ ${compValor.toFixed(2)}</td></tr>`
+      })
+
+      return html
+    }).join('')
+
     janela.document.write(`
       <html><head><title>Pedido ${pedido.codigo || pedido.id}</title>
-      <style>body{font-family:monospace;font-size:12px;padding:10px}h1{font-size:14px}table{width:100%;border-collapse:collapse}td{padding:2px 0;border-bottom:1px dashed #ccc}hr{border:none;border-top:1px dashed #000}.total{font-weight:bold;font-size:14px}</style>
+      <style>
+        body{font-family:monospace;font-size:13px;padding:15px;max-width:380px;margin:0 auto}
+        h1{font-size:16px;margin:0 0 10px;border-bottom:2px solid #000;padding-bottom:5px}
+        h2{font-size:12px;margin:10px 0 5px;color:#333}
+        p{margin:3px 0;font-size:12px}
+        table{width:100%;border-collapse:collapse;margin:5px 0}
+        td{padding:3px 0;border-bottom:1px dashed #ddd;font-size:12px}
+        hr{border:none;border-top:1px dashed #000;margin:10px 0}
+        .total{font-weight:bold;font-size:16px;margin-top:10px}
+        .info-section{margin-bottom:10px}
+      </style>
       </head><body>
-      <h1>Pedido: ${pedido.codigo || pedido.id}</h1>
-      <p>${pedido.cliente_nome || ''}<br>${pedido.cliente_whatsapp || ''}<br>${pedido.endereco_entrega || ''} ${pedido.numero_entrega || ''}<br>${pedido.bairro_entrega || ''}</p>
-      <hr><table>${itensHtml}</table>
+      <h1>📋 PEDIDO ${pedido.codigo || pedido.id}</h1>
+
+      <div class="info-section">
+        <h2>👤 CLIENTE</h2>
+        <p><strong>${pedido.cliente_nome || 'Cliente'}</strong></p>
+        <p>📱 ${pedido.cliente_whatsapp || '-'}</p>
+      </div>
+
+      <div class="info-section">
+        <h2>📍 ENDEREÇO</h2>
+        ${pedido.tipo_entrega === 'retirada'
+          ? '<p>🏪 Retirada no local</p>'
+          : `<p>${pedido.endereco_entrega || '-'}, ${pedido.numero_entrega || 's/n'}</p>
+             <p>${pedido.bairro_entrega || ''} ${pedido.complemento_entrega ? `(${pedido.complemento_entrega})` : ''}</p>`
+        }
+      </div>
+
       <hr>
-      <p>Subtotal: R$ ${(pedido.valor_subtotal || 0).toFixed(2)}<br>
-      Desconto: R$ ${(pedido.valor_desconto || 0).toFixed(2)}<br>
-      Entrega: R$ ${(pedido.taxa_entrega || 0).toFixed(2)}</p>
-      <p class="total">TOTAL: R$ ${(pedido.valor_total || 0).toFixed(2)}</p>
-      <p>Pagamento: ${pedido.forma_pagamento}</p>
-      ${pedido.observacoes ? `<p>Obs: ${pedido.observacoes}</p>` : ''}
-      <script>window.print();window.close();</script>
+      <h2>🛒 ITENS DO PEDIDO</h2>
+      <table>${itensHtml}</table>
+      <hr>
+
+      <div>
+        <p><strong>Subtotal:</strong> R$ ${(pedido.valor_subtotal || 0).toFixed(2)}</p>
+        ${pedido.valor_desconto > 0 ? `<p style="color:green"><strong>Desconto:</strong> -R$ ${(pedido.valor_desconto || 0).toFixed(2)}</p>` : ''}
+        ${pedido.taxa_entrega > 0 ? `<p><strong>Entrega:</strong> R$ ${(pedido.taxa_entrega || 0).toFixed(2)}</p>` : ''}
+        <p class="total">TOTAL: R$ ${(pedido.valor_total || 0).toFixed(2)}</p>
+      </div>
+
+      <hr>
+      <div>
+        <p><strong>💳 Pagamento:</strong> ${Array.isArray(pedido.forma_pagamento) ? pedido.forma_pagamento.join(', ') : (pedido.forma_pagamento || '-')}</p>
+        ${pedido.tipo_entrega === 'delivery' && pedido.forma_pagamento === 'dinheiro' && pedido.troco_para > 0
+          ? `<p><strong>Troco para:</strong> R$ ${(pedido.troco_para || 0).toFixed(2)}</p>`
+          : ''}
+      </div>
+
+      ${pedido.observacoes ? `
+      <hr>
+      <div>
+        <p><strong>📝 Observações:</strong></p>
+        <p style="background:#fffde7;padding:5px;border-radius:3px">${pedido.observacoes}</p>
+      </div>
+      ` : ''}
+
+      <script>window.onload = function() { window.print(); }</script>
       </body></html>
     `)
   }
@@ -782,6 +853,39 @@ export default function PedidosPage() {
         </div>
       </div>
 
+      {/* Filtro de Data */}
+      <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border shadow-sm">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-600">📅 Filtrar por data:</label>
+          <input
+            type="date"
+            value={filtroData}
+            onChange={(e) => setFiltroData(e.target.value)}
+            className="form-input text-sm px-3 py-1.5"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setFiltroData(new Date(Date.now() - 86400000).toISOString().split('T')[0])}
+            className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+          >
+            Ontem
+          </button>
+          <button
+            onClick={() => setFiltroData(new Date().toISOString().split('T')[0])}
+            className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
+          >
+            Hoje
+          </button>
+          <button
+            onClick={() => setFiltroData('')}
+            className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
+          >
+            Todos
+          </button>
+        </div>
+      </div>
+
       {/* Stats Bar - BOTOES PEQUENOS E CLICAVEIS */}
       <div className="flex gap-2 mb-4 flex-wrap">
         {/* Card "Todos" - mostra total */}
@@ -820,20 +924,35 @@ export default function PedidosPage() {
         const pedidosFiltrados = filtroStatus
           ? pedidos.filter(p => p.status === filtroStatus)
           : pedidos
+
+        // Aplicar filtro de data se estiver ativo
+        const pedidosPorData = filtroData
+          ? pedidosFiltrados.filter(p => {
+              const dataPedido = new Date(p.data_criacao).toISOString().split('T')[0]
+              return dataPedido === filtroData
+            })
+          : pedidosFiltrados
+
         const statusConfig = filtroStatus ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
         return (
           <>
             {filtroStatus && (
               <div className="mb-4 text-sm text-gray-500">
-                Mostrando <strong>{statusConfig?.label}</strong> ({pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''})
+                Mostrando <strong>{statusConfig?.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
                 <button onClick={() => setFiltroStatus(null)} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
+              </div>
+            )}
+
+            {filtroData && (
+              <div className="mb-4 text-sm text-gray-500">
+                📅 Data: <strong>{new Date(filtroData + 'T00:00:00').toLocaleDateString('pt-BR')}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
               </div>
             )}
 
       {/* Lista de Pedidos em GRID 3 COLUNAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {pedidosFiltrados.length > 0 ? (
-          pedidosFiltrados.map((pedido) => {
+        {pedidosPorData.length > 0 ? (
+          pedidosPorData.map((pedido) => {
             const config = STATUS_CONFIG[pedido.status]
             const StatusIcon = config.icon
             const nextStatus = NEXT_STATUS[pedido.status]
