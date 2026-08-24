@@ -1131,75 +1131,71 @@ export default function PedidosPage() {
                     </button>
                   )}
 
-                  {/* LINHA 2: Botões de ação (GRANDE) */}
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                  {/* LINHA 2: Botões de ação (grid 2 colunas x 3 linhas) */}
+                  <div className="grid grid-cols-2 gap-2">
                     {/* Pago */}
                     <button
                       onClick={() => togglePago(pedido)}
-                      className={`flex flex-col items-center p-3 rounded-xl text-xs font-medium transition-all active:scale-95 ${
+                      className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
                         (pedido as any).pago
-                          ? 'bg-green-500 text-white shadow-sm'
-                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          ? 'bg-green-500 text-white shadow-md'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200 border-2 border-green-300'
                       }`}
                       title={(pedido as any).pago ? 'Pago - clique para desmarcar' : 'Marcar como pago'}
                     >
-                      <Check className="w-5 h-5 mb-1" />
-                      {(pedido as any).pago ? 'Pago ✓' : 'Pago'}
+                      <Check className="w-5 h-5" />
+                      {(pedido as any).pago ? '✓ Pago' : 'Pago'}
                     </button>
 
                     {/* Desconto */}
                     <button
                       onClick={() => abrirModalDesconto(pedido)}
-                      className="flex flex-col items-center p-3 bg-amber-100 text-amber-700 rounded-xl text-xs font-medium hover:bg-amber-200 transition-all active:scale-95"
+                      className="flex items-center justify-center gap-2 px-3 py-3 bg-amber-100 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-200 border-2 border-amber-300 transition-all active:scale-95"
                       title="Dar desconto"
                     >
-                      <Percent className="w-5 h-5 mb-1" />
+                      <Percent className="w-5 h-5" />
                       Desconto
                     </button>
 
                     {/* WhatsApp */}
-                    {(pedido as any).cliente_whatsapp && (
-                      <button
-                        onClick={() => confirmarPedidoWPP(pedido)}
-                        className="flex flex-col items-center p-3 bg-green-100 text-green-700 rounded-xl text-xs font-medium hover:bg-green-200 transition-all active:scale-95"
-                        title="Confirmar pedido (WhatsApp)"
-                      >
-                        <MessageCircle className="w-5 h-5 mb-1" />
-                        WhatsApp
-                      </button>
-                    )}
+                    <button
+                      onClick={() => confirmarPedidoWPP(pedido)}
+                      className="flex items-center justify-center gap-2 px-3 py-3 bg-green-100 text-green-700 rounded-xl text-sm font-semibold hover:bg-green-200 border-2 border-green-300 transition-all active:scale-95"
+                      title="Confirmar pedido (WhatsApp)"
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                      WhatsApp
+                    </button>
 
                     {/* Editar */}
                     <button
                       onClick={() => abrirModalEditar(pedido)}
-                      className="flex flex-col items-center p-3 bg-indigo-100 text-indigo-700 rounded-xl text-xs font-medium hover:bg-indigo-200 transition-all active:scale-95"
+                      className="flex items-center justify-center gap-2 px-3 py-3 bg-indigo-100 text-indigo-700 rounded-xl text-sm font-semibold hover:bg-indigo-200 border-2 border-indigo-300 transition-all active:scale-95"
                       title="Editar pedido"
                     >
-                      <Pencil className="w-5 h-5 mb-1" />
+                      <Pencil className="w-5 h-5" />
                       Editar
                     </button>
 
                     {/* Imprimir */}
                     <button
                       onClick={() => imprimirPedido(pedido)}
-                      className="flex flex-col items-center p-3 bg-gray-100 text-gray-700 rounded-xl text-xs font-medium hover:bg-gray-200 transition-all active:scale-95"
+                      className="flex items-center justify-center gap-2 px-3 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 border-2 border-gray-300 transition-all active:scale-95"
                       title="Imprimir pedido"
                     >
-                      <Printer className="w-5 h-5 mb-1" />
+                      <Printer className="w-5 h-5" />
                       Imprimir
                     </button>
 
                     {/* Cancelar */}
-                    {pedido.status !== 'cancelado' && pedido.status !== 'entregue' && (
-                      <button
-                        onClick={() => abrirModalCancelamento(pedido)}
-                        className="flex flex-col items-center p-3 bg-red-100 text-red-700 rounded-xl text-xs font-medium hover:bg-red-200 transition-all active:scale-95"
-                        title="Cancelar pedido"
-                      >
-                        <X className="w-5 h-5 mb-1" />
-                        Cancelar
-                      </button>
-                    )}
+                    <button
+                      onClick={() => abrirModalCancelamento(pedido)}
+                      className="flex items-center justify-center gap-2 px-3 py-3 bg-red-100 text-red-700 rounded-xl text-sm font-semibold hover:bg-red-200 border-2 border-red-300 transition-all active:scale-95"
+                      title="Cancelar pedido"
+                    >
+                      <X className="w-5 h-5" />
+                      Cancelar
+                    </button>
                   </div>
                 </div>
               </div>
