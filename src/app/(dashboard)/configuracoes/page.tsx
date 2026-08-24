@@ -417,8 +417,8 @@ function PagamentosTab({ tenant }: { tenant: any }) {
   const [pagamentos, setPagamentos] = useState(config.formas_pagamento_aceitas || {
     dinheiro: true,
     pix: true,
-    credito: false,
-    debito: false,
+    cartao_credito: false,
+    cartao_debito: false,
   })
   const [trocoMax, setTrocoMax] = useState(config.troco_maximo || 100)
   const [saving, setSaving] = useState(false)
@@ -427,8 +427,8 @@ function PagamentosTab({ tenant }: { tenant: any }) {
   const formas = [
     { id: 'dinheiro', nome: 'Dinheiro', desc: 'Pagamento em espécie na entrega', emoji: '💵' },
     { id: 'pix', nome: 'PIX', desc: 'Transferência instantânea', emoji: '🔑' },
-    { id: 'credito', nome: 'Cartão de Crédito', desc: 'Máquina na entrega', emoji: '💳' },
-    { id: 'debito', nome: 'Cartão de Débito', desc: 'Máquina na entrega', emoji: '💳' },
+    { id: 'cartao_credito', nome: 'Cartão de Crédito', desc: 'Máquina na entrega', emoji: '💳' },
+    { id: 'cartao_debito', nome: 'Cartão de Débito', desc: 'Máquina na entrega', emoji: '💳' },
   ]
 
   const salvar = async () => {

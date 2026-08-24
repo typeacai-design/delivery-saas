@@ -9,6 +9,7 @@ import {
   Shield,
   LogOut,
   Store,
+  DollarSign,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -34,6 +35,7 @@ export default function AdminShell({
   const navItems = [
     { href: '/painel-admin', label: 'Visão Geral', icon: LayoutDashboard },
     { href: '/painel-admin/lojistas', label: 'Lojistas', icon: Users },
+    { href: '/painel-admin/faturamento', label: 'Cobrança 1%', icon: DollarSign },
     { href: '/painel-admin/mensalidades', label: 'Mensalidades', icon: CreditCard },
     { href: '/painel-admin/relatorios', label: 'Relatórios', icon: BarChart3 },
     { href: '/painel-admin/configuracoes', label: 'Configurações', icon: Settings },
