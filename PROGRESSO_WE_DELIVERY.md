@@ -5,181 +5,149 @@
 ## Deploy em Produção
 - **URL**: https://wedelivery.site
 - **Repositório**: https://github.com/typeacai-design/delivery-saas
-- **Último Commit**: 044f710 (24/08/2026)
+- **Último Commit**: 5542d57 (24/08/2026)
 
 ---
 
-## Mudanças Recentes (24/08/2026)
+## 🐛 Bugs Críticos Resolvidos (Backend)
 
-### Sprint Atual
+### Bug 1: Formas de pagamento não seguravam
+- **Causa raiz:** API `/api/financeiro` (PUT) exigia role `'owner'` apenas
+- **Correção:** Aceitar owner, manager, attendant
 
-1. **Link do cardápio na raiz** - `/typeacai` ao invés de `/cardapio/typeacai`
-2. **Botões em grid 2x3** na página de pedidos (Pago, Desconto, WPP, Editar, Imprimir, Cancelar)
-3. **API `/api/pedidos/[id]/pago`** - corrigido erro ao marcar como pago
-4. **Reordenar sessões e produtos** - botões subir/descer
-5. **Favicon TYPE verde** - novo ícone em todo o sistema
-6. **Sincronizar estado pagamentos** - indicador "Salvo/Alterações não salvas"
-7. **Cobrança 1%** - nova página `/painel-admin/faturamento`
-8. **Correção formas pagamento** - IDs `cartao_credito` e `cartao_debito`
+### Bug 2: Cardápio mostrava fechado com horário configurado
+- **Causa raiz:** Banco armazena `horarios_dias` como objeto `{seg: {...}}` mas código só aceitava array `[{dia: 0}]`
+- **Correção:** Suporte para AMBOS formatos no cardápio público
 
----
+### Bug 3: Pedidos não tinham código formatado em todos os lugares
+- **Correção:** Template WhatsApp usa `pedido.codigo` (00001/26) ao invés de UUID
 
-## Funcionalidades Implementadas
+### Bug 4: Página de acompanhamento do cliente não existia
+- **Correção:** Nova página `/pedido/[id]` com timeline realtime
 
-### 1. Sistema de Pedidos
-- [x] Grid 3 colunas de pedidos
-- [x] Filtros por status (Novo, Preparando, Pronto, Saiu, Entregue, Cancelado)
-- [x] Filtro por data (data atual padrão)
-- [x] Tab padrão: "Novo" (novos pedidos primeiro)
-- [x] Código do pedido formatado (00001/26)
-- [x] Som de novo pedido em loop
-- [x] Autocomplete de produtos no modal de edição
-- [x] Edição real de pedidos
-- [x] Modal de confirmação de cancelamento com motivo
+### Bug 5: Som de pedido só tocava na aba de pedidos
+- **Correção:** Novo componente `GlobalSomPedidos` que vive no layout
 
-### 2. Botões de Ação
-- [x] Botão "Avançar" - full-width, tamanho grande
-- [x] Grid 2x3: Pago, Desconto, WPP, Editar, Imprimir, Cancelar
-- [x] Cada botão com cor distinta e borda colorida
-- [x] Pagamento via API route com auth
+### Bug 6: Botoes de ação estavam pequenos e misturados
+- **Correção:** Grid 2x3 com botões grandes e coloridos
 
-### 3. Sistema de Alertas de Tempo
-- [x] Componente TempoAlerta no card do pedido
-- [x] Verde: No prazo (menos de 80% do tempo)
-- [x] Amarelo: Atenção (80% do tempo)
-- [x] Vermelho: ATRASADO (100%+ com animação)
-- [x] Atualização automática a cada 30 segundos
+### Bug 7: Marcar pedido como pago dava erro
+- **Correção:** API `/api/pedidos/[id]/pago` + credentials include no fetch
 
-### 4. Formas de Pagamento
-- [x] IDs corrigidos: `cartao_credito`, `cartao_debito`
-- [x] Configuração funciona corretamente no cardápio público
-- [x] Migration 055 aplicada
-- [x] Toggle visual (verde quando ativo)
-- [x] Indicador "Salvo/Alterações não salvas"
+### Bug 8: Botão de desconto usava prompt nativo
+- **Correção:** Modal visual com valor/percentual e preview
 
-### 5. Financeiro
-- [x] Fluxo de caixa com entradas/saídas
-- [x] Saldo atual (positivo/negativo)
-- [x] Lançamentos manuais (entrada/saída)
-- [x] Código do pedido correto (00001/26)
-- [x] Status "Pago" nos pedidos
+### Bug 9: Não dava para apagar pedido cancelado
+- **Correção:** Soft delete via `deleted_at` + tabela `pedidos_apagados` para auditoria
 
-### 6. Relatórios
-- [x] 5 tipos: Período, Forma pagamento, Itens, Complementos, Top dias
-- [x] Filtros por período e forma de pagamento
-- [x] Entradas vs Saídas vs Saldo
-
-### 7. Cobrança 1%
-- [x] Painel admin `/painel-admin/faturamento`
-- [x] Calcula 1% do faturamento por lojista
-- [x] Filtro por período
-- [x] Botão marcar/desmarcar pago
-- [x] Cards de resumo
-
-### 8. Cardápio
-- [x] URL limpa: `wedelivery.site/[slug]`
-- [x] Rota `/[slug]` mostra cardápio
-- [x] Botões reordenar sessões e produtos
-- [x] Cache invalidado automaticamente
-
-### 9. Painel Admin
-- [x] Visão Geral
-- [x] Gestão de Lojistas
-- [x] Cobrança 1%
-- [x] Mensalidades
-- [x] Relatórios
-- [x] Configurações
+### Bug 10: Ordenação de categorias/produtos manual
+- **Correção:** Botões subir/descer + revalidar cache do cardápio
 
 ---
 
-## Estrutura do Banco de Dados
+## 🆕 Funcionalidades Implementadas
 
-### Tabelas Principais
+### Sistema de Pedidos
+- Grid 3 colunas com filtros por status e data
+- Código do pedido formatado (00001/26) em todos os lugares
+- Som de novo pedido em loop GLOBAL (qualquer aba)
+- Alertas de tempo (verde/amarelo/vermelho)
+- Botão "Pago" + Modal de desconto + Botão "Apagar" (cancelados)
+- Acompanhamento do cliente em `/pedido/[codigo]`
+
+### Cardápio Público
+- URL limpa: `wedelivery.site/[slug]`
+- Suporte correto para horários_dias (array e objeto)
+- Status Aberto/Fechado funcionando
+- Formas de pagamento respeitando config
+
+### Painel Admin
+- Cobrança 1% automática todo dia 05 (Vercel Cron)
+- Tempo real do faturamento dos lojistas
+- Banner com próxima cobrança e contador regressivo
+- Botão "Gerar Comissões" manual
+
+### Removido
+- Sistema de mensalidade fixa (R$ 99,90)
+- Páginas `/mensalidade` e `/painel-admin/mensalidades`
+- API `/api/mensalidades/gerar`
+- Link "Mensalidade" do sidebar
+
+---
+
+## 📊 Estrutura do Banco
+
+### Tabelas
 - `tenants` - Lojistas
-- `usuarios_loja` - Usuários
-- `pedidos` - Pedidos (com pago, pago_em, pago_por)
-- `produtos` - Produtos (com tempo_preparo_min, ordem)
-- `categorias` - Categorias (com ordem)
-- `categorias_produtos` - Categorias de tipo
+- `pedidos` - Com campos `pago`, `pago_em`, `codigo`, `deleted_at`
+- `produtos` - Com `tempo_preparo_min`, `preco_riscado`, `ordem`
+- `categorias` - Com `ordem`
 - `despesas` - Despesas fixas
 - `movimentacoes_financeiras` - Transações manuais
-- `enderecos_entrega` - Bairros e prazos
-- `avaliacoes` - Avaliações
-- `embaixadores` - Programa de indicação
+- `enderecos_entrega` - Bairros com `prazo_min`, `taxa`
+- `comissoes_mensais` - Histórico de comissões 1%
+- `pedidos_apagados` - Auditoria de deletes
 
 ### Campos Importantes
-- `pedidos.pago` - Status de pagamento (boolean)
-- `pedidos.pago_em` - Data do pagamento
-- `pedidos.pago_por` - Quem marcou como pago
-- `pedidos.tempo_estimado_min` - Tempo estimado
-- `pedidos.codigo` - Código formatado (00001/26)
-- `produtos.tempo_preparo_min` - Tempo de preparo
-- `produtos.ordem` - Ordem de exibição
-- `categorias.ordem` - Ordem de exibição
-- `enderecos_entrega.prazo_min` - Prazo por bairro
+- `pedidos.codigo` - Formato 00001/26
+- `pedidos.pago` - boolean
+- `pedidos.deleted_at` - Soft delete
+- `tenants.config.formas_pagamento_aceitas` - IDs: dinheiro, pix, cartao_credito, cartao_debito
+- `tenants.config.horarios_dias` - Objeto com chaves seg/ter/qua/qui/sex/sab/dom
 
 ---
 
-## Migrations Recentes
+## 🔄 Migrations Aplicadas
 
 | # | Nome | Descrição |
 |---|------|-----------|
 | 053 | codigo_pedido_formatado | Código 00001/26 |
-| 054 | status_pagamento_pedido | Campos pago, pago_em, pago_por |
+| 054 | status_pagamento_pedido | Campos pago/pago_em/pago_por |
 | 055 | corrigir_formas_pagamento_ids | Migrar credit/debit para cartao_credito/cartao_debito |
+| 056 | comissoes_mensais | Tabela para 1% do faturamento |
+| 057 | soft_delete_pedidos | deleted_at + pedidos_apagados |
 
 ---
 
-## URLs Importantes
+## 🌐 URLs Importantes
 
 | Página | URL |
 |--------|-----|
-| Homepage | https://wedelivery.site |
-| Login Lojista | https://wedelivery.site/login |
-| Registro | https://wedelivery.site/registro |
-| Dashboard | https://wedelivery.site/dashboard |
-| Pedidos | https://wedelivery.site/pedidos |
-| Financeiro | https://wedelivery.site/financeiro |
-| Relatórios | https://wedelivery.site/relatorios |
-| Configurações | https://wedelivery.site/configuracoes |
-| Cardápio Admin | https://wedelivery.site/cardapio |
-| Painel Admin | https://wedelivery.site/painel-admin |
-| Faturamento Admin | https://wedelivery.site/painel-admin/faturamento |
-| Cardápio Público | https://wedelivery.site/[slug] |
+| Cardápio público | `wedelivery.site/[slug]` |
+| Login Lojista | `wedelivery.site/login` |
+| Painel Lojista | `wedelivery.site/dashboard` |
+| Pedidos | `wedelivery.site/pedidos` |
+| Acompanhamento cliente | `wedelivery.site/pedido/[codigo]` |
+| Financeiro | `wedelivery.site/financeiro` |
+| Relatórios | `wedelivery.site/relatorios` |
+| Painel Admin | `wedelivery.site/painel-admin` |
+| Cobrança 1% | `wedelivery.site/painel-admin/faturamento` |
 
 ---
 
-## Comandos Úteis
+## 📋 Próximos Passos
+
+1. ⏭️ **Preço riscado + tempo de preparo** - Mostrar tempo:
+   - COM preço riscado: DEBAIXO do valor
+   - SEM preço riscado: AO LADO do valor
+2. ⏭️ **Modal de edição de pedido melhorado** - Mais intuitivo
+3. ⏭️ **Gateway PIX automático**
+4. ⏭️ **App PWA para entregadores**
+
+---
+
+## 🚀 Comandos Úteis
 
 ```bash
-# Deploy produção
+# Deploy
 cd C:\Users\ranie\.claude\PROJETOS\delivery-saas
 vercel --prod --force
 
-# Verificar banco (Supabase MCP)
-# Já disponível via MCP
-
-# Ver logs
-vercel logs delivery-saas
+# Git
+git add -A && git commit -m "..." && git push origin main
 ```
 
 ---
 
-## Notas para Manutenção
-
-1. **Autenticação**: Usa Supabase Auth com RLS
-2. **Admin**: Login via `/api/admin/login` com hash de senha
-3. **Cardápio público**: Não requer autenticação
-4. **Cache**: Cardápio revida a cada 30s
-5. **URL limpa**: `/[slug]` ao invés de `/cardapio/[slug]`
-6. **Cobrança**: 1% sobre faturamento, gerenciada em `/painel-admin/faturamento`
-
----
-
-## Próximos Passos
-
-1. ✅ Sistema pronto para receber novos clientes
-2. ⏭️ Implementar mais integrações (Z-API, gateway PIX)
-3. ⏭️ App PWA para entregadores
-4. ⏭️ Programa de embaixadores
-5. ⏭️ Sorteios por campanha
+**Status**: ✅ Pronto para receber clientes
+**Última verificação**: 24/08/2026
