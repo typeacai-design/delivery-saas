@@ -117,10 +117,17 @@ export default async function CardapioPublicoPage({
   const diaAtual = brasilia.getDay()
   const minutosAgora = brasilia.getHours() * 60 + brasilia.getMinutes()
 
-  // Pegar horarios_dias - pode ser array de 7 dias (0-6) ou objeto com chaves
+  // Mapear dia da semana (0-6) para chave
+  const DIAS_CHAVES = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
+
+  // Pegar horarios_dias - suporta AMBOS formatos: array ou objeto com chaves
   let horariosDia = null
   if (Array.isArray(config.horarios_dias)) {
     horariosDia = config.horarios_dias.find((item: any) => Number(item.dia ?? item.dia_semana) === diaAtual)
+  } else if (config.horarios_dias && typeof config.horarios_dias === 'object') {
+    // Formato objeto: { seg: {abre, fecha, ativo}, ter: {...}, ... }
+    const chaveDia = DIAS_CHAVES[diaAtual]
+    horariosDia = config.horarios_dias[chaveDia]
   }
 
   const parseTime = (s: any) => {

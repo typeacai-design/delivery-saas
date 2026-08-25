@@ -131,16 +131,21 @@ export default function ConfiguracoesPage() {
 function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenantFromParent?: () => Promise<void> }) {
   const supabase = createClient()
   const config = (tenant?.config || {}) as any
+  const horariosDefault: Record<string, { abre: string; fecha: string; ativo: boolean }> = {
+    seg: { abre: '08:00', fecha: '22:00', ativo: true },
+    ter: { abre: '08:00', fecha: '22:00', ativo: true },
+    qua: { abre: '08:00', fecha: '22:00', ativo: true },
+    qui: { abre: '08:00', fecha: '22:00', ativo: true },
+    sex: { abre: '08:00', fecha: '22:00', ativo: true },
+    sab: { abre: '08:00', fecha: '23:00', ativo: true },
+    dom: { abre: '09:00', fecha: '21:00', ativo: false },
+  }
+
   const [horarios, setHorarios] = useState<Record<string, { abre: string; fecha: string; ativo: boolean }>>(
-    config.horarios_dias || {
-      seg: { abre: '08:00', fecha: '22:00', ativo: true },
-      ter: { abre: '08:00', fecha: '22:00', ativo: true },
-      qua: { abre: '08:00', fecha: '22:00', ativo: true },
-      qui: { abre: '08:00', fecha: '22:00', ativo: true },
-      sex: { abre: '08:00', fecha: '22:00', ativo: true },
-      sab: { abre: '08:00', fecha: '23:00', ativo: true },
-      dom: { abre: '09:00', fecha: '21:00', ativo: false },
-    }
+    config.horarios_dias || horariosDefault
+  )
+  const [horariosCarregado, setHorariosCarregado] = useState<Record<string, { abre: string; fecha: string; ativo: boolean }> | null>(
+    config.horarios_dias || null
   )
   const [excecoes, setExcecoes] = useState<{ data: string; abre: string; fecha: string; motivo?: string }[]>(
     config.excecoes_horario || []
@@ -149,6 +154,25 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
 
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
+  // CRITICO: Sincronizar estado com o tenant quando ele mudar
+  useEffect(() => {
+    const novoHorarios = config.horarios_dias || horariosDefault
+    const novoExcecoes = config.excecoes_horario || []
+    setHorarios(novoHorarios)
+    setHorariosCarregado(novoHorarios)
+    setExcecoes(novoExcecoes)
+  }, [tenant?.id, JSON.stringify(config.horarios_dias), JSON.stringify(config.excecoes_horario)])
+
+  // Mostrar loading enquanto nao tiver dados do tenant
+  if (!tenant) {
+    return (
+      <div className="glass p-12 text-center">
+        <div className="size-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-gray-500">Carregando configurações...</p>
+      </div>
+    )
+  }
 
   const toggleDia = (id: string) => {
     setHorarios({ ...horarios, [id]: { ...horarios[id], ativo: !horarios[id].ativo } })
@@ -226,6 +250,8 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
       }) })
 
       setSaveMsg({ type: 'ok', text: 'Horários salvos com sucesso!' })
+      // ATUALIZAR estado carregado com os novos valores salvos
+      setHorariosCarregado(horarios)
       // recarrega tenant pra refletir
       await loadTenantFromParent?.()
     } catch (e: any) {
@@ -415,15 +441,18 @@ function PagamentosTab({ tenant }: { tenant: any }) {
   const supabase = createClient()
   const config = (tenant?.config || {}) as any
 
-  // Inicializa com os valores do config (ou defaults)
-  const initialFormas = config.formas_pagamento_aceitas || {
+  // Defaults
+  const defaultFormas = {
     dinheiro: true,
     pix: true,
     cartao_credito: false,
     cartao_debito: false,
   }
 
-  const [pagamentos, setPagamentos] = useState(initialFormas)
+  const [pagamentos, setPagamentos] = useState(config.formas_pagamento_aceitas || defaultFormas)
+  const [pagamentosCarregado, setPagamentosCarregado] = useState<Record<string, boolean> | null>(
+    config.formas_pagamento_aceitas || null
+  )
   const [trocoMax, setTrocoMax] = useState(config.troco_maximo || 100)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
@@ -432,15 +461,22 @@ function PagamentosTab({ tenant }: { tenant: any }) {
   // Sincroniza estado quando tenant/config muda
   useEffect(() => {
     const configAtual = (tenant?.config || {}) as any
-    setPagamentos(configAtual.formas_pagamento_aceitas || {
-      dinheiro: true,
-      pix: true,
-      cartao_credito: false,
-      cartao_debito: false,
-    })
+    const novasFormas = configAtual.formas_pagamento_aceitas || defaultFormas
+    setPagamentos(novasFormas)
+    setPagamentosCarregado(novasFormas)
     setTrocoMax(configAtual.troco_maximo || 100)
     setHasChanges(false)
-  }, [tenant])
+  }, [tenant?.id, JSON.stringify(config.formas_pagamento_aceitas)])
+
+  // Mostrar loading enquanto nao tiver tenant
+  if (!tenant) {
+    return (
+      <div className="glass p-12 text-center">
+        <div className="size-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-gray-500">Carregando configurações...</p>
+      </div>
+    )
+  }
 
   // Detecta mudanças
   const handleToggle = (id: string) => {
@@ -491,6 +527,8 @@ function PagamentosTab({ tenant }: { tenant: any }) {
 
       setSaveMsg({ type: 'ok', text: 'Formas de pagamento salvas com sucesso!' })
       setHasChanges(false)
+      // ATUALIZAR estado carregado com os valores salvos
+      setPagamentosCarregado(pagamentos)
     } catch (e: any) {
       setSaveMsg({ type: 'error', text: e.message || 'Erro ao salvar' })
     } finally {

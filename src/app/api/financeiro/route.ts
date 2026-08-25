@@ -37,11 +37,12 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const { supabase, tenantId } = await authenticatedTenant(['owner'])
+  const { supabase, tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
   if (!tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 
   const body = await request.json()
   const allowed = ['dinheiro','pix','cartao_credito','cartao_debito']
+  // IMPORTANTE: preservar o valor EXATO enviado (true/false), nao so true
   const formas = Object.fromEntries(allowed.map(key => [key, body.formas?.[key] === true]))
 
   const { data: tenant } = await supabase.from('tenants').select('config').eq('id', tenantId).single()
@@ -50,7 +51,10 @@ export async function PUT(request: Request) {
   const config = { ...((tenant.config || {}) as Record<string, unknown>), formas_pagamento_aceitas: formas }
   const { error } = await supabase.from('tenants').update({ config }).eq('id', tenantId)
 
-  return error
-    ? NextResponse.json({ error: 'Não foi possível salvar' }, { status: 500 })
-    : NextResponse.json({ config })
+  if (error) {
+    console.error('Erro ao salvar formas pagamento:', error)
+    return NextResponse.json({ error: 'Não foi possível salvar: ' + error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true, config })
 }
