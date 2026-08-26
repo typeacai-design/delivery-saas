@@ -1,15 +1,26 @@
 # We Delivery - Progresso do Sistema
 
-## Última Atualização: 25/08/2026
+## Última Atualização: 26/08/2026
 
 ## Deploy em Produção
 - **URL**: https://wedelivery.site
 - **Repositório**: https://github.com/typeacai-design/delivery-saas
-- **Último Deploy**: https://delivery-saas-r2orp1lae-delivery-saas1.vercel.app (25/08/2026 — produção)
+- **Último Deploy**: https://delivery-saas-r2t77pcuu-delivery-saas1.vercel.app (26/08/2026 — produção)
+- **Commit**: `a26a92a` (fix: correções múltiplas - pedidos, financeiro e clientes)
 
 ---
 
-## 🐛 Bugs Críticos Resolvidos — Sessão 25/08/2026
+## 🐛 Bugs Críticos Resolvidos — Sessão 26/08/2026
+
+### Correções da Sessão
+1. **Filtro de pedidos**: Removido botão "Todos" — agora só Ontem/Hoje/Data específica
+2. **Fluxo de caixa**: Só mostra PEDIDOS PAGOS como entrada (antes mostrava todos)
+3. **Sessão "Pedidos pendentes"**: Removida completamente do financeiro
+4. **Formas de pagamento**: Toggle corrigido — default = todas ON se vazio
+5. **Clientes**: Adicionada coluna "Pontos" na tabela (busca de `cliente_pontos`)
+6. **Exportação CSV clientes**: Agora inclui coluna de pontos
+
+### Bugs Críticos Resolvidos — Sessão 25/08/2026
 
 ### Bug A — Cardápio público mostrava horário fixo `08:00-22:00`
 - **Sintoma:** Lojista configurava horários por dia (ex: terça 18:00-23:00), mas cardápio público sempre mostrava `08:00-22:00` ao lado do badge "Aberto/Fechado".
@@ -184,4 +195,4 @@ git add -A && git commit -m "..." && git push origin main
 ---
 
 **Status**: ✅ Pronto para receber clientes
-**Última verificação**: 24/08/2026
+**Última verificação**: 26/08/2026
