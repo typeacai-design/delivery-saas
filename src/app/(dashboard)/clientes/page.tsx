@@ -28,6 +28,8 @@ type Cliente = {
   primeiro_pedido_em: string | null
   ltv: number
   created_at: string
+  saldo_cashback?: number
+  pontos?: number
 }
 
 const TAGS_RAPIDAS = [
@@ -55,13 +57,32 @@ export default function ClientesPage() {
     if (!tenantId) { setLoading(false); return }
     const tid = tenantId
 
-    const { data, error } = await supabase
-      .from('clientes')
-      .select('*')
-      .eq('tenant_id', tid)
-      .order('ultimo_pedido_em', { ascending: false, nullsFirst: false })
+    // Buscar clientes e pontos em paralelo
+    const [{ data, error }, { data: pontosData }] = await Promise.all([
+      supabase
+        .from('clientes')
+        .select('*')
+        .eq('tenant_id', tid)
+        .order('ultimo_pedido_em', { ascending: false, nullsFirst: false }),
+      supabase
+        .from('cliente_pontos')
+        .select('cliente_id, pontos_saldo')
+        .eq('tenant_id', tid),
+    ])
 
-    if (!error) setClientes(data || [])
+    if (!error && data) {
+      // Mapear pontos por cliente_id
+      const pontosMap: Record<string, number> = {}
+      ;(pontosData || []).forEach((p: any) => {
+        pontosMap[p.cliente_id] = p.pontos_saldo
+      })
+      // Mesclar pontos nos clientes
+      const clientesComPontos = (data as any[]).map(c => ({
+        ...c,
+        pontos: pontosMap[c.id] || 0,
+      }))
+      setClientes(clientesComPontos)
+    }
     setLoading(false)
   }
 
@@ -208,6 +229,7 @@ export default function ClientesPage() {
                 <th className="text-left px-4 py-3">Tags</th>
                 <th className="text-right px-4 py-3">Pedidos</th>
                 <th className="text-right px-4 py-3">LTV</th>
+                <th className="text-right px-4 py-3">Pontos</th>
                 <th className="text-left px-4 py-3">Último pedido</th>
                 <th className="text-left px-4 py-3">Ações</th>
               </tr>
@@ -266,6 +288,11 @@ export default function ClientesPage() {
                     <td className="px-4 py-3 text-right">
                       <div className="text-sm font-semibold text-green-700">
                         {formatCurrency(Number(c.ltv) || 0)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="text-sm font-semibold text-yellow-600">
+                        ⭐ {c.pontos || 0}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">
@@ -642,7 +669,7 @@ function tempoRelativo(iso: string) {
 }
 
 function exportarCSV(clientes: Cliente[]) {
-  const header = ['Nome', 'Telefone', 'Email', 'Data Nascimento', 'Endereço', 'Bairro', 'Tags', 'Ativo', 'Total Pedidos', 'LTV', 'Último pedido']
+  const header = ['Nome', 'Telefone', 'Email', 'Data Nascimento', 'Endereço', 'Bairro', 'Tags', 'Ativo', 'Total Pedidos', 'LTV', 'Pontos', 'Último pedido']
   const linhas = clientes.map((c) => [
     c.nome,
     c.telefone,
@@ -654,6 +681,7 @@ function exportarCSV(clientes: Cliente[]) {
     c.ativo ? 'sim' : 'não',
     c.total_pedidos || 0,
     c.ltv || 0,
+    c.pontos || 0,
     c.ultimo_pedido_em || '',
   ])
   const csv = [header, ...linhas].map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')

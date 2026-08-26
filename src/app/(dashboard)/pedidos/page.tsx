@@ -1015,12 +1015,6 @@ export default function PedidosPage() {
           >
             Hoje
           </button>
-          <button
-            onClick={() => setFiltroData('')}
-            className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
-          >
-            Todos
-          </button>
         </div>
       </div>
 
@@ -1042,19 +1036,6 @@ export default function PedidosPage() {
             </button>
           )
         })}
-
-        {/* Card "Todos" - mostra total */}
-        <button
-          onClick={() => setFiltroStatus(null)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
-            filtroStatus === null
-              ? 'bg-gray-800 text-white shadow-md'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          <span>Todos</span>
-          <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs font-bold">{pedidos.length}</span>
-        </button>
 
         {/* Cancelado - sempre por último */}
         {(() => {

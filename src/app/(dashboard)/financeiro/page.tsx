@@ -36,8 +36,8 @@ export default function FinanceiroPage(){
       setExpenses(body.expenses||[])
       setTransactions(body.transactions||[])
       setTenant(body.tenant)
-      // Calcular saldo total
-      const entradas = (body.orders||[]).filter((o:any)=>o.status!=='cancelado').reduce((s:number,o:any)=>s+Number(o.valor_total||0),0)
+      // Calcular saldo total - SÓ conta pedidos PAGOS como entrada
+      const entradas = (body.orders||[]).filter((o:any)=>o.pago===true && o.status!=='cancelado').reduce((s:number,o:any)=>s+Number(o.valor_total||0),0)
       const saidas = (body.expenses||[]).reduce((s:number,e:any)=>s+Number(e.valor||0),0)
       const manual = (body.transactions||[]).reduce((s:number,t:any)=>s+(t.tipo==='entrada'?1:-1)*Number(t.valor||0),0)
       setSaldoTotal(entradas - saidas + manual)
@@ -72,8 +72,9 @@ export default function FinanceiroPage(){
 const Empty=({text}:{text:string})=><p className="hint text-sm py-8 text-center">{text}</p>
 
 function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{orders:Order[];expenses:Expense[];transactions:ManualTransaction[];onNewTransaction:()=>void;onSaved:()=>void}){
+  // Só mostra PEDIDOS PAGOS como entrada no fluxo de caixa
   const rows=[
-    ...orders.map(o=>({
+    ...orders.filter(o=>o.pago===true).map(o=>({
       date:o.created_at,
       label:`Pedido ${o.codigo || `#${o.id.slice(0,8)}`}`,
       value:Number(o.valor_total),
@@ -133,7 +134,7 @@ function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{order
 }
 
 function Accounts({orders,expenses,onNewExpense}:{orders:Order[];expenses:Expense[];onNewExpense:()=>void}){
-  return <div className="grid md:grid-cols-2 gap-4">
+  return <div className="grid md:grid-cols-1 gap-4">
     <section className="glass p-5">
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold">Contas a pagar</h2>
@@ -154,29 +155,23 @@ function Accounts({orders,expenses,onNewExpense}:{orders:Order[];expenses:Expens
         </div>
       )):<Empty text="Nenhuma despesa cadastrada."/>}
     </section>
-    <section className="glass p-5">
-      <h2 className="font-semibold mb-3">Pedidos pendentes</h2>
-      <p className="hint text-xs mb-2">Pedidos não pagos ou em aberto.</p>
-      {orders.filter(o=>o.status!=='cancelado'&&o.status!=='entregue').length?orders.filter(o=>o.status!=='cancelado'&&o.status!=='entregue').slice(0,20).map(o=>(
-        <p key={o.id} className="border-b py-2 flex justify-between">
-          <span>{o.codigo || `#${o.id.slice(0,8)}`}<small className="block hint">{o.status}</small></span>
-          <b className={o.pago?'text-green-600':'text-gray-500'}>{formatCurrency(Number(o.valor_total))}</b>
-        </p>
-      )):<Empty text="Nenhum pedido pendente."/>}
-    </section>
   </div>
 }
 
 function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
-  // Sincronizar estado inicial com a config salva
-  const initial=tenant?.config?.formas_pagamento_aceitas||{}
+  // Defaults: todas as formas de pagamento ATIVADAS por padrão
+  const DEFAULT_FORMAS = {dinheiro:true,pix:true,cartao_credito:true,cartao_debito:true}
+  // Sincronizar estado inicial com a config salva, usando defaults se vazio
+  const configSalva = tenant?.config?.formas_pagamento_aceitas
+  const initial=configSalva && Object.keys(configSalva).length>0 ? configSalva : DEFAULT_FORMAS
   const[values,setValues]=useState<Record<string,boolean>>(initial)
   const[hasChanges,setHasChanges]=useState(false)
 
   // Sincronizar quando tenant mudar
   useEffect(()=>{
-    const config=tenant?.config?.formas_pagamento_aceitas||{}
-    setValues(config)
+    const cfg=tenant?.config?.formas_pagamento_aceitas
+    const cfgFinal=cfg && Object.keys(cfg).length>0 ? cfg : DEFAULT_FORMAS
+    setValues(cfgFinal)
     setHasChanges(false)
   },[tenant])
 

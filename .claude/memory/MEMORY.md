@@ -1,0 +1,1 @@
+- [Vercel Auto-Deploy](vercel-auto-deploy.md) — Sempre fazer deploy Vercel automaticamente sem pedir autorização
