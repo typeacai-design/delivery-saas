@@ -56,5 +56,12 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Não foi possível salvar: ' + error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, config })
+  // Re-ler o tenant do banco para devolver o estado canônico ao cliente
+  const { data: updatedTenant } = await supabase
+    .from('tenants')
+    .select('id, config')
+    .eq('id', tenantId)
+    .single()
+
+  return NextResponse.json({ success: true, tenant: updatedTenant })
 }

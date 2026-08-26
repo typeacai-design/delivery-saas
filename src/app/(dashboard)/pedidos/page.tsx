@@ -801,6 +801,7 @@ export default function PedidosPage() {
       const res = await fetch(`/api/pedidos/${pedidoDesconto.id}/desconto`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           valor_desconto: Math.round(novoDesconto * 100) / 100,
           valor_total: Math.max(0, Math.round(novoTotal * 100) / 100)

@@ -1,15 +1,49 @@
 # We Delivery - Progresso do Sistema
 
-## Última Atualização: 24/08/2026
+## Última Atualização: 25/08/2026
 
 ## Deploy em Produção
 - **URL**: https://wedelivery.site
 - **Repositório**: https://github.com/typeacai-design/delivery-saas
-- **Último Commit**: 5542d57 (24/08/2026)
+- **Último Deploy**: https://delivery-saas-r2orp1lae-delivery-saas1.vercel.app (25/08/2026 — produção)
 
 ---
 
-## 🐛 Bugs Críticos Resolvidos (Backend)
+## 🐛 Bugs Críticos Resolvidos — Sessão 25/08/2026
+
+### Bug A — Cardápio público mostrava horário fixo `08:00-22:00`
+- **Sintoma:** Lojista configurava horários por dia (ex: terça 18:00-23:00), mas cardápio público sempre mostrava `08:00-22:00` ao lado do badge "Aberto/Fechado".
+- **Causa raiz:** `src/app/cardapio/[slug]/page.tsx:109` lia `config.horario || {abre:'08:00',fecha:'22:00'}` (campo legado nunca populado). Lojista salva em `config.horarios_dias[chaveDia]` que tinha cálculo correto na linha 144 (`dentroHorario`) mas o valor passado ao client (`data.horario`) vinha do campo legado.
+- **Correção:** Calcular `horarioDoDia` a partir de `horariosDia` (já extraído nas linhas 124-131) e popular `data.horariosSemana` (array com os 7 dias) para o modal de horários.
+- **Validação:** https://wedelivery.site/cardapio/typeacai agora mostra **18:00-23:00** (banco tem `ter:{abre:'18:00',fecha:'23:00',ativo:true}`).
+
+### Bug B — Query redundante + fallback mascarava formas de pagamento
+- **Sintoma:** Mesmo com só `dinheiro:true` no banco, o cardápio público podia mostrar as 4 formas (PIX, cartão crédito/débito) dependendo de timing/cache da segunda query.
+- **Causa raiz:** Linha 102-106 fazia `from('tenants').select('config')` redundante (a query principal já trazia `tenant.config`). Se essa segunda query falhasse, `pagamentosSalvos = undefined` → fallback `['dinheiro', 'pix', 'cartao_credito', 'cartao_debito']`.
+- **Correção:** Remover query redundante. Usar `config.formas_pagamento_aceitas` direto (já populado pela primeira query).
+
+### Bug C — "Marcar como pago" e "Dar desconto" davam erro
+- **Sintoma:** Lojista clicava em "Pago" ou "Desconto" e recebia alert genérico. Pedidos não ficavam marcados como pagos nem recebiam desconto.
+- **Causa raiz tripla:**
+  1. Trigger `validar_atualizacao_operacional_pedido` (migration 047) só permitia UPDATE em `(status, data_atualizacao, motoboy_id, motoboy_comissao)`. Qualquer UPDATE em `pago, pago_em, pago_por, valor_desconto, valor_total` disparava `RAISE EXCEPTION 'campos de pedido nao autorizados'`.
+  2. `valor_desconto` e `valor_total` **não tinham GRANT UPDATE** para `authenticated` (só SELECT e INSERT) — verificado em `information_schema.column_privileges`.
+  3. Fetch do `/api/pedidos/[id]/desconto` (linha 801) não enviava `credentials: 'include'`, inconsistente com `/pago` que envia.
+- **Correção:** Nova migration `058_trigger_pedido_pagamento_desconto.sql`:
+  - Adiciona `pago, pago_em, pago_por, valor_desconto, valor_total` à lista de exceções do trigger
+  - Concede `GRANT UPDATE (valor_desconto, valor_total) ON public.pedidos TO authenticated`
+- **Frontend:** Adicionado `credentials: 'include'` no fetch do desconto.
+
+### Bug D — Formas de pagamento "voltavam pro desativado" após salvar
+- **Sintoma:** Lojista ativava PIX, clicava Salvar, recebia alert de sucesso, mas ao recarregar o toggle PIX aparecia off de novo.
+- **Causa raiz:** PUT `/api/financeiro` retornava `{ success: true, config }` onde `config` era o objeto **construído localmente** com spread (teoricamente completo, mas dependia de merge client-side). O cliente fazia `onSaved({...tenant, config: body.config})` — qualquer divergência no merge podia resetar o estado local.
+- **Correção:**
+  - PUT agora faz `select` pós-update e retorna o tenant canônico lido do banco: `{ success: true, tenant: updatedTenant }`.
+  - Cliente usa `onSaved(body.tenant)` direto — sem merge, fonte única de verdade é o banco.
+- **Validação SQL:** Testes manuais via `set_config('request.jwt.claims', ...)` mostraram que UPDATE em `pago=true` e `valor_desconto=5.00` agora persistem corretamente.
+
+---
+
+## 🐛 Bugs Críticos Resolvidos (Backend) — Histórico
 
 ### Bug 1: Formas de pagamento não seguravam
 - **Causa raiz:** API `/api/financeiro` (PUT) exigia role `'owner'` apenas

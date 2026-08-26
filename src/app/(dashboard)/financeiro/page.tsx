@@ -184,7 +184,7 @@ function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
     if(!hasChanges)return
     const response=await fetch('/api/financeiro',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({formas:values})})
     const body=await response.json()
-    if(response.ok){onSaved({...tenant,config:body.config});setHasChanges(false);alert('Formas de pagamento salvas.')}
+    if(response.ok){onSaved(body.tenant);setHasChanges(false);alert('Formas de pagamento salvas.')}
     else alert(body.error||'Não foi possível salvar.')
   }
 

@@ -98,13 +98,6 @@ export default async function CardapioPublicoPage({
     .eq('ativo', true)
     .order('bairro')
 
-  // Buscar configurações do tenant (formas de pagamento)
-  const { data: tenantConfig } = await supabase
-    .from('tenants')
-    .select('config')
-    .eq('id', tenant.id)
-    .single()
-
   const config = (tenant.config || {}) as any
   const horario = config.horario || { abre: '08:00', fecha: '22:00' }
   const layout = config.cardapio_layout || 'classico'
@@ -147,9 +140,15 @@ export default async function CardapioPublicoPage({
   const lojaAberta = config.loja_aberta !== false && dentroHorario
   const totalAvaliacoes = avaliacoesAprovadas?.length || 0
   const avaliacaoMedia = totalAvaliacoes ? Math.round((avaliacoesAprovadas || []).reduce((s: number, item: any) => s + Number(item.nota), 0) / totalAvaliacoes * 10) / 10 : 0
-  const pagamentosSalvos = tenantConfig?.config?.formas_pagamento_aceitas
-  const formasPagamentoConfig = Array.isArray(tenantConfig?.config?.formas_pagamento)
-    ? tenantConfig.config.formas_pagamento
+  // horarioDoDia: do dia atual do horarios_dias, ou fallback para o campo legado config.horario
+  const horarioDoDia = {
+    abre: horariosDia?.abre || horariosDia?.inicio || horario.abre || '08:00',
+    fecha: horariosDia?.fecha || horariosDia?.fim || horario.fecha || '22:00',
+    ativo: horariosDia?.ativo !== false,
+  }
+  const pagamentosSalvos = config.formas_pagamento_aceitas
+  const formasPagamentoConfig = Array.isArray(config.formas_pagamento)
+    ? config.formas_pagamento
     : pagamentosSalvos && typeof pagamentosSalvos === 'object'
       ? Object.entries(pagamentosSalvos).filter(([, ativo]) => ativo).map(([id]) => id)
       : ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito']
@@ -193,7 +192,15 @@ export default async function CardapioPublicoPage({
     enderecos: enderecos || [],
     formasPagamento,
     entregaConfig: { metodo: config.entrega_metodo || 'bairro', km: config.entrega_km || {}, origem: { latitude: tenant.latitude, longitude: tenant.longitude, endereco: tenant.endereco || '' } },
-    horario,
+    horario: horarioDoDia,
+    horariosSemana: Array.isArray(config.horarios_dias)
+      ? config.horarios_dias.map((h: any) => ({ dia: DIAS_CHAVES[h.dia ?? h.dia_semana] || 'Hoje', abre: h.abre, fecha: h.fecha, ativo: h.ativo !== false }))
+      : (config.horarios_dias && typeof config.horarios_dias === 'object')
+        ? DIAS_CHAVES.map((chave) => {
+            const h = (config.horarios_dias as any)[chave]
+            return { dia: chave, abre: h?.abre, fecha: h?.fecha, ativo: h?.ativo !== false }
+          })
+        : [],
     layout,
     paleta,
     tipografia: config.cardapio_tipografia || 'classica',
