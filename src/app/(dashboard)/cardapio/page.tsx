@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import {
-  Plus, Edit, Trash2, Image as ImageIcon, Check, X, Save,
+  Plus, Edit, Trash2, Image as ImageIcon, Check, X, Save, Eye,
   Palette, Layout as LayoutIcon, Sparkles, Utensils as UtensilsIcon,
   Package, AlertCircle, Tag, Clock, Upload, ArrowUp, ArrowDown
 } from 'lucide-react'
