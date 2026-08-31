@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import {
-  Plus, Edit, Trash2, Image as ImageIcon, Check, X, Save, Eye,
+  Plus, Edit, Trash2, Image as ImageIcon, Check, X, Save,
   Palette, Layout as LayoutIcon, Sparkles, Utensils as UtensilsIcon,
   Package, AlertCircle, Tag, Clock, Upload, ArrowUp, ArrowDown
 } from 'lucide-react'
@@ -194,7 +194,6 @@ function ProdutosTab() {
   const [showProdModal, setShowProdModal] = useState(false)
   const [novaCat, setNovaCat] = useState('')
   const [novaCatBanner, setNovaCatBanner] = useState('')
-  const [mostrarInativos, setMostrarInativos] = useState(false)
 
   const [editingProduto, setEditingProduto] = useState<any>(null)
   const [editingCat, setEditingCat] = useState<any>(null)
@@ -202,7 +201,7 @@ function ProdutosTab() {
   const [novoTipo, setNovoTipo] = useState('')
   const supabase = createClient()
 
-  useEffect(() => { loadData() }, [mostrarInativos])
+  useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
     const { data: user } = await supabase.auth.getUser()
@@ -375,14 +374,6 @@ function ProdutosTab() {
           <h2 className="text-lg font-semibold">Produtos</h2>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setMostrarInativos(!mostrarInativos)}
-            className={mostrarInativos ? 'btn-primary' : 'btn-ghost'}
-            title="Mostrar produtos desativados"
-          >
-            <Eye size={14} />
-            {mostrarInativos ? 'Ocultando inativos' : 'Ver inativos'}
-          </button>
           <button onClick={() => { setEditingCat(null); setNovaCat(''); setShowCatModal(true) }} className="btn-primary">
             <Plus size={14} />Nova sessão
           </button>
@@ -464,12 +455,11 @@ function ProdutosTab() {
           {produtos[cat.id] && produtos[cat.id].length > 0 ? (
             <div className="space-y-2">
               {produtos[cat.id]
-                .filter((prod) => mostrarInativos || prod.ativo !== false)
                 .map((prod, prodIdx) => (
-                <div key={prod.id} className={`flex items-center gap-2 rounded-lg p-2 border ${prod.ativo === false ? 'bg-gray-100 opacity-60 border-gray-300' : 'bg-white'}`}>
+                <div key={prod.id} className={`flex items-center gap-2 rounded-lg p-2 border ${prod.ativo === false ? 'bg-gray-100 opacity-75 border-gray-300' : 'bg-white'}`}>
                   {/* Badge inativo */}
                   {prod.ativo === false && (
-                    <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full mr-1">
+                    <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full mr-1 font-medium">
                       Inativo
                     </span>
                   )}
@@ -485,7 +475,7 @@ function ProdutosTab() {
                     </button>
                     <button
                       onClick={() => reordenarProduto(cat.id, prodIdx, 'down')}
-                      disabled={prodIdx === produtos[cat.id].filter(p => mostrarInativos || p.ativo !== false).length - 1}
+                      disabled={prodIdx === produtos[cat.id].length - 1}
                       className="p-1 text-gray-400 hover:text-green-600 disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Descer"
                     >
