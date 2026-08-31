@@ -1015,11 +1015,35 @@ export default function PedidosPage() {
           >
             Hoje
           </button>
+          <button
+            onClick={() => { setFiltroData(''); setFiltroStatus('em_aberto'); }}
+            className={`px-2 py-1 text-xs rounded transition-colors ${!filtroData && filtroStatus === 'em_aberto' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+          >
+            🟣 Em aberto
+          </button>
         </div>
       </div>
 
       {/* Stats Bar - BOTOES PEQUENOS E CLICAVEIS */}
       <div className="flex gap-2 mb-4 flex-wrap">
+        {/* Em Aberto - todos pendentes sem limite de data */}
+        {(() => {
+          const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
+          const count = pedidos.filter((p) => STATUS_EM_ABERTO.includes(p.status)).length
+          const isActive = filtroStatus === 'em_aberto'
+          return (
+            <button
+              key="em_aberto"
+              onClick={() => setFiltroStatus(isActive ? null : 'em_aberto')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-purple-100 text-purple-700 shadow-md border-purple-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+            >
+              <Clock className="w-3 h-3" />
+              <span>Em aberto</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+            </button>
+          )
+        })()}
+
         {STATUS_LISTA.filter(s => s !== 'cancelado').map((status) => {
           const count = pedidos.filter((p) => p.status === status).length
           const config = STATUS_CONFIG[status]
@@ -1059,25 +1083,34 @@ export default function PedidosPage() {
 
       {/* Pedidos filtrados ou todos */}
       {(() => {
-        const pedidosFiltrados = filtroStatus
-          ? pedidos.filter(p => p.status === filtroStatus)
-          : pedidos
+        // Status "em_aberto" = novo + preparando + pronto + saiu (sem data)
+        const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
 
-        // Aplicar filtro de data se estiver ativo
-        const pedidosPorData = filtroData
-          ? pedidosFiltrados.filter(p => {
+        let pedidosFiltrados = pedidos
+
+        // Filtro de status
+        if (filtroStatus === 'em_aberto') {
+          pedidosFiltrados = pedidos.filter(p => STATUS_EM_ABERTO.includes(p.status))
+        } else if (filtroStatus) {
+          pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
+        }
+        // Se filtroStatus é null, mostra todos os pedidos
+
+        // Aplicar filtro de data APENAS se não for "em_aberto" e se filtroData estiver definido
+        const pedidosPorData = (filtroStatus === 'em_aberto' || !filtroData)
+          ? pedidosFiltrados
+          : pedidosFiltrados.filter(p => {
               const dataPedido = new Date(p.data_criacao).toISOString().split('T')[0]
               return dataPedido === filtroData
             })
-          : pedidosFiltrados
 
-        const statusConfig = filtroStatus ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
+        const statusConfig = filtroStatus && filtroStatus !== 'em_aberto' ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
         return (
           <>
             {filtroStatus && (
               <div className="mb-4 text-sm text-gray-500">
-                Mostrando <strong>{statusConfig?.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
-                <button onClick={() => setFiltroStatus(null)} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
+                Mostrando <strong>{filtroStatus === 'em_aberto' ? 'Em aberto (todos)' : statusConfig?.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
+                <button onClick={() => { setFiltroStatus(null); setFiltroData(new Date().toISOString().split('T')[0]); }} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
               </div>
             )}
 
