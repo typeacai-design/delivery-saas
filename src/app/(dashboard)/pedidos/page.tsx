@@ -426,10 +426,6 @@ export default function PedidosPage() {
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
   const [filtroStatus, setFiltroStatus] = useState<string | null>('novo') // Padrão: novo
   const [filtroData, setFiltroData] = useState<string>(new Date().toISOString().split('T')[0]) // Data atual como padrão
-  const [filtroDataDe, setFiltroDataDe] = useState<string>(new Date().toISOString().split('T')[0])
-  const [filtroDataAte, setFiltroDataAte] = useState<string>(new Date().toISOString().split('T')[0])
-  const [subAba, setSubAba] = useState<'fluxo' | 'todos'>('fluxo')
-  const [filtroBusca, setFiltroBusca] = useState('')
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
   const [itensEditando, setItensEditando] = useState<any[]>([])
@@ -1007,83 +1003,33 @@ export default function PedidosPage() {
         </div>
       </div>
 
-      {/* ABAS: FLUXO / TODOS */}
-      <div className="flex items-center gap-2 mb-4">
-        <button
-          onClick={() => setSubAba('fluxo')}
-          className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border transition-all ${
-            subAba === 'fluxo'
-              ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-md'
-              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <span className="w-2 h-2 rounded-full bg-blue-500" />
-          Fluxo
-        </button>
-        <button
-          onClick={() => setSubAba('todos')}
-          className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border transition-all ${
-            subAba === 'todos'
-              ? 'bg-purple-50 border-purple-300 text-purple-700 shadow-md'
-              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <span className="w-2 h-2 rounded-full bg-purple-500" />
-          Todos os Pedidos
-        </button>
-      </div>
-
-      {/* SEÇÃO FLUXO */}
-      {subAba === 'fluxo' && (
-        <>
-      {/* Filtro de Data (Período) */}
+      {/* Filtro de Data */}
       <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border shadow-sm">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-600">📅 Período:</label>
+          <label className="text-sm font-medium text-gray-600">📅 Filtrar por data:</label>
           <input
             type="date"
-            value={filtroDataDe}
-            onChange={(e) => setFiltroDataDe(e.target.value)}
-            className="form-input text-sm px-3 py-1.5"
-          />
-          <span className="text-gray-400">até</span>
-          <input
-            type="date"
-            value={filtroDataAte}
-            onChange={(e) => setFiltroDataAte(e.target.value)}
+            value={filtroData}
+            onChange={(e) => setFiltroData(e.target.value)}
             className="form-input text-sm px-3 py-1.5"
           />
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              const ontem = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-              const hoje = new Date().toISOString().split('T')[0]
-              setFiltroDataDe(ontem)
-              setFiltroDataAte(hoje)
-            }}
+            onClick={() => setFiltroData(new Date(Date.now() - 86400000).toISOString().split('T')[0])}
             className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
           >
             Ontem
           </button>
           <button
-            onClick={() => {
-              const hoje = new Date().toISOString().split('T')[0]
-              setFiltroDataDe(hoje)
-              setFiltroDataAte(hoje)
-            }}
+            onClick={() => setFiltroData(new Date().toISOString().split('T')[0])}
             className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
           >
             Hoje
           </button>
           <button
-            onClick={() => {
-              const hoje = new Date().toISOString().split('T')[0]
-              setFiltroDataDe(hoje)
-              setFiltroDataAte(hoje)
-              setFiltroStatus('em_aberto')
-            }}
-            className={`px-2 py-1 text-xs rounded transition-colors ${!filtroDataDe && filtroStatus === 'em_aberto' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+            onClick={() => { setFiltroData(''); setFiltroStatus('em_aberto'); }}
+            className={`px-2 py-1 text-xs rounded transition-colors ${!filtroData && filtroStatus === 'em_aberto' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 hover:bg-gray-200'}`}
           >
             🟣 Em aberto
           </button>
