@@ -580,38 +580,23 @@ export default function PedidosPage() {
       removerDoLoop(pedido.id)
     }
 
-    const updates: any = {
-      status: newStatus,
-      data_atualizacao: new Date().toISOString()
-    }
-
-    // Se for cancelamento, salva motivo
-    if (newStatus === 'cancelado' && motivo) {
-      updates.motivo_cancelamento = motivo.tipo
-      updates.motivo_cancelamento_detalhe = motivo.descricao || null
-      updates.cancelado_por = 'lojista'
-      updates.cancelado_em = new Date().toISOString()
-    }
-
-    // Obter tenantId se disponível
-    const tid = await activeTenantId()
-
     try {
-      let query = supabase
-        .from('pedidos')
-        .update(updates)
-        .eq('id', pedido.id)
+      const res = await fetch(`/api/pedidos/${pedido.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          pedido_id: pedido.id,
+          status: newStatus,
+          motivo_cancelamento: motivo?.tipo,
+          motivo_cancelamento_detalhe: motivo?.descricao,
+        })
+      })
+      const data = await res.json()
 
-      // Se tiver tenantId, filtrar por ele para segurança
-      if (tid) {
-        query = query.eq('tenant_id', tid)
-      }
-
-      const { error } = await query
-
-      if (error) {
-        console.error('Erro ao atualizar status:', error)
-        alert('Erro ao atualizar status: ' + (error.message || 'Erro desconhecido'))
+      if (!res.ok) {
+        console.error('Erro ao atualizar status:', data.error)
+        alert('Erro ao atualizar status: ' + (data.error || 'Erro desconhecido'))
       } else {
         loadPedidos()
       }
