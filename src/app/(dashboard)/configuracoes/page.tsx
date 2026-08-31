@@ -151,6 +151,7 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
     config.excecoes_horario || []
   )
   const [novaExcecao, setNovaExcecao] = useState({ data: '', abre: '', fecha: '', motivo: '' })
+  const [lojaAberta, setLojaAberta] = useState(config.loja_aberta !== false)
 
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
@@ -162,6 +163,7 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
     setHorarios(novoHorarios)
     setHorariosCarregado(novoHorarios)
     setExcecoes(novoExcecoes)
+    setLojaAberta(config.loja_aberta !== false)
   }, [tenant?.id, JSON.stringify(config.horarios_dias), JSON.stringify(config.excecoes_horario)])
 
   // Mostrar loading enquanto nao tiver dados do tenant
@@ -229,6 +231,7 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
         ...configAtual,
         horarios_dias: horarios,
         excecoes_horario: excecoes,
+        loja_aberta: lojaAberta,
       }
 
       const { error } = await supabase
@@ -273,6 +276,55 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
 
   return (
     <div className="space-y-5">
+      {/* BOTÃO GRANDE FECHAR/ABRIR LOJA */}
+      <div className={`rounded-2xl border-2 p-6 text-center ${lojaAberta ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className={`size-16 rounded-full flex items-center justify-center ${lojaAberta ? 'bg-green-500' : 'bg-red-500'}`}>
+            <span className="text-3xl">{lojaAberta ? '🟢' : '🔴'}</span>
+          </div>
+          <div className="text-center sm:text-left">
+            <h2 className={`text-2xl font-bold ${lojaAberta ? 'text-green-700' : 'text-red-700'}`}>
+              Loja {lojaAberta ? 'Aberta' : 'Fechada'}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {lojaAberta
+                ? 'Sua loja está visível e aceitando pedidos'
+                : 'Sua loja está temporariamente fechada para pedidos'}
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              if (!confirm(`Deseja ${lojaAberta ? 'FECHAR' : 'ABRIR'} a loja agora?`)) return
+              setLojaAberta(!lojaAberta)
+              // Salvar imediatamente
+              setSaving(true)
+              try {
+                const tid = await activeTenantId()
+                if (!tid) throw new Error('Loja não encontrada')
+                const { error } = await supabase.from('tenants').update({
+                  config: { ...config, loja_aberta: !lojaAberta }
+                }).eq('id', tid)
+                if (error) throw error
+                await loadTenantFromParent?.()
+                alert(`Loja ${!lojaAberta ? 'ABERTA' : 'FECHADA'} com sucesso!`)
+              } catch (e: any) {
+                alert('Erro: ' + (e.message || 'Erro desconhecido'))
+              } finally {
+                setSaving(false)
+              }
+            }}
+            disabled={saving}
+            className={`px-8 py-3 rounded-xl font-bold text-white transition-all ${
+              lojaAberta
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-green-600 hover:bg-green-700'
+            } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {saving ? 'Salvando...' : lojaAberta ? '🚪 Fechar Loja' : '🚀 Abrir Loja'}
+          </button>
+        </div>
+      </div>
+
       <div className="glass p-6">
         <div className="eyebrow mb-1">Por dia da semana</div>
         <h2 className="text-lg font-semibold mb-5">Horários regulares</h2>

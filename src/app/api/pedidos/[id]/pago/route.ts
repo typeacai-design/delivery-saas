@@ -17,7 +17,7 @@ export async function PATCH(request: Request) {
     // Verificar se o pedido pertence ao tenant
     const { data: pedido, error: fetchError } = await supabase
       .from('pedidos')
-      .select('id, tenant_id')
+      .select('id, codigo, tenant_id, valor_total, forma_pagamento, pago')
       .eq('id', pedido_id)
       .single()
 
@@ -42,6 +42,38 @@ export async function PATCH(request: Request) {
     if (updateError) {
       console.error('Erro ao atualizar pago:', updateError)
       return NextResponse.json({ error: 'Erro ao atualizar' }, { status: 500 })
+    }
+
+    // Se está marcando como pago, registrar no fluxo de caixa
+    if (pago) {
+      const formaPagamento = Array.isArray(pedido.forma_pagamento)
+        ? pedido.forma_pagamento[0]
+        : pedido.forma_pagamento || 'outro'
+
+      const { error: lancError } = await supabase
+        .from('movimentacoes_financeiras')
+        .insert({
+          tenant_id: tenantId,
+          tipo: 'entrada',
+          descricao: `Pedido #${pedido.codigo || pedido_id.slice(0, 8)}`,
+          valor: pedido.valor_total,
+          data: new Date().toISOString(),
+          categoria: 'venda',
+          pedido_id: pedido_id,
+          forma_pagamento: formaPagamento,
+        })
+
+      if (lancError) {
+        console.error('Erro ao registrar movimentação:', lancError)
+        // Não falha a operação principal, só loga o erro
+      }
+    } else {
+      // Se está desmarcando pago, remover a movimentação do fluxo de caixa
+      await supabase
+        .from('movimentacoes_financeiras')
+        .delete()
+        .eq('pedido_id', pedido_id)
+        .eq('tenant_id', tenantId)
     }
 
     return NextResponse.json({ success: true, pago })

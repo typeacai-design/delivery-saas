@@ -96,3 +96,13 @@ export function gerarMensagemWhatsApp(d: DadosPedido): string {
 
   return texto
 }
+
+export function gerarMensagemAvaliacao(d: { tenantNome: string; codigo: string; linkAvaliacao: string }): string {
+  return `🎉 Olá! Seu pedido #${d.codigo} da ${d.tenantNome} foi entregue!
+
+Como foi sua experiência? Sua opinião é muito importante para nós! ⭐
+
+${d.linkAvaliacao}
+
+Leva apenas 30 segundos! Sua avaliação nos ajuda a melhorar. 😊`
+}

@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Users, Search, Phone, MapPin, ShoppingBag, Calendar, Eye, ChevronDown, ChevronUp } from 'lucide-react'
+import { Users, Search, Phone, MapPin, ShoppingBag, Calendar, Eye, ChevronDown, ChevronUp, Trophy, Cake, Filter } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+
+type FiltroCliente = 'todos' | 'top10' | 'aniversariantes'
 
 export default function MeusClientesTab() {
   const supabase = createClient()
   const [clientes, setClientes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
+  const [filtro, setFiltro] = useState<FiltroCliente>('todos')
   const [expandido, setExpandido] = useState<string | null>(null)
   const [pedidosCliente, setPedidosCliente] = useState<any[]>([])
   const [pontos, setPontos] = useState<Record<string, { pontos: number; cashback: number }>>({})
@@ -58,21 +61,53 @@ export default function MeusClientesTab() {
     setPedidosCliente(data || [])
   }
 
+  // Calcular mes atual para filtro de aniversariantes
+  const mesAtual = new Date().getMonth() + 1
+
+  // Aplicar filtros
   const clientesFiltrados = useMemo(() => {
-    if (!busca) return clientes
-    const b = busca.toLowerCase()
-    return clientes.filter((c) =>
-      (c.nome || '').toLowerCase().includes(b) ||
-      (c.telefone || '').includes(b) ||
-      (c.email || '').toLowerCase().includes(b) ||
-      (c.cpf || '').includes(b) ||
-      (c.endereco || '').toLowerCase().includes(b) ||
-      (c.bairro || '').toLowerCase().includes(b)
-    )
-  }, [clientes, busca])
+    let resultado = clientes
+
+    // Filtro de busca
+    if (busca) {
+      const b = busca.toLowerCase()
+      resultado = resultado.filter((c) =>
+        (c.nome || '').toLowerCase().includes(b) ||
+        (c.telefone || '').includes(b) ||
+        (c.email || '').toLowerCase().includes(b) ||
+        (c.cpf || '').includes(b) ||
+        (c.endereco || '').toLowerCase().includes(b) ||
+        (c.bairro || '').toLowerCase().includes(b)
+      )
+    }
+
+    // Filtro especial
+    if (filtro === 'top10') {
+      resultado = [...resultado]
+        .sort((a, b) => (b.total_pedidos || 0) - (a.total_pedidos || 0))
+        .slice(0, 10)
+    } else if (filtro === 'aniversariantes') {
+      resultado = resultado.filter((c) => {
+        if (!c.data_nascimento) return false
+        const mes = new Date(c.data_nascimento).getMonth() + 1
+        return mes === mesAtual
+      })
+    }
+
+    return resultado
+  }, [clientes, busca, filtro, mesAtual])
 
   const totalPontos = Object.values(pontos).reduce((acc, p) => acc + p.pontos, 0)
   const totalCashback = Object.values(pontos).reduce((acc, p) => acc + p.cashback, 0)
+
+  // Contadores para badges
+  const countAniversariantes = clientes.filter((c) => {
+    if (!c.data_nascimento) return false
+    const mes = new Date(c.data_nascimento).getMonth() + 1
+    return mes === mesAtual
+  }).length
+
+  const countTop10 = clientes.filter((c) => c.total_pedidos > 0).length
 
   if (loading) return <div className="text-center py-8 hint">Carregando clientes...</div>
 
@@ -94,8 +129,46 @@ export default function MeusClientesTab() {
         </div>
       </div>
 
-      {/* BUSCA */}
+      {/* FILTROS */}
       <div className="bg-white rounded-2xl border p-4" style={{ borderColor: '#E5E7EB' }}>
+        {/* Seletor de filtro */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => setFiltro('todos')}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+              filtro === 'todos'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Users size={16} />
+            Todos ({clientes.length})
+          </button>
+          <button
+            onClick={() => setFiltro('top10')}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+              filtro === 'top10'
+                ? 'bg-yellow-500 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Trophy size={16} />
+            Top 10 ({Math.min(countTop10, 10)})
+          </button>
+          <button
+            onClick={() => setFiltro('aniversariantes')}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+              filtro === 'aniversariantes'
+                ? 'bg-pink-500 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Cake size={16} />
+            Aniversariantes ({countAniversariantes})
+          </button>
+        </div>
+
+        {/* Busca */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -107,7 +180,8 @@ export default function MeusClientesTab() {
           />
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          {clientesFiltrados.length} de {clientes.length} clientes
+          {clientesFiltrados.length} {filtro === 'todos' ? 'de ' + clientes.length + ' clientes' : 'cliente(s)'}
+          {filtro === 'aniversariantes' && countAniversariantes > 0 && ' neste mês'}
         </p>
       </div>
 
@@ -116,21 +190,29 @@ export default function MeusClientesTab() {
         {clientesFiltrados.map((c) => {
           const pts = pontos[c.id] || { pontos: 0, cashback: 0 }
           const expandidoAt = expandido === c.id
+          const isAniversariante = c.data_nascimento && new Date(c.data_nascimento).getMonth() + 1 === mesAtual
           return (
-            <div key={c.id} className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: '#E5E7EB' }}>
+            <div key={c.id} className={`bg-white rounded-2xl border overflow-hidden ${isAniversariante ? 'border-pink-300 ring-2 ring-pink-100' : ''}`} style={{ borderColor: isAniversariante ? undefined : '#E5E7EB' }}>
               <div
                 className="p-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50"
                 onClick={() => expandir(c.id)}
               >
-                <div className="size-12 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: 'var(--green)' }}>
+                {isAniversariante && (
+                  <div className="absolute -left-1 top-1/2 -translate-y-1/2 size-6 rounded-full bg-pink-500 text-white flex items-center justify-center text-xs">🎂</div>
+                )}
+                <div className={`size-12 rounded-full flex items-center justify-center text-sm font-bold text-white ${isAniversariante ? 'bg-pink-500' : ''}`} style={isAniversariante ? {} : { background: 'var(--green)' }}>
                   {(c.nome || 'C').split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-gray-900">{c.nome}</div>
+                  <div className="font-semibold text-gray-900 flex items-center gap-2">
+                    {c.nome}
+                    {isAniversariante && <span className="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">🎂 Aniversariante!</span>}
+                  </div>
                   <div className="text-xs text-gray-500 flex flex-wrap gap-3 mt-0.5">
                     {c.telefone && <span><Phone className="w-3 h-3 inline" /> {c.telefone}</span>}
                     {c.bairro && <span><MapPin className="w-3 h-3 inline" /> {c.bairro}</span>}
                     <span><ShoppingBag className="w-3 h-3 inline" /> {c.total_pedidos || 0} pedido(s)</span>
+                    {c.data_nascimento && <span><Calendar className="w-3 h-3 inline" /> {new Date(c.data_nascimento).toLocaleDateString('pt-BR')}</span>}
                   </div>
                 </div>
                 <div className="text-right">
@@ -153,7 +235,7 @@ export default function MeusClientesTab() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     {c.email && <div><span className="font-medium">Email:</span> {c.email}</div>}
                     {c.cpf && <div><span className="font-medium">CPF:</span> {c.cpf}</div>}
-                    {c.data_nirthamento && <div><span className="font-medium">Nascimento:</span> {new Date(c.data_nascimento).toLocaleDateString('pt-BR')}</div>}
+                    {c.data_nascimento && <div><span className="font-medium">Nascimento:</span> {new Date(c.data_nascimento).toLocaleDateString('pt-BR')}</div>}
                     {c.endereco && <div className="md:col-span-2"><span className="font-medium">Endereço:</span> {c.endereco}</div>}
                     {c.ltv && <div><span className="font-medium">LTV (valor total):</span> {formatCurrency(Number(c.ltv))}</div>}
                   </div>
@@ -199,8 +281,16 @@ export default function MeusClientesTab() {
           )
         })}
         {clientesFiltrados.length === 0 && (
-          <div className="text-center py-12 hint">
-            {busca ? `Nenhum cliente encontrado para "${busca}"` : 'Nenhum cliente cadastrado ainda'}
+          <div className="text-center py-12 bg-white rounded-2xl border" style={{ borderColor: '#E5E7EB' }}>
+            <Filter className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="hint">
+              {filtro === 'aniversariantes'
+                ? `Nenhum cliente aniversariante neste mês (${new Date().toLocaleDateString('pt-BR', { month: 'long' })})`
+                : filtro === 'top10'
+                  ? 'Nenhum cliente com pedidos ainda'
+                  : busca ? `Nenhum cliente encontrado para "${busca}"` : 'Nenhum cliente cadastrado ainda'
+              }
+            </p>
           </div>
         )}
       </div>

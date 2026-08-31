@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent } from 'lucide-react'
+import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -168,7 +168,7 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
     const carregar = async () => {
       const { data: cats } = await supabase.from('categorias_produtos').select('id, nome').eq('tenant_id', tenantId).order('nome')
       setCategorias(cats || [])
-      const { data: prods } = await supabase.from('produtos').select('id, nome, preco, categoria_id, ativo').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
+      const { data: prods } = await supabase.from('produtos').select('id, nome, preco, imagem_url, categoria_id, ativo').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
       setProdutos(prods || [])
       const { data: comps } = await supabase.from('complementos').select('id, nome, preco, ativo, categoria_id').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
       setComplementosDb(comps || [])
@@ -243,9 +243,16 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
                     key={p.id}
                     type="button"
                     onClick={() => selecionarProduto(p)}
-                    className="w-full text-left p-2 hover:bg-green-50 flex justify-between items-center text-sm border-b last:border-b-0"
+                    className="w-full text-left p-2 hover:bg-green-50 flex items-center gap-3 text-sm border-b last:border-b-0"
                   >
-                    <span>{p.nome}</span>
+                    {p.imagem_url ? (
+                      <img src={p.imagem_url} alt={p.nome} className="size-10 rounded-lg object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="size-10 rounded-lg bg-gray-100 flex items-center justify-center text-lg flex-shrink-0">
+                        🍽️
+                      </div>
+                    )}
+                    <span className="flex-1">{p.nome}</span>
                     <span className="font-medium text-green-600">{formatCurrency(Number(p.preco))}</span>
                   </button>
                 ))
@@ -586,16 +593,31 @@ export default function PedidosPage() {
       updates.cancelado_em = new Date().toISOString()
     }
 
-    const { error } = await supabase
-      .from('pedidos')
-      .update(updates)
-      .eq('id', pedido.id)
+    // Obter tenantId se disponível
+    const tid = await activeTenantId()
 
-    if (error) {
-      console.error('Erro ao atualizar status:', error)
-      alert('Erro ao atualizar status')
-    } else {
-      loadPedidos()
+    try {
+      let query = supabase
+        .from('pedidos')
+        .update(updates)
+        .eq('id', pedido.id)
+
+      // Se tiver tenantId, filtrar por ele para segurança
+      if (tid) {
+        query = query.eq('tenant_id', tid)
+      }
+
+      const { error } = await query
+
+      if (error) {
+        console.error('Erro ao atualizar status:', error)
+        alert('Erro ao atualizar status: ' + (error.message || 'Erro desconhecido'))
+      } else {
+        loadPedidos()
+      }
+    } catch (err: any) {
+      console.error('Erro completo ao atualizar status:', err)
+      alert('Erro ao atualizar status: ' + (err.message || 'Erro desconhecido'))
     }
   }
 
@@ -813,6 +835,11 @@ export default function PedidosPage() {
       } else {
         setShowDescontoModal(false)
         loadPedidos()
+        // Atualizar o pedido selecionado se o modal de detalhes estiver aberto
+        if (selectedPedido && selectedPedido.id === pedidoDesconto.id) {
+          const pedidoAtualizado = { ...selectedPedido, valor_desconto: Math.round(novoDesconto * 100) / 100, valor_total: Math.max(0, Math.round(novoTotal * 100) / 100) }
+          setSelectedPedido(pedidoAtualizado)
+        }
       }
     } catch (err) {
       alert('Erro ao aplicar desconto')
@@ -1438,15 +1465,55 @@ export default function PedidosPage() {
                 )}
               </div>
 
-              {/* Avaliação */}
+              {/* Avaliação - só aparece quando pedido está entregue */}
               {selectedPedido.status === 'entregue' && (
-                <button
-                  type="button"
-                  className="text-sm text-blue-600 underline mt-2 block"
-                  onClick={() => gerarConviteAvaliacao(selectedPedido.id)}
-                >
-                  Gerar e copiar novo convite de avaliação
-                </button>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mt-4">
+                  <h3 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
+                    <Star className="w-4 h-4" />
+                    Avaliação do Cliente
+                  </h3>
+                  <p className="text-sm text-green-700 mb-3">
+                    Envie um convite para o cliente avaliar sua experiência
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      className="flex-1 px-3 py-2 bg-white border border-green-300 text-green-700 text-sm rounded-lg hover:bg-green-100 flex items-center justify-center gap-2"
+                      onClick={() => gerarConviteAvaliacao(selectedPedido.id)}
+                    >
+                      <Copy className="w-4 h-4" />
+                      Copiar link
+                    </button>
+                    {(selectedPedido as any).cliente_whatsapp && (
+                      <button
+                        type="button"
+                        className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
+                        onClick={async () => {
+                          // Gerar o convite
+                          const response = await fetch(`/api/pedidos/${encodeURIComponent(selectedPedido.id)}/avaliacao-convite`, { method: 'POST' })
+                          const body = await response.json()
+                          if (!response.ok) return alert(body.error || 'Erro ao gerar convite')
+
+                          const link = `${window.location.origin}/avaliar/${body.token}`
+                          const fone = ((selectedPedido as any).cliente_whatsapp || '').replace(/\D/g, '')
+
+                          // Gerar mensagem de avaliação
+                          const { gerarMensagemAvaliacao } = await import('@/lib/whatsapp/template')
+                          const msg = gerarMensagemAvaliacao({
+                            tenantNome: 'Nossa Loja',
+                            codigo: selectedPedido.codigo || selectedPedido.id.slice(0, 8),
+                            linkAvaliacao: link
+                          })
+
+                          window.open(`https://wa.me/55${fone}?text=${encodeURIComponent(msg)}`, '_blank')
+                        }}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        Enviar via WhatsApp
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
 
               {/* Botões de ação */}
@@ -1699,88 +1766,111 @@ export default function PedidosPage() {
             </div>
 
             <div className="p-4 space-y-4">
-              {/* DADOS CLIENTE */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <label className="text-sm">
-                  <span className="font-medium block mb-1">Nome do cliente</span>
-                  <input
-                    className="form-input w-full"
-                    value={pedidoEditando.cliente_nome || ''}
-                    onChange={e => setPedidoEditando({ ...pedidoEditando, cliente_nome: e.target.value })}
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium block mb-1">WhatsApp</span>
-                  <input
-                    className="form-input w-full"
-                    value={pedidoEditando.cliente_whatsapp || ''}
-                    onChange={e => setPedidoEditando({ ...pedidoEditando, cliente_whatsapp: e.target.value })}
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium block mb-1">Endereço</span>
-                  <input
-                    className="form-input w-full"
-                    value={pedidoEditando.endereco_entrega || ''}
-                    onChange={e => setPedidoEditando({ ...pedidoEditando, endereco_entrega: e.target.value })}
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium block mb-1">Número</span>
-                  <input
-                    className="form-input w-full"
-                    value={pedidoEditando.numero_entrega || ''}
-                    onChange={e => setPedidoEditando({ ...pedidoEditando, numero_entrega: e.target.value })}
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium block mb-1">Bairro</span>
-                  <input
-                    className="form-input w-full"
-                    value={pedidoEditando.bairro_entrega || ''}
-                    onChange={e => setPedidoEditando({ ...pedidoEditando, bairro_entrega: e.target.value })}
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium block mb-1">Complemento</span>
-                  <input
-                    className="form-input w-full"
-                    value={pedidoEditando.complemento_entrega || ''}
-                    onChange={e => setPedidoEditando({ ...pedidoEditando, complemento_entrega: e.target.value })}
-                  />
-                </label>
-                <label className="text-sm md:col-span-2">
-                  <span className="font-medium block mb-1">Observações</span>
-                  <textarea
-                    className="form-input w-full"
-                    rows={2}
-                    value={pedidoEditando.observacoes || ''}
-                    onChange={e => setPedidoEditando({ ...pedidoEditando, observacoes: e.target.value })}
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium block mb-1">Taxa de entrega (R$)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="form-input w-full"
-                    value={pedidoEditando.taxa_entrega || 0}
-                    onChange={e => setPedidoEditando({ ...pedidoEditando, taxa_entrega: Number(e.target.value) })}
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="font-medium block mb-1">Desconto (R$)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="form-input w-full"
-                    value={pedidoEditando.valor_desconto || 0}
-                    onChange={e => setPedidoEditando({ ...pedidoEditando, valor_desconto: Number(e.target.value) })}
-                  />
-                </label>
+              {/* BLOCO 1: DADOS DO CLIENTE */}
+              <div className="bg-blue-50 rounded-xl p-4">
+                <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                  <span>👤</span> Dados do Cliente
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Nome</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.cliente_nome || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, cliente_nome: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">WhatsApp</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.cliente_whatsapp || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, cliente_whatsapp: e.target.value })}
+                    />
+                  </label>
+                </div>
               </div>
 
-              {/* ITENS */}
+              {/* BLOCO 2: ENDEREÇO DE ENTREGA */}
+              <div className="bg-green-50 rounded-xl p-4">
+                <h3 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
+                  <span>📍</span> Endereço de Entrega
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-sm md:col-span-2">
+                    <span className="font-medium block mb-1">Endereço</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.endereco_entrega || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, endereco_entrega: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Número</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.numero_entrega || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, numero_entrega: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Bairro</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.bairro_entrega || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, bairro_entrega: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Complemento</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.complemento_entrega || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, complemento_entrega: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm md:col-span-2">
+                    <span className="font-medium block mb-1">Observações</span>
+                    <textarea
+                      className="form-input w-full"
+                      rows={2}
+                      value={pedidoEditando.observacoes || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, observacoes: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* BLOCO 3: VALORES */}
+              <div className="bg-yellow-50 rounded-xl p-4">
+                <h3 className="font-semibold text-yellow-800 mb-3 flex items-center gap-2">
+                  <span>💰</span> Valores
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Taxa de entrega (R$)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input w-full"
+                      value={pedidoEditando.taxa_entrega || 0}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, taxa_entrega: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Desconto (R$)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input w-full"
+                      value={pedidoEditando.valor_desconto || 0}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, valor_desconto: Number(e.target.value) })}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* BLOCO 4: ITENS */}
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold">Itens do pedido</h3>

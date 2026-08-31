@@ -3,20 +3,20 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Cake, Trophy, Users, Tag, RefreshCw, Sparkles, Plus, Calendar, Search, Edit, Trash2, Star, Send, Clock
+  Cake, Trophy, Users, Tag, RefreshCw, Sparkles, Plus, Calendar, Search, Edit, Trash2, Star, Clock
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import FidelidadeTab from '@/components/admin/marketing/FidelidadeTab'
-import DisparoTab from '@/components/admin/marketing/DisparoTab'
+
 import CarrinhoAbandonadoTab from '@/components/admin/marketing/CarrinhoAbandonadoTab'
 import MeusClientesTab from '@/components/admin/marketing/MeusClientesTab'
 import AvaliacoesPage from '../avaliacoes/page'
 
-type Tab = 'clientes' | 'fidelidade' | 'disparo' | 'carrinho' | 'aniversariantes' | 'top' | 'cupons' | 'avaliacoes'
+type Tab = 'clientes' | 'fidelidade'  | 'carrinho'   | 'cupons' | 'avaliacoes'
 type Periodo = '7d' | '15d' | '30d' | 'custom'
 
 export default function MarketingPage() {
-  const [tab, setTab] = useState<Tab>('aniversariantes')
+  const [tab, setTab] = useState<Tab>('clientes')
   const [loading, setLoading] = useState(true)
   const [clientes, setClientes] = useState<any[]>([])
   const [topClientes, setTopClientes] = useState<any[]>([])
@@ -86,10 +86,10 @@ export default function MarketingPage() {
   const tabs = [
     { id: 'clientes', label: 'Meus Clientes', icon: Users },
     { id: 'fidelidade', label: 'Fidelidade', icon: Star },
-    { id: 'disparo', label: 'Disparo WhatsApp', icon: Send },
+    
     { id: 'carrinho', label: 'Carrinho abandonado', icon: Clock },
-    { id: 'aniversariantes', label: 'Aniversariantes', icon: Cake },
-    { id: 'top', label: 'Top clientes', icon: Trophy },
+    
+    
     { id: 'cupons', label: 'Cupons', icon: Tag },
     { id: 'avaliacoes', label: 'Avaliações', icon: Star },
   ] as const
@@ -148,149 +148,14 @@ export default function MarketingPage() {
         <>
           {tab === 'clientes' && <MeusClientesTab />}
           {tab === 'fidelidade' && <FidelidadeTab />}
-          {tab === 'disparo' && <DisparoTab clientes={clientes} />}
+          
           {tab === 'carrinho' && <CarrinhoAbandonadoTab />}
-          {tab === 'aniversariantes' && <AniversariantesTab clientes={clientes} />}
-          {tab === 'top' && <TopTab topClientes={topClientes} />}
+          
+          
           {tab === 'cupons' && <CuponsTab cupons={cupons} />}
           {tab === 'avaliacoes' && <AvaliacoesPage />}
         </>
       )}
-    </div>
-  )
-}
-
-function AniversariantesTab({ clientes }: { clientes: any[] }) {
-  const [periodo, setPeriodo] = useState<'semana' | 'mes' | 'custom'>('semana')
-  const [dataInicio, setDataInicio] = useState('')
-  const [dataFim, setDataFim] = useState('')
-
-  const getAniversariantes = () => {
-    const hoje = new Date()
-    let fim: Date
-    if (periodo === 'semana') {
-      fim = new Date(); fim.setDate(fim.getDate() + 7)
-    } else if (periodo === 'mes') {
-      fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
-    } else {
-      if (!dataInicio || !dataFim) return []
-      const inicio = new Date(dataInicio)
-      fim = new Date(dataFim)
-      return clientes.filter((c) => {
-        if (!c.data_nascimento) return false
-        const nasc = new Date(c.data_nascimento)
-        const aniv = new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate())
-        return aniv >= inicio && aniv <= fim
-      })
-    }
-    return clientes.filter((c) => {
-      if (!c.data_nascimento) return false
-      const nasc = new Date(c.data_nascimento)
-      const aniv = new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate())
-      return aniv >= hoje && aniv <= fim
-    }).sort((a, b) => new Date(a.data_nascimento).getDate() - new Date(b.data_nascimento).getDate())
-  }
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso)
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
-  }
-
-  const list = getAniversariantes()
-
-  return (
-    <div className="glass p-6">
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
-        <div>
-          <div className="eyebrow mb-1">Período</div>
-          <h2 className="text-lg font-semibold">Aniversariantes</h2>
-        </div>
-        <div className="flex gap-2 items-center flex-wrap">
-          {(['semana', 'mes', 'custom'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriodo(p)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition"
-              style={
-                periodo === p
-                  ? { background: 'var(--green)', color: 'white' }
-                  : { background: 'rgba(255,255,255,.7)', color: 'var(--ink-muted)', border: '1px solid var(--line)' }
-              }
-            >
-              {p === 'semana' ? 'Esta semana' : p === 'mes' ? 'Este mês' : 'Personalizado'}
-            </button>
-          ))}
-          {periodo === 'custom' && (
-            <div className="flex gap-1 items-center">
-              <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem', borderRadius: 8 }} />
-              <span className="hint">até</span>
-              <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem', borderRadius: 8 }} />
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="space-y-2">
-        {list.map((c) => (
-          <div key={c.id} className="glass-soft p-4 flex items-center gap-4">
-            <div className="size-11 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #DCFCE7, #BBF7D0)' }}>
-              <Cake size={18} style={{ color: '#15803D' }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>{c.nome}</div>
-              <div className="hint text-xs">{c.telefone}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-base font-semibold" style={{ color: '#15803D' }}>🎂 {formatDate(c.data_nascimento)}</div>
-            </div>
-          </div>
-        ))}
-        {list.length === 0 && (
-          <div className="text-center py-12">
-            <div className="size-14 mx-auto mb-3 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(22,163,74,.12)' }}>
-              <Cake size={24} style={{ color: '#15803D' }} />
-            </div>
-            <div className="text-sm font-medium">Nenhum aniversariante no período</div>
-            <div className="hint mt-1">Cadastre a data de nascimento dos clientes</div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function TopTab({ topClientes }: { topClientes: any[] }) {
-  return (
-    <div className="glass p-6">
-      <div className="eyebrow mb-1">Ranking</div>
-      <h2 className="text-lg font-semibold mb-5">Top clientes</h2>
-      <div className="space-y-2">
-        {topClientes.map((c, i) => (
-          <div key={c.id} className="glass-soft p-4 flex items-center gap-4">
-            <div
-              className="size-11 rounded-2xl flex items-center justify-center font-bold text-sm"
-              style={
-                i === 0 ? { background: 'linear-gradient(135deg, #16A34A, #22C55E)', color: 'white' }
-                : i === 1 ? { background: 'linear-gradient(135deg, #4ADE80, #86EFAC)', color: 'white' }
-                : i === 2 ? { background: 'linear-gradient(135deg, #BBF7D0, #86EFAC)', color: '#15803D' }
-                : { background: 'rgba(22,163,74,.10)', color: 'var(--ink)' }
-              }
-            >
-              {i + 1}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold">{c.nome}</div>
-              <div className="hint text-xs">{c.telefone}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-base font-semibold gradient-text">{c.count} pedido{c.count !== 1 && 's'}</div>
-              <div className="hint text-xs">{formatCurrency(c.total)}</div>
-            </div>
-          </div>
-        ))}
-        {topClientes.length === 0 && (
-          <div className="text-center py-12 hint">Sem pedidos ainda</div>
-        )}
-      </div>
     </div>
   )
 }

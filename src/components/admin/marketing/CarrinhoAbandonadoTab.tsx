@@ -32,11 +32,11 @@ export default function CarrinhoAbandonadoTab() {
     limite.setHours(limite.getHours() - 24)
 
     const { data } = await supabase
-      .from('carrinho_salvo')
-      .select('id, session_id, whatsapp, itens, valor_estimado, updated_at')
+      .from('carrinho_abandonado')
+      .select('id, session_id, whatsapp, itens, valor_total, ultimo_acesso, updated_at')
       .eq('tenant_id', tid)
-      .lt('updated_at', limite.toISOString())
-      .order('updated_at', { ascending: false })
+      .lt('ultimo_acesso', limite.toISOString())
+      .order('ultimo_acesso', { ascending: false })
 
     setItens(data || [])
     setLoading(false)
@@ -80,22 +80,23 @@ export default function CarrinhoAbandonadoTab() {
           <div className="divide-y" style={{ borderColor: '#F3F4F6' }}>
             {itens.map((c) => {
               const qtd = Array.isArray(c.itens) ? c.itens.length : 0
-              const valor = Number(c.valor_estimado) || 0
-              const horas = Math.floor((Date.now() - new Date(c.updated_at).getTime()) / (1000 * 60 * 60))
+              const valor = Number(c.valor_total) || 0
+              const dataUltima = c.ultimo_acesso || c.updated_at
+              const horas = Math.floor((Date.now() - new Date(dataUltima).getTime()) / (1000 * 60 * 60))
               const msg = `Oi! Vi que você montou um pedido no nosso cardápio mas não finalizou. Posso te ajudar a concluir? 😊\nValor estimado: ${formatCurrency(valor)}`
               return (
                 <div key={c.id} className="px-5 py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-900">
-                      {c.whatsapp || 'Cliente sem WhatsApp'}
+                      {c.cliente_whatsapp || c.whatsapp || 'Cliente sem WhatsApp'}
                     </div>
                     <div className="text-xs text-gray-500">
                       {qtd} {qtd === 1 ? 'item' : 'itens'} • {formatCurrency(valor)} • há {horas}h
                     </div>
                   </div>
-                  {c.whatsapp && (
+                  {(c.cliente_whatsapp || c.whatsapp) && (
                     <button
-                      onClick={() => abrirWhats(c.whatsapp, msg)}
+                      onClick={() => abrirWhats(c.cliente_whatsapp || c.whatsapp, msg)}
                       className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 flex items-center gap-1"
                     >
                       <Send size={12} />

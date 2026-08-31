@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Volume2, VolumeX, Bell } from 'lucide-react'
@@ -10,29 +10,38 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
   const [somAtivado, setSomAtivado] = useState(true)
   const [showNotif, setShowNotif] = useState(false)
   const [notifMsg, setNotifMsg] = useState('')
-  const [pedidosNovos, setPedidosNovos] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const channelRef = useRef<any>(null)
+  const initAudioDone = useRef(false)
 
   // Inicializar audio
   useEffect(() => {
+    // Criar elemento de audio
     audioRef.current = new Audio('/sounds/pedido-novo.mp3')
     audioRef.current.volume = 0.7
-    audioRef.current.loop = true // Loop ate confirmar
 
-    // Habilitar audio na primeira interacao
+    // Habilitar audio na primeira interacao do usuario (browser policy)
     const initAudio = () => {
-      if (audioRef.current) {
+      if (audioRef.current && !initAudioDone.current) {
         audioRef.current.play().then(() => {
           audioRef.current?.pause()
           if (audioRef.current) audioRef.current.currentTime = 0
-        }).catch(() => {})
+          initAudioDone.current = true
+          console.log('[Som] Audio inicializado com sucesso')
+        }).catch((err) => {
+          console.log('[Som] Audio nao pode ser iniciado automaticamente:', err.message)
+        })
       }
       document.removeEventListener('click', initAudio)
+      document.removeEventListener('touchstart', initAudio)
     }
+
     document.addEventListener('click', initAudio, { once: true })
+    document.addEventListener('touchstart', initAudio, { once: true })
 
     return () => {
       document.removeEventListener('click', initAudio)
+      document.removeEventListener('touchstart', initAudio)
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current.currentTime = 0
@@ -41,100 +50,142 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
   }, [])
 
   // Listener GLOBAL de novos pedidos via Supabase Realtime
-  // Funciona em QUALQUER rota do dashboard
   useEffect(() => {
-    let channel: any = null
+    let mounted = true
 
     const setupRealtime = async () => {
-      const supabase = createClient()
-      const { data: user } = await supabase.auth.getUser()
-      if (!user.user) return
+      try {
+        const supabase = createClient()
 
-      // Buscar tenant_id do usuario
-      const { data: tenant } = await supabase
-        .from('usuarios_loja')
-        .select('tenant_id')
-        .eq('user_id', user.user.id)
-        .eq('ativo', true)
-        .single()
+        // Verificar autenticacao
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError) {
+          console.error('[Som] Erro de autenticacao:', authError)
+          return
+        }
+        if (!user) {
+          console.log('[Som] Usuario nao autenticado')
+          return
+        }
 
-      if (!tenant) return
+        // Buscar tenant_id do usuario
+        const { data: tenant, error: tenantError } = await supabase
+          .from('usuarios_loja')
+          .select('tenant_id')
+          .eq('user_id', user.id)
+          .eq('ativo', true)
+          .single()
 
-      channel = supabase
-        .channel('global-pedidos-som')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'pedidos',
-            filter: `tenant_id=eq.${tenant.tenant_id}`,
-          },
-          (payload) => {
-            const novo = payload.new as any
-            // Tocar som
-            if (somAtivado && audioRef.current) {
-              audioRef.current.currentTime = 0
-              audioRef.current.play().catch(() => {})
+        if (tenantError) {
+          console.error('[Som] Erro ao buscar tenant:', tenantError)
+          return
+        }
+        if (!tenant) {
+          console.log('[Som] Nenhum tenant encontrado para este usuario')
+          return
+        }
+
+        console.log('[Som] Configurando Realtime para tenant:', tenant.tenant_id)
+
+        // Criar canal de realtime
+        const channelName = `global-pedidos-som-${tenant.tenant_id}`
+
+        if (channelRef.current) {
+          supabase.removeChannel(channelRef.current)
+        }
+
+        channelRef.current = supabase
+          .channel(channelName)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'pedidos',
+              filter: `tenant_id=eq.${tenant.tenant_id}`,
+            },
+            (payload) => {
+              if (!mounted) return
+              const novo = payload.new as any
+              console.log('[Som] Novo pedido detectado:', novo.id)
+
+              // Tocar som
+              if (somAtivado && audioRef.current) {
+                audioRef.current.currentTime = 0
+                audioRef.current.play().catch((err) => {
+                  console.log('[Som] Erro ao tocar audio:', err.message)
+                })
+              }
+
+              // Mostrar notificacao visual
+              const codigo = novo.codigo || `#${novo.id?.slice(0, 8) || 'novo'}`
+              setNotifMsg(`Novo pedido! ${codigo}`)
+              setShowNotif(true)
+
+              // Vibrar
+              if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                (navigator as any).vibrate([200, 100, 200])
+              }
+
+              // Auto-hide notificacao
+              setTimeout(() => setShowNotif(false), 5000)
             }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'pedidos',
+              filter: `tenant_id=eq.${tenant.tenant_id}`,
+            },
+            (payload) => {
+              if (!mounted) return
+              const updated = payload.new as any
+              console.log('[Som] Pedido atualizado:', updated.id, 'status:', updated.status)
 
-            // Mostrar notificacao visual
-            const codigo = novo.codigo || `#${novo.id.slice(0, 8)}`
-            setNotifMsg(`Novo pedido! ${codigo}`)
-            setShowNotif(true)
-            setPedidosNovos(prev => prev + 1)
-
-            // Vibrar
-            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-              (navigator as any).vibrate([200, 100, 200])
+              // Se saiu do status "novo", parar o som
+              if (updated.status !== 'novo' && audioRef.current) {
+                audioRef.current.pause()
+                audioRef.current.currentTime = 0
+              }
             }
+          )
+          .subscribe((status: string) => {
+            console.log('[Som] Status do canal:', status)
+          })
 
-            // Auto-hide notificacao
-            setTimeout(() => setShowNotif(false), 5000)
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'pedidos',
-            filter: `tenant_id=eq.${tenant.tenant_id}`,
-          },
-          (payload) => {
-            const updated = payload.new as any
-            // Se saiu do status "novo", parar o som
-            if (updated.status !== 'novo' && audioRef.current) {
-              audioRef.current.pause()
-              audioRef.current.currentTime = 0
-              setPedidosNovos(0)
-            }
-          }
-        )
-        .subscribe()
+      } catch (err) {
+        console.error('[Som] Erro ao configurar Realtime:', err)
+      }
     }
 
     setupRealtime()
 
     return () => {
-      if (channel) {
+      mounted = false
+      if (channelRef.current) {
         const supabase = createClient()
-        supabase.removeChannel(channel)
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
       }
     }
   }, [somAtivado])
 
-  // Parar som quando usuario sai da pagina de pedidos
-  const toggleSom = () => {
-    setSomAtivado(!somAtivado)
-    if (somAtivado && audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-    }
-  }
+  const toggleSom = useCallback(() => {
+    setSomAtivado((prev) => {
+      const novo = !prev
+      if (!novo && audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+      }
+      return novo
+    })
+  }, [])
 
   const irParaPedidos = () => {
     router.push('/pedidos')
+    setShowNotif(false)
   }
 
   return (

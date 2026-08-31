@@ -640,6 +640,9 @@ export default function NovoPedidoPage() {
                     onClick={() => adicionarItem(produto)}
                     className="p-3 border rounded-xl text-left hover:border-green-500 hover:bg-green-50 transition-all"
                   >
+                    {produto.imagem_url && (
+                      <img src={produto.imagem_url} alt={produto.nome} className="w-full h-24 object-cover rounded-lg mb-2" />
+                    )}
                     <div className="flex justify-between items-start">
                       <span className="font-medium text-sm">{produto.nome}</span>
                       <Plus className="w-4 h-4 text-green-600" />
