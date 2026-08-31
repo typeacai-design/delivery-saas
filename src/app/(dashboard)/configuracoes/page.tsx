@@ -268,25 +268,6 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
 
   return (
     <div className="space-y-5">
-      {/* Card informativo sobre status da loja */}
-      <div className="glass p-5 rounded-2xl">
-        <div className="flex items-center gap-4">
-          <div className={`size-12 rounded-full flex items-center justify-center ${lojaAberta ? 'bg-green-100' : 'bg-red-100'}`}>
-            <span className="text-2xl">{lojaAberta ? '🟢' : '🔴'}</span>
-          </div>
-          <div className="flex-1">
-            <h3 className={`font-semibold ${lojaAberta ? 'text-green-700' : 'text-red-700'}`}>
-              Loja {lojaAberta ? 'Aberta' : 'Fechada'}
-            </h3>
-            <p className="text-sm text-gray-500">
-              {lojaAberta
-                ? 'Sua loja está visível e aceitando pedidos. Use o painel Visão Geral para fechar.'
-                : 'Sua loja está fechada. Use o painel Visão Geral para abrir (dentro do horário).'}
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="glass p-6">
         <div className="eyebrow mb-1">Por dia da semana</div>
         <h2 className="text-lg font-semibold mb-5">Horários regulares</h2>

@@ -1,54 +1,10 @@
-﻿'use client'
+'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
-import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power, PowerOff, Clock } from 'lucide-react'
+import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power, PowerOff } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-
-// Dias da semana em português (0 = Domingo)
-const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
-
-// Verifica se a loja deve estar aberta baseado nos horários configurados
-function verificarHorarioFuncionamento(horariosDias: any, excecoes: any[]): { dentroHorario: boolean; mensagem: string } {
-  const agora = new Date()
-  const diaAtual = DIAS_SEMANA[agora.getDay()] // dom, seg, ter, qua, qui, sex, sab
-  const horaAtual = agora.getHours() * 60 + agora.getMinutes() // minutos desde meia-noite
-  const dataAtual = agora.toISOString().split('T')[0]
-
-  // Verificar se é uma data com exceção (feriado, evento especial)
-  const excecao = excecoes?.find((ex: any) => ex.data === dataAtual)
-  if (excecao) {
-    const [hAbre, mAbre] = (excecao.abre || '00:00').split(':').map(Number)
-    const [hFecha, mFecha] = (excecao.fecha || '23:59').split(':').map(Number)
-    const horaAbre = hAbre * 60 + mAbre
-    const horaFecha = hFecha * 60 + mFecha
-
-    if (horaAtual >= horaAbre && horaAtual < horaFecha) {
-      return { dentroHorario: true, mensagem: `Horário especial: ${excecao.abre} às ${excecao.fecha}${excecao.motivo ? ` (${excecao.motivo})` : ''}` }
-    } else {
-      return { dentroHorario: false, mensagem: `Fora do horário especial (${excecao.abre} às ${excecao.fecha})` }
-    }
-  }
-
-  // Verificar horário regular do dia
-  const horarioDia = horariosDias?.[diaAtual]
-  if (!horarioDia?.ativo) {
-    return { dentroHorario: false, mensagem: `${diaAtual.charAt(0).toUpperCase() + diaAtual.slice(1)} é dia de folga` }
-  }
-
-  const [hAbre, mAbre] = (horarioDia.abre || '00:00').split(':').map(Number)
-  const [hFecha, mFecha] = (horarioDia.fecha || '23:59').split(':').map(Number)
-  const horaAbre = hAbre * 60 + mAbre
-  const horaFecha = hFecha * 60 + mFecha
-
-  if (horaAtual >= horaAbre && horaAtual < horaFecha) {
-    return { dentroHorario: true, mensagem: `Aberto das ${horarioDia.abre} às ${horarioDia.fecha}` }
-  } else {
-    const nomeDia = { dom: 'Domingo', seg: 'Segunda', ter: 'Terça', qua: 'Quarta', qui: 'Quinta', sex: 'Sexta', sab: 'Sábado' }[diaAtual] || diaAtual
-    return { dentroHorario: false, mensagem: `${nomeDia}: ${horarioDia.abre} às ${horarioDia.fecha}` }
-  }
-}
 
 export default function VisaoGeralPage() {
   const hora = new Date().getHours()
@@ -61,39 +17,12 @@ export default function VisaoGeralPage() {
   const [slug, setSlug] = useState('')
   const [copied, setCopied] = useState(false)
   const [lojaAberta, setLojaAberta] = useState(true)
-  const [dentroHorario, setDentroHorario] = useState(true)
-  const [horarioMensagem, setHorarioMensagem] = useState('')
   const [toggleLoading, setToggleLoading] = useState(false)
-  const [horariosDias, setHorariosDias] = useState<any>(null)
-  const [excecoes, setExcecoes] = useState<any[]>([])
   const supabase = createClient()
-
-  // Verificar horário periodicamente
-  const verificarHorario = useCallback(() => {
-    if (horariosDias !== null) {
-      const resultado = verificarHorarioFuncionamento(horariosDias, excecoes)
-      setDentroHorario(resultado.dentroHorario)
-      setHorarioMensagem(resultado.mensagem)
-
-      // Se fora do horário, garantir que loja esteja fechada
-      if (!resultado.dentroHorario && lojaAberta) {
-        setLojaAberta(false)
-      }
-    }
-  }, [horariosDias, excecoes, lojaAberta])
 
   useEffect(() => {
     loadData()
   }, [])
-
-  // Verificar horário a cada minuto quando dados carregarem
-  useEffect(() => {
-    if (horariosDias !== null) {
-      verificarHorario()
-      const interval = setInterval(verificarHorario, 60000) // a cada 1 minuto
-      return () => clearInterval(interval)
-    }
-  }, [horariosDias, excecoes, verificarHorario])
 
   const loadData = async () => {
     try {
@@ -107,28 +36,7 @@ export default function VisaoGeralPage() {
         .single()
       if (tenant) {
         setSlug(tenant.slug)
-        const config = tenant.config as any
-        setLojaAberta(config?.loja_aberta ?? true)
-
-        // Carregar horários de funcionamento
-        const horarios = config?.horarios_dias || null
-        const excecoesData = config?.excecoes_horario || []
-        setHorariosDias(horarios)
-        setExcecoes(excecoesData)
-
-        // Verificar se está dentro do horário
-        if (horarios) {
-          const resultado = verificarHorarioFuncionamento(horarios, excecoesData)
-          setDentroHorario(resultado.dentroHorario)
-          setHorarioMensagem(resultado.mensagem)
-
-          // Se fora do horário, fechar loja automaticamente
-          if (!resultado.dentroHorario && config?.loja_aberta) {
-            const novoConfig = { ...config, loja_aberta: false }
-            await supabase.from('tenants').update({ config: novoConfig }).eq('id', tenantId)
-            setLojaAberta(false)
-          }
-        }
+        setLojaAberta((tenant.config as any)?.loja_aberta ?? true)
       }
 
       const hoje = new Date().toISOString().split('T')[0]
@@ -177,12 +85,6 @@ export default function VisaoGeralPage() {
   }
 
   const toggleLoja = async () => {
-    // Se fora do horário, não permite abrir
-    if (!dentroHorario && !lojaAberta) {
-      alert(`Não é possível abrir a loja fora do horário de funcionamento.\n\n${horarioMensagem}`)
-      return
-    }
-
     setToggleLoading(true)
     try {
       const tenantId = await activeTenantId()
@@ -228,16 +130,6 @@ export default function VisaoGeralPage() {
             </p>
           </div>
           <div className="flex gap-2 items-center">
-            {/* Indicador de horário */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium" style={{
-              background: dentroHorario ? 'rgba(22,163,74,.08)' : 'rgba(234,179,8,.08)',
-              color: dentroHorario ? '#15803D' : '#B45309',
-              border: '1px solid currentColor',
-            }}>
-              <Clock size={12} />
-              {horarioMensagem || (dentroHorario ? 'Dentro do horário' : 'Fora do horário')}
-            </div>
-
             {/* Status da loja */}
             <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold" style={{
               background: lojaAberta ? 'rgba(22,163,74,.14)' : 'rgba(220,38,38,.10)',
@@ -248,32 +140,20 @@ export default function VisaoGeralPage() {
               {lojaAberta ? 'Loja aberta' : 'Loja fechada'}
             </span>
 
-            {/* Botão de toggle - comportamento inteligente */}
-            {!dentroHorario && !lojaAberta ? (
-              // Fora do horário E loja fechada = mostrar status, botão desabilitado
-              <button
-                disabled
-                className="btn-ghost opacity-50 cursor-not-allowed"
-                title="Loja fora do horário de funcionamento"
-              >
-                <Clock size={14} />
-                Fora do horário
-              </button>
-            ) : (
-              <button
-                onClick={toggleLoja}
-                disabled={toggleLoading}
-                className={lojaAberta ? 'btn-secondary' : 'btn-primary'}
-                style={lojaAberta ? {
-                  background: '#DC2626',
-                  borderColor: 'rgba(255,255,255,.2)',
-                  boxShadow: '0 6px 16px -6px rgba(220,38,38,.5)',
-                } : undefined}
-              >
-                {lojaAberta ? <PowerOff size={14} /> : <Power size={14} />}
-                {lojaAberta ? 'Fechar loja' : 'Abrir loja'}
-              </button>
-            )}
+            {/* Botão Abrir/Fechar - sempre disponível */}
+            <button
+              onClick={toggleLoja}
+              disabled={toggleLoading}
+              className={lojaAberta ? 'btn-secondary' : 'btn-primary'}
+              style={lojaAberta ? {
+                background: '#DC2626',
+                borderColor: 'rgba(255,255,255,.2)',
+                boxShadow: '0 6px 16px -6px rgba(220,38,38,.5)',
+              } : undefined}
+            >
+              {lojaAberta ? <PowerOff size={14} /> : <Power size={14} />}
+              {lojaAberta ? 'Fechar loja' : 'Abrir loja'}
+            </button>
           </div>
         </div>
       </div>
@@ -350,4 +230,3 @@ export default function VisaoGeralPage() {
     </div>
   )
 }
-
