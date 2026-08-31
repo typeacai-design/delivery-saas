@@ -194,6 +194,7 @@ function ProdutosTab() {
   const [showProdModal, setShowProdModal] = useState(false)
   const [novaCat, setNovaCat] = useState('')
   const [novaCatBanner, setNovaCatBanner] = useState('')
+  const [mostrarInativos, setMostrarInativos] = useState(false)
 
   const [editingProduto, setEditingProduto] = useState<any>(null)
   const [editingCat, setEditingCat] = useState<any>(null)
@@ -201,7 +202,7 @@ function ProdutosTab() {
   const [novoTipo, setNovoTipo] = useState('')
   const supabase = createClient()
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [mostrarInativos])
 
   const loadData = async () => {
     const { data: user } = await supabase.auth.getUser()
@@ -227,7 +228,6 @@ function ProdutosTab() {
           .select('*')
           .eq('tenant_id', tid)
           .eq('categoria_id', cat.id)
-          .eq('ativo', true)
           .order('ordem')
         prods[cat.id] = p || []
       }
@@ -375,6 +375,14 @@ function ProdutosTab() {
           <h2 className="text-lg font-semibold">Produtos</h2>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => setMostrarInativos(!mostrarInativos)}
+            className={mostrarInativos ? 'btn-primary' : 'btn-ghost'}
+            title="Mostrar produtos desativados"
+          >
+            <Eye size={14} />
+            {mostrarInativos ? 'Ocultando inativos' : 'Ver inativos'}
+          </button>
           <button onClick={() => { setEditingCat(null); setNovaCat(''); setShowCatModal(true) }} className="btn-primary">
             <Plus size={14} />Nova sessão
           </button>
@@ -455,8 +463,16 @@ function ProdutosTab() {
           </div>
           {produtos[cat.id] && produtos[cat.id].length > 0 ? (
             <div className="space-y-2">
-              {produtos[cat.id].map((prod, prodIdx) => (
-                <div key={prod.id} className="flex items-center gap-2 bg-white rounded-lg p-2 border">
+              {produtos[cat.id]
+                .filter((prod) => mostrarInativos || prod.ativo !== false)
+                .map((prod, prodIdx) => (
+                <div key={prod.id} className={`flex items-center gap-2 rounded-lg p-2 border ${prod.ativo === false ? 'bg-gray-100 opacity-60 border-gray-300' : 'bg-white'}`}>
+                  {/* Badge inativo */}
+                  {prod.ativo === false && (
+                    <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full mr-1">
+                      Inativo
+                    </span>
+                  )}
                   {/* Botões de ordem do produto */}
                   <div className="flex flex-col gap-0.5">
                     <button
@@ -469,7 +485,7 @@ function ProdutosTab() {
                     </button>
                     <button
                       onClick={() => reordenarProduto(cat.id, prodIdx, 'down')}
-                      disabled={prodIdx === produtos[cat.id].length - 1}
+                      disabled={prodIdx === produtos[cat.id].filter(p => mostrarInativos || p.ativo !== false).length - 1}
                       className="p-1 text-gray-400 hover:text-green-600 disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Descer"
                     >
