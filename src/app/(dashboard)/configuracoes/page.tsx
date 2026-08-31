@@ -24,58 +24,50 @@ const DIAS_SEMANA = [
 export default function ConfiguracoesPage() {
   const [tab, setTab] = useState<Tab>('horarios')
   const [tenant, setTenant] = useState<any>(null)
+  const [loadingTenant, setLoadingTenant] = useState(false)
   const supabase = createClient()
 
+  // Carregar tenant uma vez só
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('tab') === 'perfil') setTab('perfil')
     loadTenant()
-    if (new URLSearchParams(window.location.search).get('tab') === 'perfil') setTab('perfil')
   }, [])
 
-  // Recarrega tenant quando muda pra aba perfil
+  // Carrega tenant apenas na aba perfil se ainda não tiver
   useEffect(() => {
-    if (tab === 'perfil' && !tenant) {
-      console.log('[Config] Mudou pra aba perfil, recarregando tenant...')
+    if (tab === 'perfil' && !tenant && !loadingTenant) {
       loadTenant()
     }
-  }, [tab])
+  }, [tab, tenant, loadingTenant])
 
   const loadTenant = async () => {
+    if (loadingTenant) return
+    setLoadingTenant(true)
     try {
-      console.log('[Perfil] Carregando tenant via /api/auth/meu-tenant...')
+      // Tentar API principal primeiro
       const r = await fetch('/api/auth/meu-tenant', { cache: 'no-store' })
-      const body = await r.json()
-      console.log('[Perfil] Resposta API meu-tenant:', { status: r.status, body })
-      if (r.ok && body && !body.error) {
-        setTenant(body)
-        return
+      if (r.ok) {
+        const body = await r.json()
+        if (body && !body.error) {
+          setTenant(body)
+          return
+        }
       }
-      console.warn('[Perfil] API meu-tenant retornou erro, tentando /api/perfil-loja')
+      // Fallback direto
+      const tid = await activeTenantId()
+      if (!tid) return
+      const { data } = await supabase
+        .from('tenants')
+        .select('*')
+        .eq('id', tid)
+        .single()
+      setTenant(data)
     } catch (e) {
-      console.error('[Perfil] Erro ao chamar /api/auth/meu-tenant:', e)
+      console.error('[Config] Erro ao carregar tenant:', e)
+    } finally {
+      setLoadingTenant(false)
     }
-
-    try {
-      // Fallback 1: API perfil-loja
-      const r = await fetch('/api/perfil-loja', { cache: 'no-store' })
-      const body = await r.json()
-      if (r.ok && body && !body.error) {
-        setTenant(body)
-        return
-      }
-    } catch {}
-
-    // Fallback 2: client-side
-    const { data: user } = await supabase.auth.getUser()
-    if (!user.user) return
-    const tid = await activeTenantId()
-    if (!tid) return
-    const { data, error } = await supabase
-      .from('tenants')
-      .select('*')
-      .eq('id', tid)
-      .single()
-    console.log('[Perfil] Tenant via client-side:', { data, error })
-    setTenant(data)
   }
 
   const tabs = [
@@ -156,7 +148,7 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
-  // CRITICO: Sincronizar estado com o tenant quando ele mudar
+  // Sincronizar estado com o tenant quando ele mudar
   useEffect(() => {
     const novoHorarios = config.horarios_dias || horariosDefault
     const novoExcecoes = config.excecoes_horario || []
@@ -164,7 +156,7 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
     setHorariosCarregado(novoHorarios)
     setExcecoes(novoExcecoes)
     setLojaAberta(config.loja_aberta !== false)
-  }, [tenant?.id, JSON.stringify(config.horarios_dias), JSON.stringify(config.excecoes_horario)])
+  }, [tenant?.id, config.horarios_dias, config.excecoes_horario, config.loja_aberta])
 
   // Mostrar loading enquanto nao tiver dados do tenant
   if (!tenant) {
@@ -276,52 +268,22 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
 
   return (
     <div className="space-y-5">
-      {/* BOTÃO GRANDE FECHAR/ABRIR LOJA */}
-      <div className={`rounded-2xl border-2 p-6 text-center ${lojaAberta ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <div className={`size-16 rounded-full flex items-center justify-center ${lojaAberta ? 'bg-green-500' : 'bg-red-500'}`}>
-            <span className="text-3xl">{lojaAberta ? '🟢' : '🔴'}</span>
+      {/* Card informativo sobre status da loja */}
+      <div className="glass p-5 rounded-2xl">
+        <div className="flex items-center gap-4">
+          <div className={`size-12 rounded-full flex items-center justify-center ${lojaAberta ? 'bg-green-100' : 'bg-red-100'}`}>
+            <span className="text-2xl">{lojaAberta ? '🟢' : '🔴'}</span>
           </div>
-          <div className="text-center sm:text-left">
-            <h2 className={`text-2xl font-bold ${lojaAberta ? 'text-green-700' : 'text-red-700'}`}>
+          <div className="flex-1">
+            <h3 className={`font-semibold ${lojaAberta ? 'text-green-700' : 'text-red-700'}`}>
               Loja {lojaAberta ? 'Aberta' : 'Fechada'}
-            </h2>
+            </h3>
             <p className="text-sm text-gray-500">
               {lojaAberta
-                ? 'Sua loja está visível e aceitando pedidos'
-                : 'Sua loja está temporariamente fechada para pedidos'}
+                ? 'Sua loja está visível e aceitando pedidos. Use o painel Visão Geral para fechar.'
+                : 'Sua loja está fechada. Use o painel Visão Geral para abrir (dentro do horário).'}
             </p>
           </div>
-          <button
-            onClick={async () => {
-              if (!confirm(`Deseja ${lojaAberta ? 'FECHAR' : 'ABRIR'} a loja agora?`)) return
-              setLojaAberta(!lojaAberta)
-              // Salvar imediatamente
-              setSaving(true)
-              try {
-                const tid = await activeTenantId()
-                if (!tid) throw new Error('Loja não encontrada')
-                const { error } = await supabase.from('tenants').update({
-                  config: { ...config, loja_aberta: !lojaAberta }
-                }).eq('id', tid)
-                if (error) throw error
-                await loadTenantFromParent?.()
-                alert(`Loja ${!lojaAberta ? 'ABERTA' : 'FECHADA'} com sucesso!`)
-              } catch (e: any) {
-                alert('Erro: ' + (e.message || 'Erro desconhecido'))
-              } finally {
-                setSaving(false)
-              }
-            }}
-            disabled={saving}
-            className={`px-8 py-3 rounded-xl font-bold text-white transition-all ${
-              lojaAberta
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-green-600 hover:bg-green-700'
-            } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            {saving ? 'Salvando...' : lojaAberta ? '🚪 Fechar Loja' : '🚀 Abrir Loja'}
-          </button>
         </div>
       </div>
 
