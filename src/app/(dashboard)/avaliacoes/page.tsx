@@ -345,7 +345,7 @@ export default function AvaliacoesPage() {
                           className="size-8 rounded-lg hover:bg-green-50 flex items-center justify-center text-green-600"
                           title="Enviar WhatsApp"
                         >
-                          <ExternalLink size={14} />
+                          <MessageCircle size={14} />
                         </button>
                       )}
                       {a.aprovado ? (

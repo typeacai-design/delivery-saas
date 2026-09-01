@@ -8,10 +8,6 @@ import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
-import FluxoTab from './FluxoTab'
-import HistoricoTab from './HistoricoTab'
-
-type PedidosTab = 'fluxo' | 'historico'
 
 // Componente de alerta de tempo
 function TempoAlerta({ dataCriacao, tempoEstimadoMin }: { dataCriacao: string; tempoEstimadoMin?: number }) {
@@ -422,16 +418,15 @@ function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compact
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
+  const [pedidosTab, setPedidosTab] = useState<'fluxo' | 'historico'>('fluxo')
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
   const [itensPedido, setItensPedido] = useState<any[]>([])
   const [motoboys, setMotoboys] = useState<any[]>([])
   const [novosPedidosCount, setNovosPedidosCount] = useState(0)
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
-  const [filtroStatus, setFiltroStatus] = useState<string | null>(null) // Padrão: sem filtro (mostra tudo da tab)
-  const [filtroDataDe, setFiltroDataDe] = useState<string>(new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]) // 7 dias atrás
-  const [filtroDataAte, setFiltroDataAte] = useState<string>(new Date().toISOString().split('T')[0]) // Hoje
-  const [pedidosTab, setPedidosTab] = useState<PedidosTab>('fluxo')
+  const [filtroStatus, setFiltroStatus] = useState<string | null>('novo') // Padrão: novo
+  const [filtroData, setFiltroData] = useState<string>(new Date().toISOString().split('T')[0]) // Data atual como padrão
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
   const [itensEditando, setItensEditando] = useState<any[]>([])
@@ -966,14 +961,6 @@ export default function PedidosPage() {
     return forma || '-'
   }
 
-  const loadItensPedido = async (pedidoId: string) => {
-    const { data } = await supabase
-      .from('pedido_itens')
-      .select('*')
-      .eq('pedido_id', pedidoId)
-    setItensPedido(data || [])
-  }
-
   if (loading) {
     return <div className="text-center py-8">Carregando...</div>
   }
@@ -986,6 +973,11 @@ export default function PedidosPage() {
             <div className="eyebrow mb-2">Atendimento</div>
             <h1 className="text-3xl font-semibold tracking-tight mb-1" style={{ color: 'var(--ink)' }}>
               Pedidos
+              {novosPedidosCount > 0 && (
+                <span className="ml-3 inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500 text-white text-base font-medium rounded-full animate-pulse">
+                  🔔 {novosPedidosCount} novo{novosPedidosCount > 1 ? 's' : ''}
+                </span>
+              )}
             </h1>
             <p className="hint">Gerencie os pedidos do seu delivery</p>
           </div>
@@ -993,7 +985,7 @@ export default function PedidosPage() {
             {/* Tabs de subseção */}
             <div className="flex bg-white rounded-2xl border p-1 gap-1">
               <button
-                onClick={() => { setPedidosTab('fluxo'); setFiltroStatus(null) }}
+                onClick={() => setPedidosTab('fluxo')}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
                   pedidosTab === 'fluxo'
                     ? 'bg-blue-600 text-white shadow-sm'
@@ -1009,7 +1001,7 @@ export default function PedidosPage() {
                 )}
               </button>
               <button
-                onClick={() => { setPedidosTab('historico'); setFiltroStatus(null) }}
+                onClick={() => setPedidosTab('historico')}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
                   pedidosTab === 'historico'
                     ? 'bg-blue-600 text-white shadow-sm'
@@ -1020,19 +1012,17 @@ export default function PedidosPage() {
                 Histórico
               </button>
             </div>
-            {pedidosTab === 'fluxo' && (
-              <button
-                onClick={() => setSomAtivado(!somAtivado)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border ${
-                  somAtivado
-                    ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
-                    : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200'
-                }`}
-                title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som silenciado - clique para ativar'}
-              >
-                {somAtivado ? '🔊 Som' : '🔇 Mudo'}
-              </button>
-            )}
+            <button
+              onClick={() => setSomAtivado(!somAtivado)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border ${
+                somAtivado
+                  ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                  : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200'
+              }`}
+              title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som silenciado - clique para ativar'}
+            >
+              {somAtivado ? '🔊 Som' : '🔇 Mudo'}
+            </button>
             <Link
               href="/pedidos/novo"
               className="btn-primary flex items-center gap-2"
@@ -1042,32 +1032,343 @@ export default function PedidosPage() {
             </Link>
           </div>
         </div>
+      </div>
 
-      {/* ====== TABS DE SUBSEÇÃO ====== */}
-      {pedidosTab === 'fluxo' && (
-        <FluxoTab
-          pedidos={pedidos}
-          onUpdateStatus={updateStatus}
-          onTogglePago={togglePago}
-          onAbrirModalDesconto={abrirModalDesconto}
-          onAbrirModalEditar={abrirModalEditar}
-          onAbrirModalCancelamento={abrirModalCancelamento}
-          onImprimir={imprimirPedido}
-          onConfirmarWPP={confirmarPedidoWPP}
-          onApagar={apagarPedido}
-        />
-      )}
-      {pedidosTab === 'historico' && (
-        <HistoricoTab
-          pedidos={pedidos}
-          onAbrirModalEditar={abrirModalEditar}
-          onAbrirModalDesconto={abrirModalDesconto}
-          onImprimir={imprimirPedido}
-          onConfirmarWPP={confirmarPedidoWPP}
-          onApagar={apagarPedido}
-          onAbrirDetalhes={(pedido) => { setSelectedPedido(pedido); loadItensPedido(pedido.id) }}
-        />
-      )}
+      {/* Filtro de Data */}
+      <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border shadow-sm">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-600">📅 Filtrar por data:</label>
+          <input
+            type="date"
+            value={filtroData}
+            onChange={(e) => setFiltroData(e.target.value)}
+            className="form-input text-sm px-3 py-1.5"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setFiltroData(new Date(Date.now() - 86400000).toISOString().split('T')[0])}
+            className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+          >
+            Ontem
+          </button>
+          <button
+            onClick={() => setFiltroData(new Date().toISOString().split('T')[0])}
+            className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
+          >
+            Hoje
+          </button>
+          <button
+            onClick={() => { setFiltroData(''); setFiltroStatus('em_aberto'); }}
+            className={`px-2 py-1 text-xs rounded transition-colors ${!filtroData && filtroStatus === 'em_aberto' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+          >
+            🟣 Em aberto
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Bar - BOTOES PEQUENOS E CLICAVEIS */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {/* Fluxo: Novo + Andamento */}
+        {(() => {
+          const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
+          const count = pedidos.filter((p) => STATUS_EM_ABERTO.includes(p.status)).length
+          const isActive = filtroStatus === 'em_aberto' || (!filtroStatus && pedidosTab === 'fluxo')
+          return (
+            <button
+              key="em_aberto"
+              onClick={() => { setFiltroStatus('em_aberto'); setPedidosTab('fluxo') }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-purple-100 text-purple-700 shadow-md border-purple-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+            >
+              <Clock className="w-3 h-3" />
+              <span>Novo + Andamento</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+            </button>
+          )
+        })()}
+
+        {pedidosTab === 'fluxo' && STATUS_LISTA.filter(s => s !== 'cancelado' && s !== 'entregue').map((status) => {
+          const count = pedidos.filter((p) => p.status === status).length
+          const config = STATUS_CONFIG[status]
+          const isActive = filtroStatus === status
+          return (
+            <button
+              key={status}
+              onClick={() => setFiltroStatus(isActive ? 'em_aberto' : status)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? config.bgColor + ' ' + config.color + ' shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+            >
+              <config.icon className="w-3 h-3" />
+              <span>{config.label}</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+            </button>
+          )
+        })}
+
+        {pedidosTab === 'historico' && (
+          <>
+            {(() => {
+              const count = pedidos.filter((p) => p.status === 'entregue').length
+              const isActive = filtroStatus === 'entregue'
+              return (
+                <button
+                  key="entregue"
+                  onClick={() => setFiltroStatus(isActive ? 'historico' : 'entregue')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-gray-100 text-gray-700 shadow-md border-gray-400' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <Check className="w-3 h-3" />
+                  <span>Entregues</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+            {(() => {
+              const count = pedidos.filter((p) => p.status === 'cancelado').length
+              const isActive = filtroStatus === 'cancelado'
+              return (
+                <button
+                  key="cancelado"
+                  onClick={() => setFiltroStatus(isActive ? 'historico' : 'cancelado')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-red-100 text-red-700 shadow-md border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <X className="w-3 h-3" />
+                  <span>Cancelados</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+          </>
+        )}
+      </div>
+
+      {/* Pedidos filtrados ou todos */}
+      {(() => {
+        const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
+
+        let pedidosFiltrados = pedidos
+
+        // Filtro por tab
+        if (pedidosTab === 'fluxo') {
+          // Fluxo: mostra apenas pedidos em andamento
+          if (filtroStatus === 'em_aberto' || !filtroStatus) {
+            pedidosFiltrados = pedidos.filter(p => STATUS_EM_ABERTO.includes(p.status))
+          } else {
+            pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
+          }
+        } else {
+          // Histórico: mostra apenas entregue e cancelado
+          if (filtroStatus === 'historico' || !filtroStatus) {
+            pedidosFiltrados = pedidos.filter(p => ['entregue', 'cancelado'].includes(p.status))
+          } else {
+            pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
+          }
+        }
+
+        // Aplicar filtro de data
+        const pedidosPorData = (!filtroData || filtroStatus === 'em_aberto')
+          ? pedidosFiltrados
+          : pedidosFiltrados.filter(p => {
+              const dataPedido = new Date(p.data_criacao).toISOString().split('T')[0]
+              return dataPedido === filtroData
+            })
+
+        const statusConfig = filtroStatus && filtroStatus !== 'em_aberto' && filtroStatus !== 'historico' ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
+        return (
+          <>
+            {filtroStatus && filtroStatus !== 'em_aberto' && filtroStatus !== 'historico' && (
+              <div className="mb-4 text-sm text-gray-500">
+                Mostrando <strong>{statusConfig?.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
+                <button onClick={() => setFiltroStatus(pedidosTab === 'fluxo' ? 'em_aberto' : 'historico')} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
+              </div>
+            )}
+
+            {filtroData && filtroStatus !== 'em_aberto' && (
+              <div className="mb-4 text-sm text-gray-500">
+                📅 Data: <strong>{new Date(filtroData + 'T00:00:00').toLocaleDateString('pt-BR')}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
+              </div>
+            )}
+
+      {/* Lista de Pedidos em GRID 3 COLUNAS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {pedidosPorData.length > 0 ? (
+          pedidosPorData.map((pedido) => {
+            const config = STATUS_CONFIG[pedido.status]
+            const StatusIcon = config.icon
+            const nextStatus = NEXT_STATUS[pedido.status]
+            const isNovo = pedido.status === 'novo'
+
+            return (
+              <div
+                key={pedido.id}
+                className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all flex flex-col ${
+                  isNovo ? 'border-orange-400 ring-2 ring-orange-200' : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {/* HEADER */}
+                <div className={`p-3 border-b ${isNovo ? 'bg-orange-50/40' : 'bg-gray-50/40'}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-lg font-bold text-gray-900">
+                      {(pedido as any).codigo || ('#' + pedido.id.slice(0, 8))}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
+                      <StatusIcon className="w-3 h-3" />
+                      {config.label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    🕐 {formatDate(pedido.data_criacao)} · {((pedido as any).tipo_entrega === 'retirada') ? '🏪 Retirada' : '🛵 Delivery'}
+                  </p>
+                </div>
+
+                {/* CLIENTE + ENDEREÇO */}
+                <div className="p-3 border-b border-gray-100 text-xs space-y-0.5">
+                  <p className="font-semibold text-sm text-gray-900">{(pedido as any).cliente_nome || 'Cliente'}</p>
+                  {(pedido as any).cliente_whatsapp && (
+                    <p className="text-gray-600">📱 {(pedido as any).cliente_whatsapp}</p>
+                  )}
+                  {((pedido as any).tipo_entrega !== 'retirada') && (pedido as any).endereco_entrega && (
+                    <p className="text-gray-600 truncate" title={(pedido as any).endereco_entrega + ', ' + ((pedido as any).numero_entrega || '') + ' - ' + ((pedido as any).bairro_entrega || '')}>
+                      📍 {(pedido as any).endereco_entrega}, {(pedido as any).numero_entrega || 's/n'} - {(pedido as any).bairro_entrega || ''}
+                    </p>
+                  )}
+                  {((pedido as any).tipo_entrega !== 'retirada') && (pedido as any).complemento_entrega && (
+                    <p className="text-gray-500 italic text-xs">└ {(pedido as any).complemento_entrega}</p>
+                  )}
+                </div>
+
+                {/* ITENS */}
+                <ItensPedido pedidoId={pedido.id} compacto />
+
+                {/* OBS */}
+                {(pedido as any).observacoes && (
+                  <div className="px-3 py-2 bg-amber-50 border-t border-amber-100">
+                    <p className="text-xs text-amber-800 truncate">📝 {(pedido as any).observacoes}</p>
+                  </div>
+                )}
+
+                {/* TEMPO ALERTA */}
+                {pedido.status !== 'entregue' && pedido.status !== 'cancelado' && (
+                  <div className="px-3 py-2 border-t">
+                    <TempoAlerta
+                      dataCriacao={pedido.data_criacao}
+                      tempoEstimadoMin={(pedido as any).tempo_estimado_min}
+                    />
+                  </div>
+                )}
+
+                {/* TOTAIS + AÇÕES */}
+                <div className="mt-auto p-3 bg-gray-50 border-t border-gray-200">
+                  {/* Totais simplificados */}
+                  <div className="flex justify-between items-center text-sm mb-3">
+                    <div className="text-gray-600">
+                      <span className="text-xs">{formatFormaPagamento((pedido as any).forma_pagamento)}</span>
+                    </div>
+                    <span className="font-bold text-green-600">{formatCurrency(pedido.valor_total)}</span>
+                  </div>
+
+                  {/* LINHA 1: Avançar status (GRANDE) */}
+                  {nextStatus && (
+                    <button
+                      onClick={() => updateStatus(pedido, nextStatus)}
+                      className="w-full px-4 py-3 mb-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
+                      title={`Avançar para ${STATUS_CONFIG[nextStatus].label}`}
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                      AVANÇAR PARA {STATUS_CONFIG[nextStatus].label.toUpperCase()}
+                    </button>
+                  )}
+
+                  {/* LINHA 2: Botões de ação (grid 2 colunas x 3 linhas) */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Pago */}
+                    <button
+                      onClick={() => togglePago(pedido)}
+                      className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
+                        (pedido as any).pago
+                          ? 'bg-green-500 text-white shadow-md'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200 border-2 border-green-300'
+                      }`}
+                      title={(pedido as any).pago ? 'Pago - clique para desmarcar' : 'Marcar como pago'}
+                    >
+                      <Check className="w-5 h-5" />
+                      {(pedido as any).pago ? '✓ Pago' : 'Pago'}
+                    </button>
+
+                    {/* Desconto */}
+                    <button
+                      onClick={() => abrirModalDesconto(pedido)}
+                      className="flex items-center justify-center gap-2 px-3 py-3 bg-amber-100 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-200 border-2 border-amber-300 transition-all active:scale-95"
+                      title="Dar desconto"
+                    >
+                      <Percent className="w-5 h-5" />
+                      Desconto
+                    </button>
+
+                    {/* WhatsApp */}
+                    <button
+                      onClick={() => confirmarPedidoWPP(pedido)}
+                      className="flex items-center justify-center gap-2 px-3 py-3 bg-green-100 text-green-700 rounded-xl text-sm font-semibold hover:bg-green-200 border-2 border-green-300 transition-all active:scale-95"
+                      title="Confirmar pedido (WhatsApp)"
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                      WhatsApp
+                    </button>
+
+                    {/* Editar */}
+                    <button
+                      onClick={() => abrirModalEditar(pedido)}
+                      className="flex items-center justify-center gap-2 px-3 py-3 bg-indigo-100 text-indigo-700 rounded-xl text-sm font-semibold hover:bg-indigo-200 border-2 border-indigo-300 transition-all active:scale-95"
+                      title="Editar pedido"
+                    >
+                      <Pencil className="w-5 h-5" />
+                      Editar
+                    </button>
+
+                    {/* Imprimir */}
+                    <button
+                      onClick={() => imprimirPedido(pedido)}
+                      className="flex items-center justify-center gap-2 px-3 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 border-2 border-gray-300 transition-all active:scale-95"
+                      title="Imprimir pedido"
+                    >
+                      <Printer className="w-5 h-5" />
+                      Imprimir
+                    </button>
+
+                    {/* Cancelar ou Apagar */}
+                    {pedido.status === 'cancelado' ? (
+                      <button
+                        onClick={() => apagarPedido(pedido)}
+                        className="flex items-center justify-center gap-2 px-3 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-red-100 hover:text-red-700 border-2 border-gray-300 transition-all active:scale-95"
+                        title="Apagar pedido (somente cancelados)"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                        Apagar
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => abrirModalCancelamento(pedido)}
+                        className="flex items-center justify-center gap-2 px-3 py-3 bg-red-100 text-red-700 rounded-xl text-sm font-semibold hover:bg-red-200 border-2 border-red-300 transition-all active:scale-95"
+                        title="Cancelar pedido"
+                      >
+                        <X className="w-5 h-5" />
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        ) : (
+          <div className="col-span-full bg-white rounded-xl border p-12 text-center">
+            <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido</h3>
+            <p className="hint">Os pedidos aparecerão aqui quando chegarem</p>
+          </div>
+        )}
+      </div>
+          </>
+        )
+      })()}
 
       {/* Modal de Detalhes Completos */}
       {selectedPedido && (
