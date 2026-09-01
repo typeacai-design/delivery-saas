@@ -193,15 +193,6 @@ export async function POST(request: Request) {
     const pagamentosCfg = cfg.formas_pagamento_aceitas
     const pagamentosAtivos = Array.isArray(cfg.formas_pagamento) ? cfg.formas_pagamento : pagamentosCfg && typeof pagamentosCfg === 'object' ? Object.entries(pagamentosCfg).filter(([, v]) => v).map(([k]) => k) : ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito']
 
-    // Validar múltiplas formas de pagamento
-    const formasSelecionadas = body.formas_pagamento || (forma_pagamento ? [{ forma: forma_pagamento, valor: valorTotalFinal }] : [])
-    if (!formasSelecionadas.length) return NextResponse.json({ error: 'Nenhuma forma de pagamento selecionada' }, { status: 400 })
-    for (const fp of formasSelecionadas) {
-      if (!pagamentosAtivos.includes(fp.forma)) return NextResponse.json({ error: `Forma de pagamento '${fp.forma}' desabilitada` }, { status: 400 })
-    }
-    const totalPago = formasSelecionadas.reduce((sum: number, fp: any) => sum + Number(fp.valor || 0), 0)
-    if (Math.abs(totalPago - valorTotalFinal) > 0.01) return NextResponse.json({ error: 'Valor total dos pagamentos não corresponde ao valor do pedido' }, { status: 400 })
-
     let taxaCalculada = 0
     if (tipo_entrega === 'delivery') {
       if (!endereco_entrega || !numero_entrega) return NextResponse.json({ error: 'Endereco e numero sao obrigatorios' }, { status: 400 })
@@ -303,6 +294,16 @@ export async function POST(request: Request) {
     }
     const valorDescontoTotal = Math.min(subtotalCalculado, descontoAniversario + descontoCupom)
     const valorTotalFinal = Math.max(0, Math.round((subtotalCalculado + taxaCalculada - valorDescontoTotal) * 100) / 100)
+
+    // Validar múltiplas formas de pagamento (após calcular valorTotalFinal)
+    const formasSelecionadas = body.formas_pagamento || []
+    if (!formasSelecionadas.length) return NextResponse.json({ error: 'Nenhuma forma de pagamento selecionada' }, { status: 400 })
+    for (const fp of formasSelecionadas) {
+      if (!pagamentosAtivos.includes(fp.forma)) return NextResponse.json({ error: `Forma de pagamento '${fp.forma}' desabilitada` }, { status: 400 })
+    }
+    const totalPago = formasSelecionadas.reduce((sum: number, fp: any) => sum + Number(fp.valor || 0), 0)
+    if (Math.abs(totalPago - valorTotalFinal) > 0.01) return NextResponse.json({ error: 'Valor total dos pagamentos não corresponde ao valor do pedido' }, { status: 400 })
+
     // Validar troco se dinheiro foi selecionado
     const temDinheiro = formasSelecionadas.some((fp: any) => fp.forma === 'dinheiro')
     if (temDinheiro && troco_para && Number(troco_para) < valorTotalFinal) {

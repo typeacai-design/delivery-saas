@@ -481,7 +481,7 @@ export function CheckoutDrawer({
           setPedidoFinalizado(null)
           // Mantém o cadastro local do cliente para a próxima compra.
           setBairroSelecionado(null)
-          setFormaPagamento('')
+          setFormasSelecionadas([])
           setCupomAplicado(null)
           setObservacaoPedido('')
         }}
@@ -977,15 +977,15 @@ function PagamentoView({
   subtotal, taxaEntrega, descontoCupom, onContinuar
 }: any) {
   // Calcular valor restante para preencher automaticamente
-  const totalSelecionado = formasSelecionadas.reduce((sum, fp) => sum + fp.valor, 0)
+  const totalSelecionado = formasSelecionadas.reduce((sum: number, fp: any) => sum + fp.valor, 0)
   const valorRestante = Math.max(0, total - totalSelecionado)
 
   // Toggle forma de pagamento
   const toggleFormaPagamento = (formaId: string) => {
-    const jaSelecionada = formasSelecionadas.find(fp => fp.forma === formaId)
+    const jaSelecionada = formasSelecionadas.find((fp: any) => fp.forma === formaId)
     if (jaSelecionada) {
       // Remover
-      setFormasSelecionadas(formasSelecionadas.filter(fp => fp.forma !== formaId))
+      setFormasSelecionadas(formasSelecionadas.filter((fp: any) => fp.forma !== formaId))
     } else {
       // Adicionar com valor restante (ou sugerido)
       const valorSugerido = valorRestante > 0 ? valorRestante : total
@@ -995,13 +995,13 @@ function PagamentoView({
 
   // Atualizar valor de uma forma
   const atualizarValor = (formaId: string, novoValor: number) => {
-    setFormasSelecionadas(formasSelecionadas.map(fp =>
+    setFormasSelecionadas(formasSelecionadas.map((fp: any) =>
       fp.forma === formaId ? { ...fp, valor: Math.round(novoValor * 100) / 100 } : fp
     ))
   }
 
   // Verificar se tem dinheiro selecionado
-  const temDinheiro = formasSelecionadas.some(fp => fp.forma === 'dinheiro')
+  const temDinheiro = formasSelecionadas.some((fp: any) => fp.forma === 'dinheiro')
 
   return (
     <div className="p-4 space-y-4">
@@ -1058,8 +1058,8 @@ function PagamentoView({
       {formasSelecionadas.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
           <div className="text-sm font-medium text-blue-800">Pagamentos:</div>
-          {formasSelecionadas.map(fp => {
-            const formaNome = formasPagamento.find(f => f.id === fp.forma)?.nome || fp.forma
+          {formasSelecionadas.map((fp: any) => {
+            const formaNome = formasPagamento.find((f: any) => f.id === fp.forma)?.nome || fp.forma
             return (
               <div key={fp.forma} className="flex justify-between text-sm">
                 <span className="text-blue-700">{formaNome}</span>
