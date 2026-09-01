@@ -1081,7 +1081,7 @@ export default function PedidosPage() {
               className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-purple-100 text-purple-700 shadow-md border-purple-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
             >
               <Clock className="w-3 h-3" />
-              <span>Novo + Andamento</span>
+              <span>Novo</span>
               <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
             </button>
           )
@@ -1116,7 +1116,7 @@ export default function PedidosPage() {
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-gray-100 text-gray-700 shadow-md border-gray-400' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                 >
                   <Check className="w-3 h-3" />
-                  <span>Entregues</span>
+                  <span>Concluídos</span>
                   <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
                 </button>
               )
@@ -1387,6 +1387,23 @@ export default function PedidosPage() {
               <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm ${STATUS_CONFIG[selectedPedido.status].bgColor} ${STATUS_CONFIG[selectedPedido.status].color}`}>
                 {STATUS_CONFIG[selectedPedido.status].label}
               </span>
+
+              {/* Motivo do cancelamento - aparece quando o pedido está cancelado */}
+              {selectedPedido.status === 'cancelado' && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-xs font-semibold text-red-700 mb-1">⚠️ Motivo do cancelamento:</p>
+                  <p className="text-sm text-red-900">
+                    {(selectedPedido as any).motivo_cancelamento
+                      ? (selectedPedido as any).motivo_cancelamento.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+                      : 'Não informado'}
+                  </p>
+                  {(selectedPedido as any).motivo_cancelamento_detalhe && (
+                    <p className="text-sm text-red-800 italic mt-2 border-l-2 border-red-300 pl-2">
+                      "{(selectedPedido as any).motivo_cancelamento_detalhe}"
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="p-6 space-y-6">
