@@ -481,7 +481,7 @@ export function CheckoutDrawer({
           setPedidoFinalizado(null)
           // Mantém o cadastro local do cliente para a próxima compra.
           setBairroSelecionado(null)
-          setFormasSelecionadas([])
+          setFormasPagamentoSelecionadas([])
           setCupomAplicado(null)
           setObservacaoPedido('')
         }}
@@ -1014,7 +1014,7 @@ function PagamentoView({
           <p className="text-sm text-gray-500">Nenhuma forma de pagamento cadastrada</p>
         ) : (
           formasPagamento.map((fp: any) => {
-            const selecionada = formasSelecionadas.find(fps => fps.forma === fp.id)
+            const selecionada = formasSelecionadas.find((fps: any) => fps.forma === fp.id)
             return (
               <div key={fp.id} className="border-2 rounded-xl overflow-hidden transition-all" style={{
                 borderColor: selecionada ? '#22c55e' : '#e5e7eb',
