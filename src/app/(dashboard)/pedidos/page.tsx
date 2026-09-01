@@ -1250,6 +1250,21 @@ export default function PedidosPage() {
                 {/* ITENS */}
                 <ItensPedido pedidoId={pedido.id} compacto />
 
+                {/* DESCONTO - aparece quando há desconto cedido */}
+                {(pedido as any).valor_desconto > 0 && (
+                  <div className="px-3 py-2 bg-green-50 border-t border-green-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 text-green-800">
+                        <span className="text-base">🏷️</span>
+                        <span className="font-medium">Desconto cedido</span>
+                      </div>
+                      <span className="font-bold text-green-700">
+                        -{formatCurrency((pedido as any).valor_desconto)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* OBS */}
                 {(pedido as any).observacoes && (
                   <div className="px-3 py-2 bg-amber-50 border-t border-amber-100">
