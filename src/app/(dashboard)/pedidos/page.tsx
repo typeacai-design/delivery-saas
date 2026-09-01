@@ -449,14 +449,14 @@ export default function PedidosPage() {
       if (!tenantId) { setLoading(false); return }
       setTenantIdAtual(tenantId)
 
-      // 1. Carrega pedidos iniciais (excluir apagados)
+      // 1. Carrega pedidos iniciais (excluir apagados) - pegar mais para histórico
       const { data } = await supabase
         .from('pedidos')
         .select('*')
         .eq('tenant_id', tenantId)
         .is('deleted_at', null)
         .order('data_criacao', { ascending: false })
-        .limit(50)
+        .limit(200)
 
       const pedidosData = data || []
       inicializarIds(pedidosData)
@@ -541,7 +541,7 @@ export default function PedidosPage() {
       .select('*')
       .eq('tenant_id', tenantId)
       .order('data_criacao', { ascending: false })
-      .limit(50)
+      .limit(200)
 
     const pedidosData = data || []
 
@@ -1175,8 +1175,8 @@ export default function PedidosPage() {
           }
         }
 
-        // Aplicar filtro de data De/Até
-        const pedidosPorData = (filtroStatus === 'em_aberto' || !filtroDataDe || !filtroDataAte)
+        // Aplicar filtro de data De/Apenas quando há filtro de status específico na aba fluxo
+        const pedidosPorData = (filtroStatus === 'em_aberto' || (pedidosTab === 'fluxo' && !filtroStatus))
           ? pedidosFiltrados
           : pedidosFiltrados.filter(p => {
               const dataPedido = new Date(p.data_criacao).toISOString().split('T')[0]
