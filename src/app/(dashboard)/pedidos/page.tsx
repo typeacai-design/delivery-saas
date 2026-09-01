@@ -1119,7 +1119,7 @@ export default function PedidosPage() {
         {pedidosTab === 'historico' && (
           <>
             {(() => {
-              const count = pedidos.filter((p) => p.status !== 'cancelado').length
+              const count = pedidos.filter((p) => p.status === 'entregue').length
               const isActive = filtroStatus === 'concluidos'
               return (
                 <button
@@ -1167,9 +1167,9 @@ export default function PedidosPage() {
             pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
           }
         } else {
-          // Histórico: filtrar por concluídos (não cancelados) ou só cancelados
+          // Histórico: Concluídos só mostra pedidos ENTREGUES
           if (filtroStatus === 'concluidos' || !filtroStatus) {
-            pedidosFiltrados = pedidos.filter(p => p.status !== 'cancelado')
+            pedidosFiltrados = pedidos.filter(p => p.status === 'entregue')
           } else {
             pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
           }
