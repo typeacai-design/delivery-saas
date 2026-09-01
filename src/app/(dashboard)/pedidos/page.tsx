@@ -426,7 +426,8 @@ export default function PedidosPage() {
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
   const [filtroStatus, setFiltroStatus] = useState<string | null>('novo') // Padrão: novo
-  const [filtroData, setFiltroData] = useState<string>(new Date().toISOString().split('T')[0]) // Data atual como padrão
+  const [filtroDataDe, setFiltroDataDe] = useState<string>(new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]) // 7 dias atrás
+  const [filtroDataAte, setFiltroDataAte] = useState<string>(new Date().toISOString().split('T')[0]) // Hoje
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
   const [itensEditando, setItensEditando] = useState<any[]>([])
@@ -1034,35 +1035,46 @@ export default function PedidosPage() {
         </div>
       </div>
 
-      {/* Filtro de Data */}
-      <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border shadow-sm">
+      {/* Filtro de Data De/Até */}
+      <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border shadow-sm flex-wrap">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-600">📅 Filtrar por data:</label>
+          <label className="text-sm font-medium text-gray-600">📅 De:</label>
           <input
             type="date"
-            value={filtroData}
-            onChange={(e) => setFiltroData(e.target.value)}
+            value={filtroDataDe}
+            onChange={(e) => setFiltroDataDe(e.target.value)}
+            className="form-input text-sm px-3 py-1.5"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-600">Até:</label>
+          <input
+            type="date"
+            value={filtroDataAte}
+            onChange={(e) => setFiltroDataAte(e.target.value)}
             className="form-input text-sm px-3 py-1.5"
           />
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setFiltroData(new Date(Date.now() - 86400000).toISOString().split('T')[0])}
+            onClick={() => {
+              const hoje = new Date().toISOString().split('T')[0]
+              setFiltroDataDe(new Date(Date.now() - 86400000).toISOString().split('T')[0])
+              setFiltroDataAte(hoje)
+            }}
             className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
           >
             Ontem
           </button>
           <button
-            onClick={() => setFiltroData(new Date().toISOString().split('T')[0])}
+            onClick={() => {
+              const hoje = new Date().toISOString().split('T')[0]
+              setFiltroDataDe(hoje)
+              setFiltroDataAte(hoje)
+            }}
             className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
           >
             Hoje
-          </button>
-          <button
-            onClick={() => { setFiltroData(''); setFiltroStatus('em_aberto'); }}
-            className={`px-2 py-1 text-xs rounded transition-colors ${!filtroData && filtroStatus === 'em_aberto' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 hover:bg-gray-200'}`}
-          >
-            🟣 Em aberto
           </button>
         </div>
       </div>
@@ -1163,12 +1175,12 @@ export default function PedidosPage() {
           }
         }
 
-        // Aplicar filtro de data
-        const pedidosPorData = (!filtroData || filtroStatus === 'em_aberto')
+        // Aplicar filtro de data De/Até
+        const pedidosPorData = (filtroStatus === 'em_aberto' || !filtroDataDe || !filtroDataAte)
           ? pedidosFiltrados
           : pedidosFiltrados.filter(p => {
               const dataPedido = new Date(p.data_criacao).toISOString().split('T')[0]
-              return dataPedido === filtroData
+              return dataPedido >= filtroDataDe && dataPedido <= filtroDataAte
             })
 
         const statusConfig = filtroStatus && filtroStatus !== 'em_aberto' && filtroStatus !== 'historico' ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
@@ -1181,9 +1193,9 @@ export default function PedidosPage() {
               </div>
             )}
 
-            {filtroData && filtroStatus !== 'em_aberto' && (
+            {(filtroDataDe || filtroDataAte) && filtroStatus !== 'em_aberto' && (
               <div className="mb-4 text-sm text-gray-500">
-                📅 Data: <strong>{new Date(filtroData + 'T00:00:00').toLocaleDateString('pt-BR')}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
+                📅 Período: <strong>{filtroDataDe ? new Date(filtroDataDe + 'T00:00:00').toLocaleDateString('pt-BR') : '...'} até {filtroDataAte ? new Date(filtroDataAte + 'T00:00:00').toLocaleDateString('pt-BR') : '...'}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
               </div>
             )}
 
@@ -1277,80 +1289,80 @@ export default function PedidosPage() {
                     </button>
                   )}
 
-                  {/* LINHA 2: Botões de ação (grid 2 colunas x 3 linhas) */}
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* LINHA 2: Botões de ação (grid 3 colunas x 2 linhas) */}
+                  <div className="grid grid-cols-3 gap-1.5 px-3 pb-3">
                     {/* Pago */}
                     <button
                       onClick={() => togglePago(pedido)}
-                      className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
+                      className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg text-xs transition-all ${
                         (pedido as any).pago
-                          ? 'bg-green-500 text-white shadow-md'
-                          : 'bg-green-100 text-green-700 hover:bg-green-200 border-2 border-green-300'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-green-50 text-green-700 hover:bg-green-100'
                       }`}
                       title={(pedido as any).pago ? 'Pago - clique para desmarcar' : 'Marcar como pago'}
                     >
-                      <Check className="w-5 h-5" />
-                      {(pedido as any).pago ? '✓ Pago' : 'Pago'}
-                    </button>
-
-                    {/* Desconto */}
-                    <button
-                      onClick={() => abrirModalDesconto(pedido)}
-                      className="flex items-center justify-center gap-2 px-3 py-3 bg-amber-100 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-200 border-2 border-amber-300 transition-all active:scale-95"
-                      title="Dar desconto"
-                    >
-                      <Percent className="w-5 h-5" />
-                      Desconto
-                    </button>
-
-                    {/* WhatsApp */}
-                    <button
-                      onClick={() => confirmarPedidoWPP(pedido)}
-                      className="flex items-center justify-center gap-2 px-3 py-3 bg-green-100 text-green-700 rounded-xl text-sm font-semibold hover:bg-green-200 border-2 border-green-300 transition-all active:scale-95"
-                      title="Confirmar pedido (WhatsApp)"
-                    >
-                      <MessageCircle className="w-5 h-5" />
-                      WhatsApp
+                      <Check className="w-4 h-4" />
+                      <span>{(pedido as any).pago ? '✓ Pago' : 'Pago'}</span>
                     </button>
 
                     {/* Editar */}
                     <button
                       onClick={() => abrirModalEditar(pedido)}
-                      className="flex items-center justify-center gap-2 px-3 py-3 bg-indigo-100 text-indigo-700 rounded-xl text-sm font-semibold hover:bg-indigo-200 border-2 border-indigo-300 transition-all active:scale-95"
+                      className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 text-xs transition-all"
                       title="Editar pedido"
                     >
-                      <Pencil className="w-5 h-5" />
-                      Editar
+                      <Pencil className="w-4 h-4" />
+                      <span>Editar</span>
                     </button>
 
                     {/* Imprimir */}
                     <button
                       onClick={() => imprimirPedido(pedido)}
-                      className="flex items-center justify-center gap-2 px-3 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 border-2 border-gray-300 transition-all active:scale-95"
+                      className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 text-xs transition-all"
                       title="Imprimir pedido"
                     >
-                      <Printer className="w-5 h-5" />
-                      Imprimir
+                      <Printer className="w-4 h-4" />
+                      <span>Imprimir</span>
+                    </button>
+
+                    {/* WhatsApp */}
+                    <button
+                      onClick={() => confirmarPedidoWPP(pedido)}
+                      className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 text-xs transition-all"
+                      title="Confirmar pedido (WhatsApp)"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>WhatsApp</span>
+                    </button>
+
+                    {/* Desconto */}
+                    <button
+                      onClick={() => abrirModalDesconto(pedido)}
+                      className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs transition-all"
+                      title="Dar desconto"
+                    >
+                      <Percent className="w-4 h-4" />
+                      <span>Desconto</span>
                     </button>
 
                     {/* Cancelar ou Apagar */}
                     {pedido.status === 'cancelado' ? (
                       <button
                         onClick={() => apagarPedido(pedido)}
-                        className="flex items-center justify-center gap-2 px-3 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-red-100 hover:text-red-700 border-2 border-gray-300 transition-all active:scale-95"
+                        className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-red-100 hover:text-red-700 text-xs transition-all"
                         title="Apagar pedido (somente cancelados)"
                       >
-                        <Trash2 className="w-5 h-5" />
-                        Apagar
+                        <Trash2 className="w-4 h-4" />
+                        <span>Apagar</span>
                       </button>
                     ) : (
                       <button
                         onClick={() => abrirModalCancelamento(pedido)}
-                        className="flex items-center justify-center gap-2 px-3 py-3 bg-red-100 text-red-700 rounded-xl text-sm font-semibold hover:bg-red-200 border-2 border-red-300 transition-all active:scale-95"
+                        className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 text-xs transition-all"
                         title="Cancelar pedido"
                       >
-                        <X className="w-5 h-5" />
-                        Cancelar
+                        <X className="w-4 h-4" />
+                        <span>Cancelar</span>
                       </button>
                     )}
                   </div>
