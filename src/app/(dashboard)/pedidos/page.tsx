@@ -1119,6 +1119,21 @@ export default function PedidosPage() {
         {pedidosTab === 'historico' && (
           <>
             {(() => {
+              const count = pedidos.filter((p) => p.status !== 'cancelado').length
+              const isActive = filtroStatus === 'concluidos'
+              return (
+                <button
+                  key="concluidos"
+                  onClick={() => setFiltroStatus(isActive ? 'historico' : 'concluidos')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-gray-100 text-gray-700 shadow-md border-gray-400' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <Check className="w-3 h-3" />
+                  <span>Concluídos</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+            {(() => {
               const count = pedidos.filter((p) => p.status === 'cancelado').length
               const isActive = filtroStatus === 'cancelado'
               return (
@@ -1152,9 +1167,9 @@ export default function PedidosPage() {
             pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
           }
         } else {
-          // Histórico: mostra apenas entregue e cancelado
-          if (filtroStatus === 'historico' || !filtroStatus) {
-            pedidosFiltrados = pedidos.filter(p => ['entregue', 'cancelado'].includes(p.status))
+          // Histórico: filtrar por concluídos (não cancelados) ou só cancelados
+          if (filtroStatus === 'concluidos' || !filtroStatus) {
+            pedidosFiltrados = pedidos.filter(p => p.status !== 'cancelado')
           } else {
             pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
           }
