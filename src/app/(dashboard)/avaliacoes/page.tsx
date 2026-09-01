@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Star, Check, X, MessageCircle, Trash2, Send, ThumbsUp, ThumbsDown, Filter, ChevronDown, ExternalLink } from 'lucide-react'
+import { Star, Check, X, MessageCircle, Trash2, Send, ThumbsUp, ThumbsDown, Filter, ChevronDown } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
 

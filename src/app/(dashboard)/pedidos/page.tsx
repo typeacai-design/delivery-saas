@@ -966,6 +966,14 @@ export default function PedidosPage() {
     return forma || '-'
   }
 
+  const loadItensPedido = async (pedidoId: string) => {
+    const { data } = await supabase
+      .from('pedido_itens')
+      .select('*')
+      .eq('pedido_id', pedidoId)
+    setItensPedido(data || [])
+  }
+
   if (loading) {
     return <div className="text-center py-8">Carregando...</div>
   }
