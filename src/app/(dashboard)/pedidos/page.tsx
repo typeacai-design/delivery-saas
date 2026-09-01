@@ -1099,7 +1099,7 @@ export default function PedidosPage() {
           )
         })()}
 
-        {pedidosTab === 'fluxo' && STATUS_LISTA.filter(s => s !== 'novo' && s !== 'cancelado' && s !== 'entregue').map((status) => {
+        {pedidosTab === 'fluxo' && STATUS_LISTA.filter(s => s !== 'novo' && s !== 'cancelado').map((status) => {
           const count = pedidos.filter((p) => p.status === status).length
           const config = STATUS_CONFIG[status]
           const isActive = filtroStatus === status
@@ -1118,21 +1118,6 @@ export default function PedidosPage() {
 
         {pedidosTab === 'historico' && (
           <>
-            {(() => {
-              const count = pedidos.filter((p) => p.status === 'entregue').length
-              const isActive = filtroStatus === 'entregue'
-              return (
-                <button
-                  key="entregue"
-                  onClick={() => setFiltroStatus(isActive ? 'historico' : 'entregue')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-gray-100 text-gray-700 shadow-md border-gray-400' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                >
-                  <Check className="w-3 h-3" />
-                  <span>Concluídos</span>
-                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
-                </button>
-              )
-            })()}
             {(() => {
               const count = pedidos.filter((p) => p.status === 'cancelado').length
               const isActive = filtroStatus === 'cancelado'
