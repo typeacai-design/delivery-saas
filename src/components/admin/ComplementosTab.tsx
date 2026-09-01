@@ -78,13 +78,23 @@ export default function ComplementosTab() {
     setLoading(false)
   }
 
+  const normalizar = (texto: string) => {
+    return texto
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+  }
+
   const compsPorLista = (listaId: string) => {
     return complementos.filter((c) => {
       if (c.categoria_id !== listaId) return false
       if (busca) {
-        const termo = busca.toLowerCase()
-        const nomeMatch = c.nome.toLowerCase().includes(termo)
-        const descMatch = c.descricao && c.descricao.toLowerCase().includes(termo)
+        const termo = normalizar(busca)
+        const nome = normalizar(c.nome || '')
+        const desc = normalizar(c.descricao || '')
+        const nomeMatch = nome.includes(termo)
+        const descMatch = desc.includes(termo)
         if (!nomeMatch && !descMatch) return false
       }
       return true
@@ -96,9 +106,11 @@ export default function ComplementosTab() {
     if (filtroStatus === 'ativos' && !l.ativo) return false
     if (filtroStatus === 'inativos' && l.ativo) return false
     if (busca) {
-      const termo = busca.toLowerCase()
-      const nomeMatch = l.nome.toLowerCase().includes(termo)
-      const descMatch = l.descricao && l.descricao.toLowerCase().includes(termo)
+      const termo = normalizar(busca)
+      const nome = normalizar(l.nome || '')
+      const desc = normalizar(l.descricao || '')
+      const nomeMatch = nome.includes(termo)
+      const descMatch = desc.includes(termo)
       if (!nomeMatch && !descMatch) return false
     }
     return true
