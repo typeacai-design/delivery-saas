@@ -42,7 +42,7 @@ export default function VisaoGeralPage() {
   const [pedidosMes, setPedidosMes] = useState(0)
   const [slug, setSlug] = useState('')
   const [copied, setCopied] = useState(false)
-  const [lojaAberta, setLojaAberta] = useState(true)
+  const [lojaAberta, setLojaAberta] = useState<boolean | null>(null) // null = seguir horário
   const [horarios, setHorarios] = useState<any>(null)
   const [toggleLoading, setToggleLoading] = useState(false)
   const supabase = createClient()
@@ -64,7 +64,13 @@ export default function VisaoGeralPage() {
       if (tenant) {
         setSlug(tenant.slug)
         const config = (tenant.config as any) || {}
-        setLojaAberta(config.loja_aberta !== false)
+        // Se loja_aberta não foi definido explicitamente (undefined/null), segue o horário
+        // Se foi definido como true ou false, é um override manual
+        if (config.loja_aberta === undefined || config.loja_aberta === null) {
+          setLojaAberta(null) // segue horário
+        } else {
+          setLojaAberta(config.loja_aberta === true)
+        }
         setHorarios(config.horarios_dias || null)
       }
 
@@ -110,9 +116,13 @@ export default function VisaoGeralPage() {
   const abertoPorHorario = horarios ? verificarLojaAbertaPorHorario(horarios) : true
   const horarioMsg = horarios ? getHorarioMsg(horarios) : ''
 
-  // Status final: manual override ou baseado no horário
-  const statusExibicao = lojaAberta
+  // Status final: lojaAberta indica se está FORÇADO aberto/fechado manualmente
+  // Quando lojaAberta = null, mostra baseado no horário
+  // Quando lojaAberta = true, sempre mostra aberto
+  // Quando lojaAberta = false, sempre mostra fechado
+  const statusExibicao = lojaAberta !== null ? lojaAberta : abertoPorHorario
   const foraDoHorario = !abertoPorHorario
+  const temOverride = lojaAberta !== null && lojaAberta !== abertoPorHorario
 
   const copyLink = async () => {
     const url = `${window.location.origin}/${slug}`
@@ -127,7 +137,8 @@ export default function VisaoGeralPage() {
       const tenantId = await activeTenantId()
       if (!tenantId) { setToggleLoading(false); return }
 
-      const novoStatus = !lojaAberta
+      // Calcula o estado desejado: se está aberto, fecha; se está fechado, abre
+      const novoStatus = !statusExibicao
       const { data: tenant } = await supabase
         .from('tenants')
         .select('config')
@@ -179,8 +190,8 @@ export default function VisaoGeralPage() {
               {horarioMsg && (
                 <span className="text-gray-400">· {horarioMsg}</span>
               )}
-              {foraDoHorario && lojaAberta && (
-                <span className="text-amber-600 ml-1" title="Manual override">✎</span>
+              {temOverride && (
+                <span className="text-amber-600 ml-1" title="Override manual ativo">✎</span>
               )}
             </div>
 
@@ -189,18 +200,18 @@ export default function VisaoGeralPage() {
               onClick={toggleLoja}
               disabled={toggleLoading}
               className={`px-2 py-1 text-xs rounded-lg transition flex items-center gap-1 ${
-                lojaAberta
+                statusExibicao
                   ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   : 'bg-green-100 text-green-700 hover:bg-green-200'
               }`}
-              title={lojaAberta ? 'Fechar loja' : 'Abrir loja'}
+              title={statusExibicao ? 'Fechar loja' : 'Abrir loja'}
             >
               {toggleLoading ? (
                 <span className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  {lojaAberta ? <PowerOff size={10} /> : <Power size={10} />}
-                  <span className="hidden sm:inline">{lojaAberta ? 'Fechar' : 'Abrir'}</span>
+                  {statusExibicao ? <PowerOff size={10} /> : <Power size={10} />}
+                  <span className="hidden sm:inline">{statusExibicao ? 'Fechar' : 'Abrir'}</span>
                 </>
               )}
             </button>
