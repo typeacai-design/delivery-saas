@@ -177,11 +177,12 @@ export function CheckoutDrawer({
     if (correspondente) setBairroSelecionado(correspondente)
   }, [cliente.bairro, bairroSelecionado, enderecos])
 
-  // Forma de pagamento selecionada
-  const [formaPagamento, setFormaPagamento] = useState<string>('')
+  // Forma de pagamento selecionada (múltiplas)
+  const [formasPagamentoSelecionadas, setFormasPagamentoSelecionadas] = useState<{ forma: string; valor: number }[]>([])
 
   // Troco para
   const [trocoPara, setTrocoPara] = useState('')
+  const [precisaTroco, setPrecisaTroco] = useState(false)
 
   // Cupom
   const [cupomCodigo, setCupomCodigo] = useState('')
@@ -276,7 +277,11 @@ export function CheckoutDrawer({
 
   const podeFinalizar = () => {
     if (carrinhoLocal.length === 0) return false
-    if (!formaPagamento) return false
+    if (formasPagamentoSelecionadas.length === 0) return false
+    // Validar que a soma dos valores >= total
+    const totalPago = formasPagamentoSelecionadas.reduce((sum, fp) => sum + fp.valor, 0)
+    if (totalPago < total) return false
+    if (precisaTroco && !trocoPara) return false
     if (valorMinimoPedido && subtotal < valorMinimoPedido) return false
     return true
   }
@@ -372,8 +377,12 @@ export function CheckoutDrawer({
         taxa_entrega: taxaEntregaAplicada,
         valor_desconto: descontoCupom,
         valor_total: total,
-        forma_pagamento: formaPagamento,
-        troco_para: formaPagamento === 'dinheiro' && trocoPara ? parseFloat(trocoPara) : null,
+        // Múltiplas formas de pagamento
+        formas_pagamento: formasPagamentoSelecionadas.map(fp => ({
+          forma: fp.forma,
+          valor: fp.valor
+        })),
+        troco_para: precisaTroco && trocoPara ? parseFloat(trocoPara) : null,
         bairro_entrega: bairroSelecionado?.bairro || '',
         taxa_bairro: taxaEntregaAplicada,
         endereco_entrega: cliente.endereco,
@@ -419,6 +428,14 @@ export function CheckoutDrawer({
   // ENVIAR WHATSAPP
   // ============================================================
   function enviarWhatsApp(pedido?: any) {
+    // Formatar pagamentos múltiplos para exibição
+    const pagamentosTexto = formasPagamentoSelecionadas
+      .map(fp => {
+        const formaNome = formasPagamento.find(f => f.id === fp.forma)?.nome || fp.forma
+        return `${formaNome}: ${formatCurrency(fp.valor)}`
+      })
+      .join(', ')
+
     const mensagemUnificada = gerarMensagemWhatsApp({
       pedidoId: pedido?.id || String(Date.now()),
       pedidoCodigo: pedido?.codigo || null,
@@ -428,8 +445,8 @@ export function CheckoutDrawer({
         valor_unitario: item.valor_unitario + (item.variante_preco || 0), variante_nome: item.variante_nome,
         complementos: item.complementos, observacao: item.observacao })),
       subtotal, taxaEntrega: taxaEntregaAplicada, desconto: pedido?.valor_desconto ?? descontoCupom,
-      total: pedido?.valor_total ?? total, formaPagamento,
-      trocoPara: trocoPara ? Number(trocoPara) : undefined,
+      total: pedido?.valor_total ?? total, formaPagamento: pagamentosTexto,
+      trocoPara: precisaTroco && trocoPara ? Number(trocoPara) : undefined,
       endereco: tipoRecebimento === 'retirada' ? tenantEndereco : cliente.endereco,
       numero: tipoRecebimento === 'retirada' ? '' : cliente.numero,
       complemento: tipoRecebimento === 'retirada' ? undefined : cliente.complemento,
@@ -576,10 +593,12 @@ export function CheckoutDrawer({
           {step === 'pagamento' && (
             <PagamentoView
               formasPagamento={formasPagamento}
-              formaPagamento={formaPagamento}
-              setFormaPagamento={setFormaPagamento}
+              formasSelecionadas={formasPagamentoSelecionadas}
+              setFormasSelecionadas={setFormasPagamentoSelecionadas}
               trocoPara={trocoPara}
               setTrocoPara={setTrocoPara}
+              precisaTroco={precisaTroco}
+              setPrecisaTroco={setPrecisaTroco}
               total={total}
               cupomCodigo={cupomCodigo}
               setCupomCodigo={setCupomCodigo}
@@ -595,8 +614,10 @@ export function CheckoutDrawer({
               taxaEntrega={taxaEntregaAplicada}
               descontoCupom={descontoCupom}
               onContinuar={() => {
-                if (!formaPagamento) { alert('Selecione a forma de pagamento'); return }
-                if (formaPagamento === 'dinheiro' && trocoPara && Number(trocoPara) < total) { alert('O valor para troco deve ser maior ou igual ao total'); return }
+                if (formasPagamentoSelecionadas.length === 0) { alert('Selecione pelo menos uma forma de pagamento'); return }
+                const totalPago = formasPagamentoSelecionadas.reduce((sum, fp) => sum + fp.valor, 0)
+                if (totalPago < total) { alert('A soma dos valores pagos deve ser maior ou igual ao total'); return }
+                if (precisaTroco && !trocoPara) { alert('Informe o valor para troco'); return }
                 setStep('aniversario')
               }}
             />
@@ -950,59 +971,145 @@ function EntregaView({ cliente, setCliente, bairroSelecionado, setBairroSelecion
 }
 
 function PagamentoView({
-  formasPagamento, formaPagamento, setFormaPagamento,
-  trocoPara, setTrocoPara, total,
+  formasPagamento, formasSelecionadas, setFormasSelecionadas,
+  trocoPara, setTrocoPara, precisaTroco, setPrecisaTroco, total,
   cupomCodigo, setCupomCodigo, cupomAplicado, setCupomAplicado, cupomErro, setCupomErro, cupomLoading, onAplicarCupom,
   subtotal, taxaEntrega, descontoCupom, onContinuar
 }: any) {
+  // Calcular valor restante para preencher automaticamente
+  const totalSelecionado = formasSelecionadas.reduce((sum, fp) => sum + fp.valor, 0)
+  const valorRestante = Math.max(0, total - totalSelecionado)
+
+  // Toggle forma de pagamento
+  const toggleFormaPagamento = (formaId: string) => {
+    const jaSelecionada = formasSelecionadas.find(fp => fp.forma === formaId)
+    if (jaSelecionada) {
+      // Remover
+      setFormasSelecionadas(formasSelecionadas.filter(fp => fp.forma !== formaId))
+    } else {
+      // Adicionar com valor restante (ou sugerido)
+      const valorSugerido = valorRestante > 0 ? valorRestante : total
+      setFormasSelecionadas([...formasSelecionadas, { forma: formaId, valor: Math.round(valorSugerido * 100) / 100 }])
+    }
+  }
+
+  // Atualizar valor de uma forma
+  const atualizarValor = (formaId: string, novoValor: number) => {
+    setFormasSelecionadas(formasSelecionadas.map(fp =>
+      fp.forma === formaId ? { ...fp, valor: Math.round(novoValor * 100) / 100 } : fp
+    ))
+  }
+
+  // Verificar se tem dinheiro selecionado
+  const temDinheiro = formasSelecionadas.some(fp => fp.forma === 'dinheiro')
+
   return (
     <div className="p-4 space-y-4">
-      <p className="text-sm text-gray-600 mb-4">Forma de pagamento</p>
+      <p className="text-sm text-gray-600 mb-2">💳 Forma de pagamento</p>
+      <p className="text-xs text-gray-500 -mt-2">Selecione uma ou mais formas de pagamento</p>
 
-      {/* Formas de pagamento */}
+      {/* Formas de pagamento com checkbox */}
       <div className="space-y-2">
         {formasPagamento.length === 0 ? (
           <p className="text-sm text-gray-500">Nenhuma forma de pagamento cadastrada</p>
         ) : (
-          formasPagamento.map((fp: any) => (
-            <button
-              key={fp.id}
-              onClick={() => setFormaPagamento(fp.id)}
-              className={`w-full p-4 rounded-xl border-2 flex items-center gap-3 transition-all ${
-                formaPagamento === fp.id
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200 hover:border-green-300'
-              }`}
-            >
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                formaPagamento === fp.id ? 'border-green-500 bg-green-500' : 'border-gray-300'
-              }`}>
-                {formaPagamento === fp.id && <Check className="w-4 h-4 text-white" />}
+          formasPagamento.map((fp: any) => {
+            const selecionada = formasSelecionadas.find(fps => fps.forma === fp.id)
+            return (
+              <div key={fp.id} className="border-2 rounded-xl overflow-hidden transition-all" style={{
+                borderColor: selecionada ? '#22c55e' : '#e5e7eb',
+                backgroundColor: selecionada ? '#f0fdf4' : 'white'
+              }}>
+                {/* Checkbox row */}
+                <button
+                  onClick={() => toggleFormaPagamento(fp.id)}
+                  className="w-full p-4 flex items-center gap-3"
+                >
+                  <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${selecionada ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                    {selecionada && <Check className="w-4 h-4 text-white" />}
+                  </div>
+                  <span className="font-medium">{fp.nome}</span>
+                </button>
+
+                {/* Campo de valor (se selecionada) */}
+                {selecionada && (
+                  <div className="px-4 pb-4 pt-1 border-t border-green-200">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Valor</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">R$</span>
+                      <input
+                        type="number"
+                        value={selecionada.valor}
+                        onChange={(e) => atualizarValor(fp.id, parseFloat(e.target.value) || 0)}
+                        className="flex-1 py-2 px-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                        step="0.01"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-              <span className="font-medium">{fp.nome}</span>
-            </button>
-          ))
+            )
+          })
         )}
       </div>
 
-      {/* Troco para (se dinheiro) */}
-      {formaPagamento === 'dinheiro' && (
-        <div className="wd-panel mt-4 p-3 rounded-xl">
-          <label className="block text-sm font-medium mb-2">Troco para</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">R$</span>
-            <input
-              type="number"
-              value={trocoPara}
-              onChange={(e) => setTrocoPara(e.target.value)}
-              placeholder="Ex: 50,00"
-              className="w-full pl-8 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
-            />
+      {/* Resumo dos pagamentos */}
+      {formasSelecionadas.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
+          <div className="text-sm font-medium text-blue-800">Pagamentos:</div>
+          {formasSelecionadas.map(fp => {
+            const formaNome = formasPagamento.find(f => f.id === fp.forma)?.nome || fp.forma
+            return (
+              <div key={fp.forma} className="flex justify-between text-sm">
+                <span className="text-blue-700">{formaNome}</span>
+                <span className="font-medium text-blue-900">{formatCurrency(fp.valor)}</span>
+              </div>
+            )
+          })}
+          <div className="border-t border-blue-200 pt-2 flex justify-between text-sm">
+            <span className="font-medium text-blue-800">Total pago:</span>
+            <span className="font-bold text-blue-900">{formatCurrency(totalSelecionado)}</span>
           </div>
-          {trocoPara && parseFloat(trocoPara) > total && (
-            <p className="text-sm text-green-600 mt-1">
-              Troco: {formatCurrency(parseFloat(trocoPara) - total)}
-            </p>
+          {totalSelecionado > total && (
+            <div className="text-sm text-green-600 font-medium">
+              ✓ Troco: {formatCurrency(totalSelecionado - total)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Troco para (se dinheiro selecionado) */}
+      {temDinheiro && (
+        <div className="wd-panel mt-4 p-3 rounded-xl">
+          <label className="flex items-center gap-2 text-sm font-medium mb-3">
+            <input
+              type="checkbox"
+              checked={precisaTroco}
+              onChange={(e) => setPrecisaTroco(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300"
+            />
+            Precisa de troco?
+          </label>
+          {precisaTroco && (
+            <div className="space-y-2">
+              <label className="block text-xs text-gray-500">Para quanto?</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">R$</span>
+                <input
+                  type="number"
+                  value={trocoPara}
+                  onChange={(e) => setTrocoPara(e.target.value)}
+                  placeholder="Ex: 50,00"
+                  className="w-full pl-8 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
+                />
+              </div>
+              {trocoPara && parseFloat(trocoPara) > 0 && (
+                <p className="text-sm text-green-600 font-medium">
+                  Troco: {formatCurrency(parseFloat(trocoPara) - totalSelecionado)}
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -1067,6 +1174,10 @@ function PagamentoView({
             <span>-{formatCurrency(descontoCupom)}</span>
           </div>
         )}
+        <div className="flex justify-between font-bold text-base pt-2 border-t">
+          <span>Total do pedido</span>
+          <span className="text-green-600">{formatCurrency(total)}</span>
+        </div>
       </div>
       <button type="button" onClick={onContinuar} className="wd-primary-action w-full py-4 rounded-2xl text-white font-bold text-lg">Continuar</button>
     </div>

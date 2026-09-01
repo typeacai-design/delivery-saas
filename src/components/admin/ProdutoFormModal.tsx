@@ -621,40 +621,6 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
             </div>
           </CardSection>
 
-          {/* ====== CARD 5: Regras (metade, fracionar, adicional) ====== */}
-          <CardSection title="Regras de venda">
-            <ToggleLinha
-              label="Adicional de pedido"
-              hint="Item vendido como extra (ex: cobertura, borda)"
-              checked={form.eh_adicional}
-              onChange={(v) => setForm({ ...form, eh_adicional: v })}
-            />
-
-            <ToggleLinha
-              label="Pode ser metade?"
-              hint="Permite escolher como metade (ex: pizza)"
-              checked={form.pode_ser_metade}
-              onChange={(v) => setForm({ ...form, pode_ser_metade: v })}
-            />
-            {form.pode_ser_metade && (
-              <Field label="Qual a metade?" hint="(texto explicativo)">
-                <input
-                  value={form.texto_metade}
-                  onChange={(e) => setForm({ ...form, texto_metade: e.target.value })}
-                  placeholder="Ex: Metade de pizza"
-                  className="form-input"
-                />
-              </Field>
-            )}
-
-            <ToggleLinha
-              label="Fracionar item"
-              hint="Permite fracionar em duas metades diferentes"
-              checked={form.fracionar_item}
-              onChange={(v) => setForm({ ...form, fracionar_item: v })}
-            />
-          </CardSection>
-
           {/* ====== CARD 6: Dias da semana ====== */}
           <CardSection title="Dias ativos deste item">
             <p className="text-sm text-gray-500 mb-3 -mt-1">

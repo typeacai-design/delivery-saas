@@ -956,7 +956,7 @@ export default function PedidosPage() {
   }
 
   const formatFormaPagamento = (forma: any) => {
-    if (Array.isArray(forma)) return forma.join(', ')
+    if (Array.isArray(forma)) return forma.map(f => f || 'N/A').join(', ')
     return forma || '-'
   }
 

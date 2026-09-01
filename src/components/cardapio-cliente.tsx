@@ -31,12 +31,18 @@ function StoreActions({ data }: { data: any }) {
     <div className="px-3 sm:px-4 mb-4 max-w-lg mx-auto"><div className="flex items-center justify-between w-full">
       <button type="button" onClick={() => setHorariosAbertos(true)} className={`inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-semibold shadow-sm ${data.lojaAberta ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-700'}`}>
         <span>{data.lojaAberta ? 'Aberto' : 'Fechado'}</span>
-        {data.horario?.abre && <span className={`${data.lojaAberta ? 'text-green-700' : 'text-emerald-700'} bg-white rounded px-1 py-0.5 text-[10px]`}>{data.horario.abre} - {data.horario.fecha}</span>}
+        {data.lojaAberta && data.horario?.abre && <span className="text-green-700 bg-white rounded px-1 py-0.5 text-[10px]">{data.horario.abre} - {data.horario.fecha}</span>}
+        {!data.lojaAberta && <span className="text-red-700 bg-white rounded px-1 py-0.5 text-[10px]">Hoje</span>}
         <span className="inline-grid place-items-center size-3.5 rounded-full bg-teal-500 text-white text-[9px] font-bold">i</span>
       </button>
       <span title="Avaliações" className="inline-flex items-center gap-1 px-2.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--cardapio-secondary)', background: 'color-mix(in srgb, var(--cardapio-secondary) 12%, white)' }}><Star size={14} fill="currentColor" />{data.totalAvaliacoes ? `${data.avaliacaoMedia} (${data.totalAvaliacoes})` : '0,0'}</span>
     </div></div>
-    {horariosAbertos && <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" onClick={() => setHorariosAbertos(false)}><div className="wd-overlay w-full max-w-sm rounded-2xl p-5 shadow-2xl" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold">Horários de funcionamento</h2><button type="button" onClick={() => setHorariosAbertos(false)} className="text-2xl leading-none">×</button></div><div className="space-y-2">{horarios.map((h: any, i: number) => <div key={i} className="flex justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm"><span className="font-medium">{h.dia || h.nome || `Dia ${i + 1}`}</span><span>{h.abre && h.fecha ? `${h.abre} - ${h.fecha}` : 'Fechado'}</span></div>)}</div></div></div>}
+    {horariosAbertos && <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" onClick={() => setHorariosAbertos(false)}><div className="wd-overlay w-full max-w-sm rounded-2xl p-5 shadow-2xl" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold">Horários de funcionamento</h2><button type="button" onClick={() => setHorariosAbertos(false)} className="text-2xl leading-none">×</button></div><div className="space-y-2">{horarios.map((h: any, i: number) => (
+      <div key={i} className={`flex justify-between rounded-lg px-3 py-2 text-sm ${h.ativo === false ? 'bg-red-50 text-red-700' : 'bg-gray-50'}`}>
+        <span className="font-medium">{h.dia || h.nome || `Dia ${i + 1}`}</span>
+        <span className={h.ativo === false ? 'font-semibold' : ''}>{h.ativo === false ? 'Fechado' : (h.abre && h.fecha ? `${h.abre} - ${h.fecha}` : 'Fechado')}</span>
+      </div>
+    ))}</div></div></div>}
   </>
 }
 
@@ -66,14 +72,27 @@ const ETIQUETAS = {
   novidade: { label: 'Novidade', icone: '✨', bg: '#DBEAFE', color: '#1E3A8A' },
 }
 
-function ProductPreco({ produto, className = '' }: { produto: any; className?: string }) {
+function ProductPreco({ produto, className = '', variants = [] }: { produto: any; className?: string; variants?: any[] }) {
   const preco = Number(produto.preco)
   const riscado = produto.preco_riscado != null ? Number(produto.preco_riscado) : null
   const temPromo = riscado != null && riscado > preco
+
+  // Verificar se há variantes com preços diferentes
+  const variantPrices = variants?.map((v: any) => Number(v.preco_adicional) + preco) || []
+  const allPrices = [preco, ...variantPrices]
+  const minPrice = Math.min(...allPrices)
+  const maxPrice = Math.max(...allPrices)
+  const hasMultiplePrices = variantPrices.length > 0 && (minPrice !== maxPrice)
+  const hasVariants = variantPrices.length > 0
+
   return (
     <div className={`flex items-baseline gap-2 ${className}`}>
-      <span className="wd-price font-bold text-sm">{formatCurrency(preco)}</span>
-      {temPromo && (
+      {hasVariants && hasMultiplePrices ? (
+        <span className="wd-price font-bold text-sm">A partir de {formatCurrency(minPrice)}</span>
+      ) : (
+        <span className="wd-price font-bold text-sm">{formatCurrency(preco)}</span>
+      )}
+      {temPromo && !hasVariants && (
         <span className="text-xs text-gray-400 line-through">{formatCurrency(riscado)}</span>
       )}
     </div>
@@ -598,7 +617,7 @@ function LayoutMinimalista({ data, busca, setBusca, totalItens, produtosFiltrado
                     )}
                     <ProductTags produto={produto} className="mt-1" />
                     <div className="flex items-center gap-3 mt-1">
-                      <ProductPreco produto={produto} />
+                      <ProductPreco produto={produto} variants={data.variantes.filter((v: any) => v.produto_id === produto.id)} />
                       {produto.tempo_preparo_min && (
                         <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                           <Clock className="w-3 h-3" />
@@ -814,7 +833,7 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
                       <span className="text-gray-400">({produto.reviews || '245'})</span>
                     </div>
                     <div className="flex items-center gap-2 mb-2">
-                      <ProductPreco produto={produto} />
+                      <ProductPreco produto={produto} variants={data.variantes.filter((v: any) => v.produto_id === produto.id)} />
                       {produto.tempo_preparo_min && (
                         <span
                           className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-red-50"
@@ -1090,7 +1109,7 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                     <p className="wd-description text-xs line-clamp-2 mb-2">{produto.descricao}</p>
                   )}
                   <div className="flex items-center gap-2 mb-2">
-                    <ProductPreco produto={produto} />
+                    <ProductPreco produto={produto} variants={data.variantes.filter((v: any) => v.produto_id === produto.id)} />
                     {produto.tempo_preparo_min && (
                       <span
                         className="wd-time inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md"
