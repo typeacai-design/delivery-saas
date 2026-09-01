@@ -64,13 +64,9 @@ export default function VisaoGeralPage() {
       if (tenant) {
         setSlug(tenant.slug)
         const config = (tenant.config as any) || {}
-        // Se loja_aberta não foi definido explicitamente (undefined/null), segue o horário
-        // Se foi definido como true ou false, é um override manual
-        if (config.loja_aberta === undefined || config.loja_aberta === null) {
-          setLojaAberta(null) // segue horário
-        } else {
-          setLojaAberta(config.loja_aberta === true)
-        }
+        // Detecta override manual: só se foi clicado nesta sessão (clicouLojaManual)
+        // Caso contrário, segue o horário
+        setLojaAberta(null) // sempre começa seguindo o horário
         setHorarios(config.horarios_dias || null)
       }
 
@@ -137,22 +133,17 @@ export default function VisaoGeralPage() {
       const tenantId = await activeTenantId()
       if (!tenantId) { setToggleLoading(false); return }
 
-      // Calcula o estado desejado: se está aberto, fecha; se está fechado, abre
+      // Toggle: se está aberto, fecha; se está fechado, abre
       const novoStatus = !statusExibicao
-      const { data: tenant } = await supabase
-        .from('tenants')
-        .select('config')
-        .eq('id', tenantId)
-        .single()
-
-      const config = (tenant?.config || {}) as any
-      config.loja_aberta = novoStatus
 
       await supabase
         .from('tenants')
-        .update({ config })
+        .update({
+          config: { ...((await supabase.from('tenants').select('config').eq('id', tenantId).single()).data?.config || {}), loja_aberta: novoStatus }
+        })
         .eq('id', tenantId)
 
+      // Quando clicar, vira override manual (true/false)
       setLojaAberta(novoStatus)
     } catch (err) {
       console.error('Erro toggle:', err)
@@ -191,7 +182,22 @@ export default function VisaoGeralPage() {
                 <span className="text-gray-400">· {horarioMsg}</span>
               )}
               {temOverride && (
-                <span className="text-amber-600 ml-1" title="Override manual ativo">✎</span>
+                <button
+                  onClick={async () => {
+                    // Resetar override: remove loja_aberta do config
+                    const tenantId = await activeTenantId()
+                    if (!tenantId) return
+                    const { data: tenant } = await supabase.from('tenants').select('config').eq('id', tenantId).single()
+                    const config = (tenant?.config || {}) as any
+                    delete config.loja_aberta
+                    await supabase.from('tenants').update({ config }).eq('id', tenantId)
+                    setLojaAberta(null)
+                  }}
+                  className="text-amber-600 hover:text-amber-700 ml-1 text-xs"
+                  title="Voltar a seguir o horário automaticamente"
+                >
+                  ✎
+                </button>
               )}
             </div>
 
