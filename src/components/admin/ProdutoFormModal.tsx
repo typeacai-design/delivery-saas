@@ -621,57 +621,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
             </div>
           </CardSection>
 
-          {/* ====== CARD 6: Dias da semana ====== */}
-          <CardSection title="Dias ativos deste item">
-            <p className="text-sm text-gray-500 mb-3 -mt-1">
-              <span className="inline-block size-3 rounded align-middle mr-1" style={{ background: 'var(--green)' }} /> verde = ativo
-              <span className="inline-block size-3 rounded align-middle mx-1 ml-3 bg-gray-300" /> cinza = inativo
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {DIAS_SEMANA.map((d) => {
-                const ativo = form.dias_disponiveis.includes(d.id)
-                return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => toggleDia(d.id)}
-                    className="px-5 py-2.5 rounded-lg text-sm font-semibold transition"
-                    style={
-                      ativo
-                        ? { background: 'var(--green)', color: 'white' }
-                        : { background: '#E5E7EB', color: '#6B7280' }
-                    }
-                  >
-                    {d.label}
-                  </button>
-                )
-              })}
-            </div>
-          </CardSection>
-
-          {/* ====== CARD 7: Horário ====== */}
-          <CardSection title="Horário disponível">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Início">
-                <input
-                  type="time"
-                  value={form.horario_inicio}
-                  onChange={(e) => setForm({ ...form, horario_inicio: e.target.value })}
-                  className="form-input"
-                />
-              </Field>
-              <Field label="Fim">
-                <input
-                  type="time"
-                  value={form.horario_fim}
-                  onChange={(e) => setForm({ ...form, horario_fim: e.target.value })}
-                  className="form-input"
-                />
-              </Field>
-            </div>
-          </CardSection>
-
-          {/* ====== CARD 8: Limites de venda ====== */}
+          {/* ====== CARD 6: Limites de venda ====== */}
           <CardSection title="Limites de venda">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Vendidos diariamente" hint="(vazio = sem limite)">
@@ -705,7 +655,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
             </div>
           </CardSection>
 
-          {/* ====== CARD 9: Estoque ====== */}
+          {/* ====== CARD 7: Estoque ====== */}
           <CardSection title="Controle de estoque" icon={Box}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button

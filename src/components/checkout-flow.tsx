@@ -88,7 +88,7 @@ function validCpf(v: string) {
 }
 
 function gerarSlug(texto: string) {
-  return texto.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  return texto.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
 }
 function keepFocusInside(dialog: HTMLElement, event: KeyboardEvent) { if(event.key!=='Tab')return;const items=[...dialog.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]')];if(!items.length)return;const first=items[0],last=items[items.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()} }
 

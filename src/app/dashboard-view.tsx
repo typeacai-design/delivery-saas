@@ -6,6 +6,32 @@ import { activeTenantId } from '@/lib/active-tenant-client'
 import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power, PowerOff } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
+// Função para verificar se a loja está aberta baseado no horário configurado
+function verificarLojaAbertaPorHorario(horarios: any): boolean {
+  if (!horarios) return true
+  const agora = new Date()
+  const diaSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'][agora.getDay()]
+  const diaConfig = horarios[diaSemana]
+  if (!diaConfig || !diaConfig.ativo) return false
+  const horaAtual = agora.getHours() * 60 + agora.getMinutes()
+  const [hAbre, mAbre] = (diaConfig.abre || '00:00').split(':').map(Number)
+  const [hFecha, mFecha] = (diaConfig.fecha || '23:59').split(':').map(Number)
+  const horaAbre = hAbre * 60 + mAbre
+  const horaFecha = hFecha * 60 + mFecha
+  return horaAtual >= horaAbre && horaAtual <= horaFecha
+}
+
+// Função para obter mensagem do horário
+function getHorarioMsg(horarios: any): string {
+  if (!horarios) return ''
+  const agora = new Date()
+  const diaSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'][agora.getDay()]
+  const diaConfig = horarios[diaSemana]
+  if (!diaConfig) return ''
+  if (!diaConfig.ativo) return `${diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1)} - Fechado`
+  return `${diaConfig.abre} - ${diaConfig.fecha}`
+}
+
 export default function VisaoGeralPage() {
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
@@ -17,6 +43,7 @@ export default function VisaoGeralPage() {
   const [slug, setSlug] = useState('')
   const [copied, setCopied] = useState(false)
   const [lojaAberta, setLojaAberta] = useState(true)
+  const [horarios, setHorarios] = useState<any>(null)
   const [toggleLoading, setToggleLoading] = useState(false)
   const supabase = createClient()
 
@@ -36,7 +63,9 @@ export default function VisaoGeralPage() {
         .single()
       if (tenant) {
         setSlug(tenant.slug)
-        setLojaAberta((tenant.config as any)?.loja_aberta ?? true)
+        const config = (tenant.config as any) || {}
+        setLojaAberta(config.loja_aberta !== false)
+        setHorarios(config.horarios_dias || null)
       }
 
       const hoje = new Date().toISOString().split('T')[0]
@@ -76,6 +105,14 @@ export default function VisaoGeralPage() {
       setLoading(false)
     }
   }
+
+  // Verificar se está aberto por horário (para exibição sutil)
+  const abertoPorHorario = horarios ? verificarLojaAbertaPorHorario(horarios) : true
+  const horarioMsg = horarios ? getHorarioMsg(horarios) : ''
+
+  // Status final: manual override ou baseado no horário
+  const statusExibicao = lojaAberta
+  const foraDoHorario = !abertoPorHorario
 
   const copyLink = async () => {
     const url = `${window.location.origin}/${slug}`
@@ -130,29 +167,42 @@ export default function VisaoGeralPage() {
             </p>
           </div>
           <div className="flex gap-2 items-center">
-            {/* Status da loja */}
-            <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold" style={{
-              background: lojaAberta ? 'rgba(22,163,74,.14)' : 'rgba(220,38,38,.10)',
-              color: lojaAberta ? '#15803D' : '#B91C1C',
-              border: '1px solid currentColor',
-            }}>
-              <span className="size-2 rounded-full" style={{ background: lojaAberta ? '#16A34A' : '#DC2626' }} />
-              {lojaAberta ? 'Loja aberta' : 'Loja fechada'}
-            </span>
+            {/* Status da loja - visual sutil */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ background: statusExibicao ? '#16A34A' : '#DC2626' }}
+              />
+              <span style={{ color: statusExibicao ? '#15803D' : '#B91C1C' }}>
+                {statusExibicao ? 'Aberto' : 'Fechado'}
+              </span>
+              {horarioMsg && (
+                <span className="text-gray-400">· {horarioMsg}</span>
+              )}
+              {foraDoHorario && lojaAberta && (
+                <span className="text-amber-600 ml-1" title="Manual override">✎</span>
+              )}
+            </div>
 
-            {/* Botão Abrir/Fechar - sempre disponível */}
+            {/* Botão Abrir/Fechar - pequeno e discreto */}
             <button
               onClick={toggleLoja}
               disabled={toggleLoading}
-              className={lojaAberta ? 'btn-secondary' : 'btn-primary'}
-              style={lojaAberta ? {
-                background: '#DC2626',
-                borderColor: 'rgba(255,255,255,.2)',
-                boxShadow: '0 6px 16px -6px rgba(220,38,38,.5)',
-              } : undefined}
+              className={`px-2 py-1 text-xs rounded-lg transition flex items-center gap-1 ${
+                lojaAberta
+                  ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+              }`}
+              title={lojaAberta ? 'Fechar loja' : 'Abrir loja'}
             >
-              {lojaAberta ? <PowerOff size={14} /> : <Power size={14} />}
-              {lojaAberta ? 'Fechar loja' : 'Abrir loja'}
+              {toggleLoading ? (
+                <span className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  {lojaAberta ? <PowerOff size={10} /> : <Power size={10} />}
+                  <span className="hidden sm:inline">{lojaAberta ? 'Fechar' : 'Abrir'}</span>
+                </>
+              )}
             </button>
           </div>
         </div>

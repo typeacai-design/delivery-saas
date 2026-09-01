@@ -227,6 +227,7 @@ function ProdutosTab() {
           .select('*')
           .eq('tenant_id', tid)
           .eq('categoria_id', cat.id)
+          .is('deleted_at', null) // Não mostrar produtos excluídos
           .order('ordem')
         prods[cat.id] = p || []
       }
@@ -358,8 +359,16 @@ function ProdutosTab() {
   }
 
   const deletarProduto = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este produto?')) return
+    // Apenas inativa o produto (toggle de ativo)
+    if (!confirm('Tem certeza que deseja desativar este produto?')) return
     await supabase.from('produtos').update({ ativo: false }).eq('id', id)
+    loadData()
+  }
+
+  const excluirProduto = async (id: string) => {
+    // Exclui definitivamente o produto (soft delete com deleted_at)
+    if (!confirm('Tem certeza que deseja EXCLUIR este produto?\n\nEsta ação não pode ser desfeita.\nO histórico de pedidos será mantido.')) return
+    await supabase.from('produtos').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     loadData()
   }
 
@@ -490,6 +499,7 @@ function ProdutosTab() {
                     onDuplicate={async () => { /* no-op */ }}
                     onUpdate={async () => { /* no-op */ }}
                     onDelete={() => deletarProduto(prod.id)}
+                    onExcluir={() => excluirProduto(prod.id)}
                   />
                 </div>
               ))}

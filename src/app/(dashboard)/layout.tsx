@@ -65,7 +65,7 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!authChecked) return
     if (pathname === '/motoboys') { router.replace('/equipe'); return }
-    if (['/avaliacoes', '/sorteios', '/embaixadores'].includes(pathname)) { router.replace('/marketing'); return }
+    if (['/sorteios', '/embaixadores'].includes(pathname)) { router.replace('/marketing'); return }
     const allowed = role === 'attendant' ? ['/dashboard', '/pedidos', '/clientes']
       : ['kitchen', 'motoboy', 'delivery'].includes(role) ? ['/dashboard', '/pedidos'] : null
     if (allowed && !allowed.some((route) => pathname === route || pathname.startsWith(route + '/'))) router.replace('/pedidos')

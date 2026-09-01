@@ -79,7 +79,16 @@ export default function ComplementosTab() {
   }
 
   const compsPorLista = (listaId: string) => {
-    return complementos.filter((c) => c.categoria_id === listaId)
+    return complementos.filter((c) => {
+      if (c.categoria_id !== listaId) return false
+      if (busca) {
+        const termo = busca.toLowerCase()
+        const nomeMatch = c.nome.toLowerCase().includes(termo)
+        const descMatch = c.descricao && c.descricao.toLowerCase().includes(termo)
+        if (!nomeMatch && !descMatch) return false
+      }
+      return true
+    })
   }
 
   const listasFiltradas = listas.filter((l) => {
@@ -134,7 +143,7 @@ export default function ComplementosTab() {
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Busca por nome/etiqueta"
+            placeholder="Busca por nome/descrição"
             className="form-input pl-9"
           />
         </div>

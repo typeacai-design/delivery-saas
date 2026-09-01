@@ -106,7 +106,7 @@ export default function RegistroPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: nomeNegocio.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+          slug: nomeNegocio.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, ''),
           nome: nomeNegocio, email, password, categoria, telefone, estado, cidade,
           endereco: enderecoCompleto, numero, nome_responsavel: nomeResponsavel, cpf,
           referral_code: referralCode,
