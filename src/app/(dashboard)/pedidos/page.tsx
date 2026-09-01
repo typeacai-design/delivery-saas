@@ -1099,7 +1099,7 @@ export default function PedidosPage() {
           )
         })()}
 
-        {pedidosTab === 'fluxo' && STATUS_LISTA.filter(s => s !== 'cancelado' && s !== 'entregue').map((status) => {
+        {pedidosTab === 'fluxo' && STATUS_LISTA.filter(s => s !== 'novo' && s !== 'cancelado' && s !== 'entregue').map((status) => {
           const count = pedidos.filter((p) => p.status === status).length
           const config = STATUS_CONFIG[status]
           const isActive = filtroStatus === status
