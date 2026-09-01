@@ -90,7 +90,7 @@ export default function FidelidadeTab() {
           <span>⚙️</span> Regras globais (usado quando o produto não tem pontos definidos)
         </div>
 
-        {/* Pontos por real */}
+        {/* Pontos por produto */}
         <div className="border-t pt-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
@@ -98,8 +98,8 @@ export default function FidelidadeTab() {
                 <TrendingUp size={18} className="text-green-700" />
               </div>
               <div>
-                <h4 className="font-semibold text-gray-900">Pontos por real gasto</h4>
-                <p className="text-xs text-gray-500">Cliente ganha X pontos a cada R$ 1 em compras</p>
+                <h4 className="font-semibold text-gray-900">Pontos por produto</h4>
+                <p className="text-xs text-gray-500">Cada produto define sua própria pontuação</p>
               </div>
             </div>
             <Switch
@@ -109,17 +109,8 @@ export default function FidelidadeTab() {
           </div>
           {config.fidelidade_ativo && (
             <div className="bg-green-50 rounded-2xl p-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Pontos por R$ 1 gasto
-              </label>
-              <input
-                type="number" min={0} step={0.5}
-                value={config.pontos_por_real}
-                onChange={(e) => setConfig({ ...config, pontos_por_real: parseFloat(e.target.value) || 0 })}
-                className="form-input max-w-[200px]"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                Exemplo: com 1 ponto/R$, um pedido de R$ 35,00 dá 35 pontos ao cliente.
+              <p className="text-xs text-gray-600">
+                💡 Cada produto pode ter uma quantidade de pontos diferente. Os pontos são somados com base na quantidade de cada produto no pedido. Configure os pontos de cada produto no cadastro ou na lista abaixo.
               </p>
             </div>
           )}

@@ -95,7 +95,12 @@ export default function ComplementosTab() {
     if (filtroGrupo && l.id !== filtroGrupo) return false
     if (filtroStatus === 'ativos' && !l.ativo) return false
     if (filtroStatus === 'inativos' && l.ativo) return false
-    if (busca && !l.nome.toLowerCase().includes(busca.toLowerCase())) return false
+    if (busca) {
+      const termo = busca.toLowerCase()
+      const nomeMatch = l.nome.toLowerCase().includes(termo)
+      const descMatch = l.descricao && l.descricao.toLowerCase().includes(termo)
+      if (!nomeMatch && !descMatch) return false
+    }
     return true
   })
 
