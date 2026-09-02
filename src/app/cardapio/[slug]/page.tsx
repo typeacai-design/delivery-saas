@@ -4,8 +4,8 @@ import { formatCurrency } from '@/lib/utils'
 import { CardapioCliente } from '@/components/cardapio-cliente'
 import { getCardapioTheme } from '@/lib/cardapio-theme'
 
-// Revalidar a cada 30s pra refletir cadastros quase em tempo real
-export const revalidate = 30
+// NO CACHE - sempre buscar dados atualizados (importante para status da loja)
+export const revalidate = 0
 
 // Page SEM auth - cardápio é público
 export default async function CardapioPublicoPage({
