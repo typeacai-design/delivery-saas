@@ -8,9 +8,12 @@ import { formatCurrency } from '@/lib/utils'
 
 // Função para verificar se a loja está aberta baseado no horário configurado
 function verificarLojaAbertaPorHorario(horarios: any): boolean {
-  if (!horarios) return true
+  // Se não há horários configurados, loja fica FECHADA
+  if (!horarios || Object.keys(horarios).length === 0) return false
   const agora = new Date()
-  const diaSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'][agora.getDay()]
+  // Get day name in Portuguese
+  const diaMap: Record<number, string> = { 0: 'dom', 1: 'seg', 2: 'ter', 3: 'qua', 4: 'qui', 5: 'sex', 6: 'sab' }
+  const diaSemana = diaMap[agora.getDay()]
   const diaConfig = horarios[diaSemana]
   if (!diaConfig || !diaConfig.ativo) return false
   const horaAtual = agora.getHours() * 60 + agora.getMinutes()
@@ -67,8 +70,8 @@ export default function VisaoGeralPage() {
         const horariosDias = config.horarios_dias || null
         setHorarios(horariosDias)
 
-        // Calcula se está dentro do horário ATUALMENTE (não usa estado, usa a variável local)
-        const horarioAtual = horariosDias ? verificarLojaAbertaPorHorario(horariosDias) : true
+        // Calcula se está dentro do horário ATUALMENTE (função retorna false se não há horários)
+        const horarioAtual = verificarLojaAbertaPorHorario(horariosDias)
 
         // Lê override manual do banco (se existir)
         const overrideManual = config.loja_aberta
