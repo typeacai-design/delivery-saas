@@ -446,11 +446,16 @@ export default function PedidosPage() {
 
     const setupRealtime = async () => {
       const tenantId = await activeTenantId()
-      if (!tenantId) { setLoading(false); return }
+      console.log('[DEBUG PEDIDOS] activeTenantId retornou:', tenantId)
+      if (!tenantId) {
+        console.log('[DEBUG PEDIDOS] ERRO: tenantId é null/undefined!')
+        setLoading(false)
+        return
+      }
       setTenantIdAtual(tenantId)
 
       // 1. Carrega pedidos iniciais (COM deleted para debug)
-      console.log('[DEBUG] Carregando pedidos para tenantId:', tenantId)
+      console.log('[DEBUG PEDIDOS] Carregando pedidos para tenantId:', tenantId)
       const { data, error } = await supabase
         .from('pedidos')
         .select('*')
@@ -458,15 +463,17 @@ export default function PedidosPage() {
         .order('data_criacao', { ascending: false })
         .limit(200)
 
-      console.log('[DEBUG] Pedidos carregados:', data?.length || 0, 'error:', error)
+      console.log('[DEBUG PEDIDOS] Resposta do Supabase:', { count: data?.length, error })
 
       const pedidosData = data || []
-      console.log('[DEBUG] Total de pedidos:', pedidosData.length)
+      console.log('[DEBUG PEDIDOS] Total de pedidos carregados:', pedidosData.length)
+      console.log('[DEBUG PEDIDOS] Primeiros 3 pedidos:', JSON.stringify(pedidosData.slice(0, 3).map(p => ({ id: p.id, status: p.status, tenant_id: p.tenant_id }))))
       inicializarIds(pedidosData)
 
       const countNovos = pedidosData.filter((p) => p.status === 'novo').length
       setNovosPedidosCount(countNovos)
       setPedidos(pedidosData)
+      console.log('[DEBUG PEDIDOS] setPedidos chamado com', pedidosData.length, 'pedidos')
 
       const { data: entregadores } = await supabase.from('motoboys').select('*').eq('tenant_id', tenantId).order('nome')
       setMotoboys(entregadores || [])
@@ -1259,13 +1266,23 @@ export default function PedidosPage() {
             )}
 
             {/* DEBUG: mostrar total de pedidos carregados */}
-            <div className="mb-4 text-xs text-gray-400 bg-gray-50 p-2 rounded">
-              📊 Total de pedidos carregados: <strong>{pedidos.length}</strong> | Filtrados: <strong>{pedidosPorData.length}</strong>
+            <div className="mb-4 text-xs text-gray-400 bg-gray-50 p-2 rounded font-mono">
+              📊 tenantId: <strong>{tenantIdAtual || 'vazio'}</strong> | Carregados: <strong>{pedidos.length}</strong> | Filtrados: <strong>{pedidosPorData.length}</strong>
+              <br />Status filter: <strong>{filtroStatus || '(nenhum)'}</strong> | Tab: <strong>{pedidosTab}</strong>
             </div>
 
       {/* Lista de Pedidos em GRID 3 COLUNAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {pedidosPorData.length > 0 ? (
+        {loading ? (
+          <div className="col-span-full text-center py-8 text-gray-500">Carregando pedidos...</div>
+        ) : pedidosPorData.length === 0 ? (
+          <div className="col-span-full text-center py-12">
+            <div className="text-gray-400 mb-2">📦 Nenhum pedido encontrado</div>
+            <div className="text-xs text-gray-400">
+              {pedidos.length === 0 ? 'Nenhum pedido no banco para este tenant.' : 'Tente outro filtro ou período.'}
+            </div>
+          </div>
+        ) : (
           pedidosPorData.map((pedido) => {
             const config = STATUS_CONFIG[pedido.status]
             const StatusIcon = config.icon
@@ -1449,12 +1466,6 @@ export default function PedidosPage() {
               </div>
             )
           })
-        ) : (
-          <div className="col-span-full bg-white rounded-xl border p-12 text-center">
-            <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido</h3>
-            <p className="hint">Os pedidos aparecerão aqui quando chegarem</p>
-          </div>
         )}
       </div>
           </>

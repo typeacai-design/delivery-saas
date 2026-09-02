@@ -89,13 +89,21 @@ export default function ComplementosTab() {
   }
 
   const compsPorLista = (listaId: string) => {
+    // Debug: mostra busca e complementos
+    if (busca) {
+      console.log('[DEBUG COMPLEMENTOS] Busca:', busca, '| Lista:', listaId)
+      console.log('[DEBUG COMPLEMENTOS] Complementos da lista:', complementos.filter(c => c.categoria_id === listaId).map(c => c.nome))
+    }
     return complementos.filter((c) => {
       if (c.categoria_id !== listaId) return false
-      if (busca && busca.trim().length >= 2) {
+      // Busca simples: qualquer quantidade de caracteres, apenas verifica se contém
+      if (busca && busca.trim().length > 0) {
         const termo = busca.trim().toLowerCase()
         const nome = (c.nome || '').toLowerCase()
         const desc = (c.descricao || '').toLowerCase()
-        return nome.includes(termo) || desc.includes(termo)
+        const match = nome.includes(termo) || desc.includes(termo)
+        console.log('[DEBUG COMPLEMENTOS] Verificando:', c.nome, '| Match:', match)
+        if (!match) return false
       }
       return true
     })
@@ -105,7 +113,8 @@ export default function ComplementosTab() {
     if (filtroGrupo && l.id !== filtroGrupo) return false
     if (filtroStatus === 'ativos' && !l.ativo) return false
     if (filtroStatus === 'inativos' && l.ativo) return false
-    if (busca && busca.trim().length >= 2) {
+    // Busca simples: qualquer quantidade de caracteres
+    if (busca && busca.trim().length > 0) {
       const termo = busca.trim().toLowerCase()
       const nome = (l.nome || '').toLowerCase()
       const desc = (l.descricao || '').toLowerCase()
