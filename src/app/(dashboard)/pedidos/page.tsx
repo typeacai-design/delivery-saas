@@ -450,7 +450,8 @@ export default function PedidosPage() {
       setTenantIdAtual(tenantId)
 
       // 1. Carrega pedidos iniciais (excluir apagados) - pegar mais para histórico
-      const { data } = await supabase
+      console.log('[DEBUG] Carregando pedidos para tenantId:', tenantId)
+      const { data, error } = await supabase
         .from('pedidos')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -458,7 +459,10 @@ export default function PedidosPage() {
         .order('data_criacao', { ascending: false })
         .limit(200)
 
+      console.log('[DEBUG] Pedidos carregados:', data?.length || 0, 'error:', error)
+
       const pedidosData = data || []
+      console.log('[DEBUG] Total de pedidos:', pedidosData.length)
       inicializarIds(pedidosData)
 
       const countNovos = pedidosData.filter((p) => p.status === 'novo').length
