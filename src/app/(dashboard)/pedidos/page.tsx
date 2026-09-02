@@ -445,6 +445,16 @@ export default function PedidosPage() {
     let subscription: any = null
 
     const setupRealtime = async () => {
+      // Verificar sessão primeiro
+      const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' })
+      const sessionData = await sessionRes.json()
+      console.log('[DEBUG PEDIDOS] Sessão:', {
+        authenticated: sessionData?.authenticated,
+        tenantId: sessionData?.tenant?.id,
+        role: sessionData?.role,
+        error: sessionData?.error
+      })
+
       const tenantId = await activeTenantId()
       console.log('[DEBUG PEDIDOS] activeTenantId retornou:', tenantId)
       if (!tenantId) {
@@ -456,16 +466,35 @@ export default function PedidosPage() {
 
       // 1. Carrega pedidos iniciais (COM deleted para debug)
       console.log('[DEBUG PEDIDOS] Carregando pedidos para tenantId:', tenantId)
+
+      // Verificar autenticação do supabase client
+      const { data: supabaseSession } = await supabase.auth.getSession()
+      console.log('[DEBUG PEDIDOS] Supabase session:', {
+        hasSession: !!supabaseSession?.session,
+        userId: supabaseSession?.session?.user?.id,
+        hasToken: !!supabaseSession?.session?.access_token
+      })
+
       const { data, error } = await supabase
+        .from('pedidos')
+        .select('*')
+        .order('data_criacao', { ascending: false })
+        .limit(200)
+
+      console.log('[DEBUG PEDIDOS] Resposta do Supabase (sem filtro):', { count: data?.length, error })
+
+      // Agora com filtro de tenant
+      const { data: dataComFiltro, error: errorComFiltro } = await supabase
         .from('pedidos')
         .select('*')
         .eq('tenant_id', tenantId)
         .order('data_criacao', { ascending: false })
         .limit(200)
 
-      console.log('[DEBUG PEDIDOS] Resposta do Supabase:', { count: data?.length, error })
+      console.log('[DEBUG PEDIDOS] Resposta do Supabase (com filtro):', { count: dataComFiltro?.length, error: errorComFiltro })
 
-      const pedidosData = data || []
+      // Usa os dados COM filtro de tenant
+      const pedidosData = dataComFiltro || []
       console.log('[DEBUG PEDIDOS] Total de pedidos carregados:', pedidosData.length)
       console.log('[DEBUG PEDIDOS] Primeiros 3 pedidos:', JSON.stringify(pedidosData.slice(0, 3).map(p => ({ id: p.id, status: p.status, tenant_id: p.tenant_id }))))
       inicializarIds(pedidosData)
