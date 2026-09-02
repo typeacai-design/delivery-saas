@@ -170,34 +170,78 @@ export default function VisaoGeralPage() {
   const abertoPorHorario = calculoHorario.aberto
   const horarioMsg = calculoHorario.horarioMsg
 
-  // Status final: lojaAberta indica override manual (true/false) ou null = seguir horário
-  // Quando dentro do horário → abre automático, SEM botão
-  // Quando fora do horário → mostra status + botão discreto "Abrir agora"
+  // Lógica: lojaAbertaOverride pode ser true/false/null
+  // - null = seguir horário automático
+  // - true = forçar aberta
+  // - false = forçar fechada
 
-  const copyLink = async () => {
+  const estaForaDoHorario = !abertoPorHorario
+  const temOverride = lojaAberta !== null
+  const lojaEstaAberta = lojaAberta === true || (!temOverride && abertoPorHorario)
+
+  const podeFechar = lojaEstaAberta && (temOverride || estaForaDoHorario)
+  const podeAbrir = !lojaEstaAberta
+
+  const copiarLink = async () => {
     const url = `${window.location.origin}/${slug}`
     await navigator.clipboard.writeText(url)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const abrirAgora = async () => {
+  const abrirLoja = async () => {
     setToggleLoading(true)
     try {
       const tenantId = await activeTenantId()
       if (!tenantId) { setToggleLoading(false); return }
 
-      // Salva override manual no banco
+      // Busca config atual
+      const { data: current } = await supabase
+        .from('tenants')
+        .select('config')
+        .eq('id', tenantId)
+        .single()
+
+      const config = (current?.config as any) || {}
+      config.loja_aberta = true // Forçar aberta
+
       await supabase
         .from('tenants')
-        .update({
-          config: { ...((await supabase.from('tenants').select('config').eq('id', tenantId).single()).data?.config || {}), loja_aberta: true }
-        })
+        .update({ config })
         .eq('id', tenantId)
 
       setLojaAberta(true)
     } catch (err) {
-      console.error('Erro abrir:', err)
+      console.error('Erro abrir loja:', err)
+    } finally {
+      setToggleLoading(false)
+    }
+  }
+
+  const fecharLoja = async () => {
+    setToggleLoading(true)
+    try {
+      const tenantId = await activeTenantId()
+      if (!tenantId) { setToggleLoading(false); return }
+
+      // Busca config atual
+      const { data: current } = await supabase
+        .from('tenants')
+        .select('config')
+        .eq('id', tenantId)
+        .single()
+
+      const config = (current?.config as any) || {}
+      config.loja_aberta = false // Forçar fechada
+
+      await supabase
+        .from('tenants')
+        .update({ config })
+        .eq('id', tenantId)
+
+      setLojaAberta(false)
+    } catch (err) {
+      console.error('Erro fechar loja:', err)
     } finally {
       setToggleLoading(false)
     }
@@ -220,34 +264,40 @@ export default function VisaoGeralPage() {
             </p>
           </div>
           <div className="flex gap-2 items-center">
-            {/* Status da loja - visual sutil */}
+            {/* Status da loja */}
             <div className="flex items-center gap-1.5 text-xs">
               <span
                 className="inline-block w-2 h-2 rounded-full"
-                style={{ background: abertoPorHorario ? '#16A34A' : '#DC2626' }}
+                style={{ background: lojaEstaAberta ? '#16A34A' : '#DC2626' }}
               />
-              <span style={{ color: abertoPorHorario ? '#15803D' : '#B91C1C' }}>
-                {abertoPorHorario ? 'Aberto' : 'Fechado'}
+              <span style={{ color: lojaEstaAberta ? '#15803D' : '#B91C1C' }}>
+                {lojaEstaAberta ? 'Aberta' : 'Fechada'}
               </span>
               {horarioMsg && (
                 <span className="text-gray-400">· {horarioMsg}</span>
               )}
             </div>
 
-            {/* Botão Abrir agora - SÓ aparece quando FORA do horário */}
-            {!abertoPorHorario && (
+            {/* Botão Abrir/Fechar - aparece sempre quando lojista quer mudar */}
+            {(podeAbrir || podeFechar) && (
               <button
-                onClick={abrirAgora}
+                onClick={lojaEstaAberta ? fecharLoja : abrirLoja}
                 disabled={toggleLoading}
-                className="px-2 py-1 text-xs rounded-lg transition flex items-center gap-1 bg-green-100 text-green-700 hover:bg-green-200"
-                title="Abrir agora (válido até horário de fechar)"
+                className={`px-2 py-1 text-xs rounded-lg transition flex items-center gap-1 ${
+                  lojaEstaAberta
+                    ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                }`}
+                title={lojaEstaAberta ? 'Fechar loja' : 'Abrir loja'}
               >
                 {toggleLoading ? (
-                  <span className="w-3 h-3 border border-green-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <Power size={10} />
-                    <span className="hidden sm:inline">Abrir agora</span>
+                    <span className="hidden sm:inline">
+                      {lojaEstaAberta ? 'Fechar' : 'Abrir'}
+                    </span>
                   </>
                 )}
               </button>
@@ -294,7 +344,7 @@ export default function VisaoGeralPage() {
       {/* Ações rápidas */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button
-          onClick={copyLink}
+          onClick={copiarLink}
           className="glass p-6 flex items-center gap-4 hover:bg-white/95 transition group text-left"
         >
           <div className="size-14 rounded-2xl flex items-center justify-center" style={{ background: 'var(--green)' }}>

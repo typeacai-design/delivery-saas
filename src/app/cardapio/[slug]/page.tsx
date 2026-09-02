@@ -136,8 +136,14 @@ export default async function CardapioPublicoPage({
   const diaInativo = horariosDia?.ativo === false
   const dentroHorario = !diaInativo && minutosAgora >= inicioMin && minutosAgora <= fimMin
 
-  // Loja aberta: combinacao de toggle manual + horario
-  const lojaAberta = config.loja_aberta !== false && dentroHorario
+  // Loja aberta: override manual tem prioridade sobre horário
+  // - config.loja_aberta === true → abre mesmo fora do horário
+  // - config.loja_aberta === false → fecha mesmo dentro do horário
+  // - config.loja_aberta undefined/null → segue o horário
+  const overrideLojaAberta = config.loja_aberta
+  const lojaAberta = overrideLojaAberta !== undefined
+    ? overrideLojaAberta
+    : dentroHorario
   const totalAvaliacoes = avaliacoesAprovadas?.length || 0
   const avaliacaoMedia = totalAvaliacoes ? Math.round((avaliacoesAprovadas || []).reduce((s: number, item: any) => s + Number(item.nota), 0) / totalAvaliacoes * 10) / 10 : 0
   // horarioDoDia: do dia atual do horarios_dias, ou fallback para o campo legado config.horario
