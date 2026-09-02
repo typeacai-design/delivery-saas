@@ -126,6 +126,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
   const [complementos, setComplementos] = useState<any[]>([])
   const [categoriasComp, setCategoriasComp] = useState<any[]>([])
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>('')
+  const [buscaComplemento, setBuscaComplemento] = useState<string>('')
   const [slug, setSlug] = useState<string>('')
   const [insumos, setInsumos] = useState<any[]>([])
   const supabase = createClient()
@@ -406,9 +407,19 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
     }))
   }
 
-  const complementoFiltrado = categoriaFiltro
-    ? complementos.filter((c) => c.categoria_id === categoriaFiltro)
-    : complementos
+  // Filtrar complementos por categoria E busca
+  const complementoFiltrado = complementos.filter((c) => {
+    // Filtro por categoria
+    if (categoriaFiltro && c.categoria_id !== categoriaFiltro) return false
+    // Filtro por busca de nome
+    if (buscaComplemento && buscaComplemento.trim().length > 0) {
+      const termo = buscaComplemento.trim().toLowerCase()
+      const nome = (c.nome || '').toLowerCase()
+      const desc = (c.descricao || '').toLowerCase()
+      if (!nome.includes(termo) && !desc.includes(termo)) return false
+    }
+    return true
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-center p-4 sm:p-6 overflow-y-auto" style={{ background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(4px)' }}>
@@ -748,21 +759,32 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
             )}
 
             <div className="flex items-center gap-2 mb-3">
+              {/* Busca por nome */}
               <div className="relative flex-1">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={buscaComplemento}
+                  onChange={(e) => setBuscaComplemento(e.target.value)}
+                  placeholder="Buscar complemento..."
+                  className="form-input pl-9 w-full"
+                />
+              </div>
+              {/* Filtro por categoria */}
+              <div className="relative">
                 <select
                   value={categoriaFiltro}
                   onChange={(e) => setCategoriaFiltro(e.target.value)}
-                  className="form-input pl-9"
+                  className="form-input"
                 >
-                  <option value="">Todas as categorias</option>
+                  <option value="">Todas</option>
                   {categoriasComp.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.nome}{c.descricao ? ` — ${c.descricao}` : ''}</option>
+                    <option key={c.id} value={c.id}>{c.nome}</option>
                   ))}
                 </select>
               </div>
               <span className="text-xs text-gray-500 whitespace-nowrap">
-                {form.complemento_ids.length} selecionado(s)
+                {form.complemento_ids.length} sel.
               </span>
             </div>
 

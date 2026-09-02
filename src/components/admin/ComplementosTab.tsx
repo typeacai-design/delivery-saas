@@ -88,22 +88,21 @@ export default function ComplementosTab() {
       .trim()
   }
 
+  // Normalizar texto para busca
+  const textoNormalizado = (texto: string) => {
+    if (!texto) return ''
+    return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+  }
+
   const compsPorLista = (listaId: string) => {
-    // Debug: mostra busca e complementos
-    if (busca) {
-      console.log('[DEBUG COMPLEMENTOS] Busca:', busca, '| Lista:', listaId)
-      console.log('[DEBUG COMPLEMENTOS] Complementos da lista:', complementos.filter(c => c.categoria_id === listaId).map(c => c.nome))
-    }
     return complementos.filter((c) => {
       if (c.categoria_id !== listaId) return false
-      // Busca simples: qualquer quantidade de caracteres, apenas verifica se contém
+      // Busca: qualquer quantidade de caracteres, busca no nome E descrição
       if (busca && busca.trim().length > 0) {
-        const termo = busca.trim().toLowerCase()
-        const nome = (c.nome || '').toLowerCase()
-        const desc = (c.descricao || '').toLowerCase()
-        const match = nome.includes(termo) || desc.includes(termo)
-        console.log('[DEBUG COMPLEMENTOS] Verificando:', c.nome, '| Match:', match)
-        if (!match) return false
+        const termo = textoNormalizado(busca.trim())
+        const nome = textoNormalizado(c.nome || '')
+        const desc = textoNormalizado(c.descricao || '')
+        return nome.includes(termo) || desc.includes(termo)
       }
       return true
     })
@@ -113,12 +112,24 @@ export default function ComplementosTab() {
     if (filtroGrupo && l.id !== filtroGrupo) return false
     if (filtroStatus === 'ativos' && !l.ativo) return false
     if (filtroStatus === 'inativos' && l.ativo) return false
-    // Busca simples: qualquer quantidade de caracteres
+
+    // Se há busca, mostrar lista se nome/desc correspondem OU se contém complementos que correspondem
     if (busca && busca.trim().length > 0) {
-      const termo = busca.trim().toLowerCase()
-      const nome = (l.nome || '').toLowerCase()
-      const desc = (l.descricao || '').toLowerCase()
-      return nome.includes(termo) || desc.includes(termo)
+      const termo = textoNormalizado(busca.trim())
+      const nomeMatch = textoNormalizado(l.nome || '').includes(termo)
+      const descMatch = textoNormalizado(l.descricao || '').includes(termo)
+
+      // Se a busca corresponde ao nome da lista, mostrar
+      if (nomeMatch || descMatch) return true
+
+      // Se a lista contém complementos que correspondem, mostrar
+      const compsDaLista = complementos.filter(c => c.categoria_id === l.id)
+      const temComplementoMatch = compsDaLista.some(c => {
+        const nome = textoNormalizado(c.nome || '')
+        const desc = textoNormalizado(c.descricao || '')
+        return nome.includes(termo) || desc.includes(termo)
+      })
+      return temComplementoMatch
     }
     return true
   })
