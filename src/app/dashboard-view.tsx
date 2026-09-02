@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
-import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power, PowerOff } from 'lucide-react'
+import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 // Função para verificar se a loja está aberta baseado no horário configurado
@@ -64,10 +64,25 @@ export default function VisaoGeralPage() {
       if (tenant) {
         setSlug(tenant.slug)
         const config = (tenant.config as any) || {}
-        // Detecta override manual: só se foi clicado nesta sessão (clicouLojaManual)
-        // Caso contrário, segue o horário
-        setLojaAberta(null) // sempre começa seguindo o horário
         setHorarios(config.horarios_dias || null)
+
+        // Lê override manual do banco (se existir)
+        // Se existir e for diferente do horário atual, ignora (expirou)
+        const overrideManual = config.loja_aberta
+        if (overrideManual !== undefined && overrideManual !== null) {
+          // Verifica se o override ainda é válido (dentro do horário)
+          if (overrideManual === abertoPorHorario) {
+            setLojaAberta(overrideManual)
+          } else {
+            // Override expirou - remove do banco e segue horário
+            const newConfig = { ...config }
+            delete newConfig.loja_aberta
+            await supabase.from('tenants').update({ config: newConfig }).eq('id', tenantId)
+            setLojaAberta(null)
+          }
+        } else {
+          setLojaAberta(null)
+        }
       }
 
       const hoje = new Date().toISOString().split('T')[0]
@@ -112,13 +127,9 @@ export default function VisaoGeralPage() {
   const abertoPorHorario = horarios ? verificarLojaAbertaPorHorario(horarios) : true
   const horarioMsg = horarios ? getHorarioMsg(horarios) : ''
 
-  // Status final: lojaAberta indica se está FORÇADO aberto/fechado manualmente
-  // Quando lojaAberta = null, mostra baseado no horário
-  // Quando lojaAberta = true, sempre mostra aberto
-  // Quando lojaAberta = false, sempre mostra fechado
-  const statusExibicao = lojaAberta !== null ? lojaAberta : abertoPorHorario
-  const foraDoHorario = !abertoPorHorario
-  const temOverride = lojaAberta !== null && lojaAberta !== abertoPorHorario
+  // Status final: lojaAberta indica override manual (true/false) ou null = seguir horário
+  // Quando dentro do horário → abre automático, SEM botão
+  // Quando fora do horário → mostra status + botão discreto "Abrir agora"
 
   const copyLink = async () => {
     const url = `${window.location.origin}/${slug}`
@@ -127,26 +138,23 @@ export default function VisaoGeralPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const toggleLoja = async () => {
+  const abrirAgora = async () => {
     setToggleLoading(true)
     try {
       const tenantId = await activeTenantId()
       if (!tenantId) { setToggleLoading(false); return }
 
-      // Toggle: se está aberto, fecha; se está fechado, abre
-      const novoStatus = !statusExibicao
-
+      // Salva override manual no banco
       await supabase
         .from('tenants')
         .update({
-          config: { ...((await supabase.from('tenants').select('config').eq('id', tenantId).single()).data?.config || {}), loja_aberta: novoStatus }
+          config: { ...((await supabase.from('tenants').select('config').eq('id', tenantId).single()).data?.config || {}), loja_aberta: true }
         })
         .eq('id', tenantId)
 
-      // Quando clicar, vira override manual (true/false)
-      setLojaAberta(novoStatus)
+      setLojaAberta(true)
     } catch (err) {
-      console.error('Erro toggle:', err)
+      console.error('Erro abrir:', err)
     } finally {
       setToggleLoading(false)
     }
@@ -173,54 +181,34 @@ export default function VisaoGeralPage() {
             <div className="flex items-center gap-1.5 text-xs">
               <span
                 className="inline-block w-2 h-2 rounded-full"
-                style={{ background: statusExibicao ? '#16A34A' : '#DC2626' }}
+                style={{ background: abertoPorHorario ? '#16A34A' : '#DC2626' }}
               />
-              <span style={{ color: statusExibicao ? '#15803D' : '#B91C1C' }}>
-                {statusExibicao ? 'Aberto' : 'Fechado'}
+              <span style={{ color: abertoPorHorario ? '#15803D' : '#B91C1C' }}>
+                {abertoPorHorario ? 'Aberto' : 'Fechado'}
               </span>
               {horarioMsg && (
                 <span className="text-gray-400">· {horarioMsg}</span>
               )}
-              {temOverride && (
-                <button
-                  onClick={async () => {
-                    // Resetar override: remove loja_aberta do config
-                    const tenantId = await activeTenantId()
-                    if (!tenantId) return
-                    const { data: tenant } = await supabase.from('tenants').select('config').eq('id', tenantId).single()
-                    const config = (tenant?.config || {}) as any
-                    delete config.loja_aberta
-                    await supabase.from('tenants').update({ config }).eq('id', tenantId)
-                    setLojaAberta(null)
-                  }}
-                  className="text-amber-600 hover:text-amber-700 ml-1 text-xs"
-                  title="Voltar a seguir o horário automaticamente"
-                >
-                  ✎
-                </button>
-              )}
             </div>
 
-            {/* Botão Abrir/Fechar - pequeno e discreto */}
-            <button
-              onClick={toggleLoja}
-              disabled={toggleLoading}
-              className={`px-2 py-1 text-xs rounded-lg transition flex items-center gap-1 ${
-                statusExibicao
-                  ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-              }`}
-              title={statusExibicao ? 'Fechar loja' : 'Abrir loja'}
-            >
-              {toggleLoading ? (
-                <span className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  {statusExibicao ? <PowerOff size={10} /> : <Power size={10} />}
-                  <span className="hidden sm:inline">{statusExibicao ? 'Fechar' : 'Abrir'}</span>
-                </>
-              )}
-            </button>
+            {/* Botão Abrir agora - SÓ aparece quando FORA do horário */}
+            {!abertoPorHorario && (
+              <button
+                onClick={abrirAgora}
+                disabled={toggleLoading}
+                className="px-2 py-1 text-xs rounded-lg transition flex items-center gap-1 bg-green-100 text-green-700 hover:bg-green-200"
+                title="Abrir agora (válido até horário de fechar)"
+              >
+                {toggleLoading ? (
+                  <span className="w-3 h-3 border border-green-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Power size={10} />
+                    <span className="hidden sm:inline">Abrir agora</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
