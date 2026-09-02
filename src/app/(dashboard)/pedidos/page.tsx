@@ -491,12 +491,18 @@ export default function PedidosPage() {
             filter: `tenant_id=eq.${tenantId}`,
           },
           (payload) => {
+            console.log('[REALTIME INSERT] Novo pedido recebido:', payload.new)
             const novoPedido = payload.new as Pedido
             setPedidos((prev) => {
+              console.log('[REALTIME INSERT] Estado atual, pedidos:', prev.length)
               // Filtrar pedidos apagados
               const filtrados = prev.filter(p => !p.deleted_at)
-              if (filtrados.some(p => p.id === novoPedido.id)) return filtrados
+              if (filtrados.some(p => p.id === novoPedido.id)) {
+                console.log('[REALTIME INSERT] Pedido já existe, ignorando')
+                return filtrados
+              }
               const novosPedidos = [novoPedido, ...filtrados]
+              console.log('[REALTIME INSERT] Adicionando pedido, novo total:', novosPedidos.length)
               adicionarAoLoop(novoPedido.id)
               const count = novosPedidos.filter((p) => p.status === 'novo').length
               setNovosPedidosCount(count)
@@ -513,6 +519,7 @@ export default function PedidosPage() {
             filter: `tenant_id=eq.${tenantId}`,
           },
           (payload) => {
+            console.log('[REALTIME UPDATE] Pedido atualizado:', payload.new)
             const atualizado = payload.new as Pedido
             setPedidos((prev) => {
               // Se foi apagado, remover da lista
@@ -530,7 +537,9 @@ export default function PedidosPage() {
             })
           }
         )
-        .subscribe()
+        .subscribe((status) => {
+          console.log('[REALTIME] Status da subscription:', status)
+        })
     }
 
     setupRealtime()
