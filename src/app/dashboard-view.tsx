@@ -64,14 +64,17 @@ export default function VisaoGeralPage() {
       if (tenant) {
         setSlug(tenant.slug)
         const config = (tenant.config as any) || {}
-        setHorarios(config.horarios_dias || null)
+        const horariosDias = config.horarios_dias || null
+        setHorarios(horariosDias)
+
+        // Calcula se está dentro do horário ATUALMENTE (não usa estado, usa a variável local)
+        const horarioAtual = horariosDias ? verificarLojaAbertaPorHorario(horariosDias) : true
 
         // Lê override manual do banco (se existir)
-        // Se existir e for diferente do horário atual, ignora (expirou)
         const overrideManual = config.loja_aberta
         if (overrideManual !== undefined && overrideManual !== null) {
-          // Verifica se o override ainda é válido (dentro do horário)
-          if (overrideManual === abertoPorHorario) {
+          // Verifica se o override ainda é válido (dentro do horário atual)
+          if (overrideManual === horarioAtual) {
             setLojaAberta(overrideManual)
           } else {
             // Override expirou - remove do banco e segue horário

@@ -1081,6 +1081,21 @@ export default function PedidosPage() {
 
       {/* Stats Bar - BOTOES PEQUENOS E CLICAVEIS */}
       <div className="flex gap-2 mb-4 flex-wrap">
+        {/* Botao TODOS - mostra todos os pedidos */}
+        {(() => {
+          const isActive = !filtroStatus || filtroStatus === 'todos'
+          return (
+            <button
+              key="todos"
+              onClick={() => setFiltroStatus('todos')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-blue-100 text-blue-700 shadow-md border-blue-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+            >
+              <span>Todos</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{pedidos.length}</span>
+            </button>
+          )
+        })()}
+
         {/* Fluxo: Novo + Andamento */}
         {(() => {
           const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
@@ -1160,23 +1175,31 @@ export default function PedidosPage() {
 
         // Filtro por tab
         if (pedidosTab === 'fluxo') {
-          // Fluxo: mostra apenas pedidos em andamento
-          if (filtroStatus === 'em_aberto' || !filtroStatus) {
+          // Fluxo: "todos" = todos os pedidos, "em_aberto" = só em andamento
+          if (!filtroStatus || filtroStatus === 'todos') {
+            // MOSTRA TODOS os pedidos quando "todos" ou null
+            pedidosFiltrados = [...pedidos]
+          } else if (filtroStatus === 'em_aberto') {
             pedidosFiltrados = pedidos.filter(p => STATUS_EM_ABERTO.includes(p.status))
           } else {
             pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
           }
         } else {
-          // Histórico: Concluídos só mostra pedidos ENTREGUES
-          if (filtroStatus === 'concluidos' || !filtroStatus) {
+          // Historico: "todos" = todos não cancelados
+          if (!filtroStatus || filtroStatus === 'todos') {
+            // MOSTRA TODOS os pedidos não cancelados quando "todos" ou null
+            pedidosFiltrados = pedidos.filter(p => p.status !== 'cancelado')
+          } else if (filtroStatus === 'concluidos') {
             pedidosFiltrados = pedidos.filter(p => p.status === 'entregue')
+          } else if (filtroStatus === 'cancelados') {
+            pedidosFiltrados = pedidos.filter(p => p.status === 'cancelado')
           } else {
             pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
           }
         }
 
-        // Aplicar filtro de data De/Apenas quando há filtro de status específico na aba fluxo
-        const pedidosPorData = (filtroStatus === 'em_aberto' || (pedidosTab === 'fluxo' && !filtroStatus))
+        // Aplicar filtro de data APENAS quando há filtro de status específico
+        const pedidosPorData = (!filtroStatus || filtroStatus === 'todos' || filtroStatus === 'em_aberto')
           ? pedidosFiltrados
           : pedidosFiltrados.filter(p => {
               const dataPedido = new Date(p.data_criacao).toISOString().split('T')[0]
