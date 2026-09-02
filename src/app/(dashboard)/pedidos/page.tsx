@@ -449,13 +449,12 @@ export default function PedidosPage() {
       if (!tenantId) { setLoading(false); return }
       setTenantIdAtual(tenantId)
 
-      // 1. Carrega pedidos iniciais (excluir apagados) - pegar mais para histórico
+      // 1. Carrega pedidos iniciais (COM deleted para debug)
       console.log('[DEBUG] Carregando pedidos para tenantId:', tenantId)
       const { data, error } = await supabase
         .from('pedidos')
         .select('*')
         .eq('tenant_id', tenantId)
-        .is('deleted_at', null)
         .order('data_criacao', { ascending: false })
         .limit(200)
 
