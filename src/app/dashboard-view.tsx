@@ -11,8 +11,11 @@ function verificarLojaAbertaPorHorario(config: any): { aberto: boolean; horarioM
   const horariosDias = config?.horarios_dias
   const horarioLegado = config?.horario || { abre: '08:00', fecha: '22:00' }
 
+  console.log('[DEBUG HORARIO] verificarLojaAbertaPorHorario called with config:', JSON.stringify({ horariosDias, horarioLegado }))
+
   // Se não há horários configurados, loja fica FECHADA
   if (!horariosDias || Object.keys(horariosDias).length === 0) {
+    console.log('[DEBUG HORARIO] Result: sem horarios, retornando FECHADO')
     return { aberto: false, horarioMsg: '' }
   }
 
@@ -22,12 +25,15 @@ function verificarLojaAbertaPorHorario(config: any): { aberto: boolean; horarioM
   const diaAtual = brasilia.getDay()
   const minutosAgora = brasilia.getHours() * 60 + brasilia.getMinutes()
 
+  console.log('[DEBUG HORARIO] Agora Brasilia:', brasilia.toISOString(), 'minutosAgora:', minutosAgora, 'diaAtual:', diaAtual)
+
   // Mapear dia da semana (0-6) para chave
   const DIAS_CHAVES = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
   const chaveDia = DIAS_CHAVES[diaAtual]
 
   // Pegar horários do dia
   let horariosDia = horariosDias[chaveDia]
+  console.log('[DEBUG HORARIO] horariosDia do dia', chaveDia, ':', horariosDia)
 
   // Se não encontrar pelo nome, tenta pelo índice numérico
   if (!horariosDia && Array.isArray(horariosDias)) {
@@ -44,15 +50,20 @@ function verificarLojaAbertaPorHorario(config: any): { aberto: boolean; horarioM
   const inicioMin = parseTime(horariosDia?.abre || horariosDia?.inicio) ?? parseTime(horarioLegado.abre) ?? 480
   const fimMin = parseTime(horariosDia?.fecha || horariosDia?.fim) ?? parseTime(horarioLegado.fecha) ?? 1320
 
+  console.log('[DEBUG HORARIO] inicioMin:', inicioMin, 'fimMin:', fimMin)
+
   // Verificar se o dia está marcado como inativo
   const diaInativo = horariosDia?.ativo === false
   const dentroHorario = !diaInativo && minutosAgora >= inicioMin && minutosAgora <= fimMin
+
+  console.log('[DEBUG HORARIO] diaInativo:', diaInativo, 'dentroHorario:', dentroHorario)
 
   // Mensagem do horário
   const abre = horariosDia?.abre || horariosDia?.inicio || horarioLegado.abre || '08:00'
   const fecha = horariosDia?.fecha || horariosDia?.fim || horarioLegado.fecha || '22:00'
   const horarioMsg = diaInativo ? `${chaveDia} - Fechado` : `${abre} - ${fecha}`
 
+  console.log('[DEBUG HORARIO] Result: aberto:', dentroHorario)
   return { aberto: dentroHorario, horarioMsg }
 }
 
@@ -151,7 +162,11 @@ export default function VisaoGeralPage() {
   }
 
   // Recalcular status baseado no horarios state
-  const calculoHorario = horarios ? verificarLojaAbertaPorHorario({ horarios_dias: horarios }) : { aberto: false, horarioMsg: '' }
+  console.log('[DEBUG HORARIO] horarios state:', horarios, 'tipo:', typeof horarios)
+  const calculoHorario = horarios
+    ? verificarLojaAbertaPorHorario({ horarios_dias: horarios })
+    : { aberto: false, horarioMsg: '' }
+  console.log('[DEBUG HORARIO] resultado:', calculoHorario)
   const abertoPorHorario = calculoHorario.aberto
   const horarioMsg = calculoHorario.horarioMsg
 
