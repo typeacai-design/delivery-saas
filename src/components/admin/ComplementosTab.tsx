@@ -79,7 +79,9 @@ export default function ComplementosTab() {
   }
 
   const normalizar = (texto: string) => {
+    if (!texto) return ''
     return texto
+      .toString()
       .toLowerCase()
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '')
@@ -87,18 +89,13 @@ export default function ComplementosTab() {
   }
 
   const compsPorLista = (listaId: string) => {
-    if (busca) {
-      console.log('[DEBUG] Busca ativa:', busca, 'normalizado:', normalizar(busca))
-    }
     return complementos.filter((c) => {
       if (c.categoria_id !== listaId) return false
-      if (busca) {
-        const termo = normalizar(busca)
-        const nome = normalizar(c.nome || '')
-        const desc = normalizar(c.descricao || '')
-        const nomeMatch = nome.includes(termo)
-        const descMatch = desc.includes(termo)
-        if (!nomeMatch && !descMatch) return false
+      if (busca && busca.trim().length >= 2) {
+        const termo = busca.trim().toLowerCase()
+        const nome = (c.nome || '').toLowerCase()
+        const desc = (c.descricao || '').toLowerCase()
+        return nome.includes(termo) || desc.includes(termo)
       }
       return true
     })
@@ -108,13 +105,11 @@ export default function ComplementosTab() {
     if (filtroGrupo && l.id !== filtroGrupo) return false
     if (filtroStatus === 'ativos' && !l.ativo) return false
     if (filtroStatus === 'inativos' && l.ativo) return false
-    if (busca) {
-      const termo = normalizar(busca)
-      const nome = normalizar(l.nome || '')
-      const desc = normalizar(l.descricao || '')
-      const nomeMatch = nome.includes(termo)
-      const descMatch = desc.includes(termo)
-      if (!nomeMatch && !descMatch) return false
+    if (busca && busca.trim().length >= 2) {
+      const termo = busca.trim().toLowerCase()
+      const nome = (l.nome || '').toLowerCase()
+      const desc = (l.descricao || '').toLowerCase()
+      return nome.includes(termo) || desc.includes(termo)
     }
     return true
   })

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, Activity, History } from 'lucide-react'
+import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, Activity, History, ChefHat, Bell, Bike } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -425,7 +425,7 @@ export default function PedidosPage() {
   const [novosPedidosCount, setNovosPedidosCount] = useState(0)
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
-  const [filtroStatus, setFiltroStatus] = useState<string | null>('todos') // Padrão: todos
+  const [filtroStatus, setFiltroStatus] = useState<string>('') // Padrão: sem filtro
   const [filtroDataDe, setFiltroDataDe] = useState<string>(new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]) // 7 dias atrás
   const [filtroDataAte, setFiltroDataAte] = useState<string>(new Date().toISOString().split('T')[0]) // Hoje
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
@@ -989,7 +989,7 @@ export default function PedidosPage() {
             {/* Tabs de subseção */}
             <div className="flex bg-white rounded-2xl border p-1 gap-1">
               <button
-                onClick={() => setPedidosTab('fluxo')}
+                onClick={() => { setPedidosTab('fluxo'); setFiltroStatus('') }}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
                   pedidosTab === 'fluxo'
                     ? 'bg-blue-600 text-white shadow-sm'
@@ -1005,7 +1005,7 @@ export default function PedidosPage() {
                 )}
               </button>
               <button
-                onClick={() => setPedidosTab('historico')}
+                onClick={() => { setPedidosTab('historico'); setFiltroStatus('') }}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
                   pedidosTab === 'historico'
                     ? 'bg-blue-600 text-white shadow-sm'
@@ -1082,67 +1082,103 @@ export default function PedidosPage() {
         </div>
       </div>
 
-      {/* Stats Bar - BOTOES PEQUENOS E CLICAVEIS */}
+      {/* Stats Bar - BOTOES POR ABA */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        {/* Botao TODOS - mostra todos os pedidos */}
-        {(() => {
-          const isActive = !filtroStatus || filtroStatus === 'todos'
-          return (
-            <button
-              key="todos"
-              onClick={() => setFiltroStatus('todos')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-blue-100 text-blue-700 shadow-md border-blue-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-            >
-              <span>Todos</span>
-              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{pedidos.length}</span>
-            </button>
-          )
-        })()}
-
-        {/* Fluxo: Novo + Andamento */}
-        {(() => {
-          const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
-          const count = pedidos.filter((p) => STATUS_EM_ABERTO.includes(p.status)).length
-          const isActive = filtroStatus === 'em_aberto'
-          return (
-            <button
-              key="em_aberto"
-              onClick={() => { setFiltroStatus('em_aberto'); setPedidosTab('fluxo') }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-purple-100 text-purple-700 shadow-md border-purple-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-            >
-              <Clock className="w-3 h-3" />
-              <span>Novo</span>
-              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
-            </button>
-          )
-        })()}
-
-        {pedidosTab === 'fluxo' && STATUS_LISTA.filter(s => s !== 'novo' && s !== 'cancelado').map((status) => {
-          const count = pedidos.filter((p) => p.status === status).length
-          const config = STATUS_CONFIG[status]
-          const isActive = filtroStatus === status
-          return (
-            <button
-              key={status}
-              onClick={() => setFiltroStatus(isActive ? 'em_aberto' : status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? config.bgColor + ' ' + config.color + ' shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-            >
-              <config.icon className="w-3 h-3" />
-              <span>{config.label}</span>
-              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
-            </button>
-          )
-        })}
+        {pedidosTab === 'fluxo' && (
+          <>
+            {/* Novo */}
+            {(() => {
+              const count = pedidos.filter((p) => p.status === 'novo').length
+              const isActive = filtroStatus === 'novo'
+              return (
+                <button
+                  key="novo"
+                  onClick={() => setFiltroStatus(isActive ? '' : 'novo')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-purple-100 text-purple-700 shadow-md border-purple-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <Clock className="w-3 h-3" />
+                  <span>Novo</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+            {/* Preparando */}
+            {(() => {
+              const count = pedidos.filter((p) => p.status === 'preparando').length
+              const isActive = filtroStatus === 'preparando'
+              return (
+                <button
+                  key="preparando"
+                  onClick={() => setFiltroStatus(isActive ? '' : 'preparando')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-blue-100 text-blue-700 shadow-md border-blue-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <ChefHat className="w-3 h-3" />
+                  <span>Preparando</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+            {/* Pronto */}
+            {(() => {
+              const count = pedidos.filter((p) => p.status === 'pronto').length
+              const isActive = filtroStatus === 'pronto'
+              return (
+                <button
+                  key="pronto"
+                  onClick={() => setFiltroStatus(isActive ? '' : 'pronto')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-amber-100 text-amber-700 shadow-md border-amber-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <Bell className="w-3 h-3" />
+                  <span>Pronto</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+            {/* Saiu */}
+            {(() => {
+              const count = pedidos.filter((p) => p.status === 'saiu').length
+              const isActive = filtroStatus === 'saiu'
+              return (
+                <button
+                  key="saiu"
+                  onClick={() => setFiltroStatus(isActive ? '' : 'saiu')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-indigo-100 text-indigo-700 shadow-md border-indigo-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <Bike className="w-3 h-3" />
+                  <span>Saiu</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+            {/* Entregue */}
+            {(() => {
+              const count = pedidos.filter((p) => p.status === 'entregue').length
+              const isActive = filtroStatus === 'entregue'
+              return (
+                <button
+                  key="entregue"
+                  onClick={() => setFiltroStatus(isActive ? '' : 'entregue')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-green-100 text-green-700 shadow-md border-green-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <Check className="w-3 h-3" />
+                  <span>Entregue</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+          </>
+        )}
 
         {pedidosTab === 'historico' && (
           <>
+            {/* Concluídos */}
             {(() => {
               const count = pedidos.filter((p) => p.status === 'entregue').length
               const isActive = filtroStatus === 'concluidos'
               return (
                 <button
                   key="concluidos"
-                  onClick={() => setFiltroStatus(isActive ? 'historico' : 'concluidos')}
+                  onClick={() => setFiltroStatus(isActive ? '' : 'concluidos')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-gray-100 text-gray-700 shadow-md border-gray-400' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                 >
                   <Check className="w-3 h-3" />
@@ -1151,13 +1187,14 @@ export default function PedidosPage() {
                 </button>
               )
             })()}
+            {/* Cancelados */}
             {(() => {
               const count = pedidos.filter((p) => p.status === 'cancelado').length
               const isActive = filtroStatus === 'cancelado'
               return (
                 <button
                   key="cancelado"
-                  onClick={() => setFiltroStatus(isActive ? 'historico' : 'cancelado')}
+                  onClick={() => setFiltroStatus(isActive ? '' : 'cancelado')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-red-100 text-red-700 shadow-md border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                 >
                   <X className="w-3 h-3" />
@@ -1172,58 +1209,59 @@ export default function PedidosPage() {
 
       {/* Pedidos filtrados ou todos */}
       {(() => {
-        const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
-
         let pedidosFiltrados = pedidos
 
-        // Filtro por tab
+        // Filtro por tab e status
         if (pedidosTab === 'fluxo') {
-          // Fluxo: "todos" = todos os pedidos, "em_aberto" = só em andamento
-          if (!filtroStatus || filtroStatus === 'todos') {
-            // MOSTRA TODOS os pedidos quando "todos" ou null
+          // Fluxo: sem filtro = todos os pedidos
+          if (!filtroStatus) {
             pedidosFiltrados = [...pedidos]
-          } else if (filtroStatus === 'em_aberto') {
-            pedidosFiltrados = pedidos.filter(p => STATUS_EM_ABERTO.includes(p.status))
           } else {
             pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
           }
         } else {
-          // Historico: "todos" = todos não cancelados
-          if (!filtroStatus || filtroStatus === 'todos') {
-            // MOSTRA TODOS os pedidos não cancelados quando "todos" ou null
+          // Historico: sem filtro = todos não cancelados
+          if (!filtroStatus) {
             pedidosFiltrados = pedidos.filter(p => p.status !== 'cancelado')
           } else if (filtroStatus === 'concluidos') {
             pedidosFiltrados = pedidos.filter(p => p.status === 'entregue')
-          } else if (filtroStatus === 'cancelados') {
+          } else if (filtroStatus === 'cancelado') {
             pedidosFiltrados = pedidos.filter(p => p.status === 'cancelado')
           } else {
             pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
           }
         }
 
-        // Aplicar filtro de data APENAS quando há filtro de status específico
-        const pedidosPorData = (!filtroStatus || filtroStatus === 'todos' || filtroStatus === 'em_aberto')
-          ? pedidosFiltrados
-          : pedidosFiltrados.filter(p => {
+        // Aplicar filtro de data APENAS quando há filtro de status específico E datas definidas
+        const pedidosPorData = (filtroStatus && (filtroDataDe || filtroDataAte))
+          ? pedidosFiltrados.filter(p => {
               const dataPedido = new Date(p.data_criacao).toISOString().split('T')[0]
-              return dataPedido >= filtroDataDe && dataPedido <= filtroDataAte
+              const deOk = !filtroDataDe || dataPedido >= filtroDataDe
+              const ateOk = !filtroDataAte || dataPedido <= filtroDataAte
+              return deOk && ateOk
             })
+          : pedidosFiltrados
 
-        const statusConfig = filtroStatus && filtroStatus !== 'em_aberto' && filtroStatus !== 'historico' ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
+        const statusConfig = filtroStatus ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
         return (
           <>
-            {filtroStatus && filtroStatus !== 'em_aberto' && filtroStatus !== 'historico' && (
+            {filtroStatus && statusConfig && (
               <div className="mb-4 text-sm text-gray-500">
-                Mostrando <strong>{statusConfig?.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
-                <button onClick={() => setFiltroStatus(pedidosTab === 'fluxo' ? 'em_aberto' : 'historico')} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
+                Mostrando <strong>{statusConfig.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
+                <button onClick={() => setFiltroStatus('')} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
               </div>
             )}
 
-            {(filtroDataDe || filtroDataAte) && filtroStatus !== 'em_aberto' && (
+            {(filtroDataDe || filtroDataAte) && filtroStatus && (
               <div className="mb-4 text-sm text-gray-500">
                 📅 Período: <strong>{filtroDataDe ? new Date(filtroDataDe + 'T00:00:00').toLocaleDateString('pt-BR') : '...'} até {filtroDataAte ? new Date(filtroDataAte + 'T00:00:00').toLocaleDateString('pt-BR') : '...'}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
               </div>
             )}
+
+            {/* DEBUG: mostrar total de pedidos carregados */}
+            <div className="mb-4 text-xs text-gray-400 bg-gray-50 p-2 rounded">
+              📊 Total de pedidos carregados: <strong>{pedidos.length}</strong> | Filtrados: <strong>{pedidosPorData.length}</strong>
+            </div>
 
       {/* Lista de Pedidos em GRID 3 COLUNAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
