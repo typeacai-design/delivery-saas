@@ -6,33 +6,54 @@ import { activeTenantId } from '@/lib/active-tenant-client'
 import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
-// Função para verificar se a loja está aberta baseado no horário configurado
-function verificarLojaAbertaPorHorario(horarios: any): boolean {
-  // Se não há horários configurados, loja fica FECHADA
-  if (!horarios || Object.keys(horarios).length === 0) return false
-  const agora = new Date()
-  // Get day name in Portuguese
-  const diaMap: Record<number, string> = { 0: 'dom', 1: 'seg', 2: 'ter', 3: 'qua', 4: 'qui', 5: 'sex', 6: 'sab' }
-  const diaSemana = diaMap[agora.getDay()]
-  const diaConfig = horarios[diaSemana]
-  if (!diaConfig || !diaConfig.ativo) return false
-  const horaAtual = agora.getHours() * 60 + agora.getMinutes()
-  const [hAbre, mAbre] = (diaConfig.abre || '00:00').split(':').map(Number)
-  const [hFecha, mFecha] = (diaConfig.fecha || '23:59').split(':').map(Number)
-  const horaAbre = hAbre * 60 + mAbre
-  const horaFecha = hFecha * 60 + mFecha
-  return horaAtual >= horaAbre && horaAtual <= horaFecha
-}
+// Função para verificar se a loja está aberta baseado no horário configurado (mesma lógica do cardápio público)
+function verificarLojaAbertaPorHorario(config: any): { aberto: boolean; horarioMsg: string } {
+  const horariosDias = config?.horarios_dias
+  const horarioLegado = config?.horario || { abre: '08:00', fecha: '22:00' }
 
-// Função para obter mensagem do horário
-function getHorarioMsg(horarios: any): string {
-  if (!horarios) return ''
+  // Se não há horários configurados, loja fica FECHADA
+  if (!horariosDias || Object.keys(horariosDias).length === 0) {
+    return { aberto: false, horarioMsg: '' }
+  }
+
+  // Usar timezone do Brasil
   const agora = new Date()
-  const diaSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'][agora.getDay()]
-  const diaConfig = horarios[diaSemana]
-  if (!diaConfig) return ''
-  if (!diaConfig.ativo) return `${diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1)} - Fechado`
-  return `${diaConfig.abre} - ${diaConfig.fecha}`
+  const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+  const diaAtual = brasilia.getDay()
+  const minutosAgora = brasilia.getHours() * 60 + brasilia.getMinutes()
+
+  // Mapear dia da semana (0-6) para chave
+  const DIAS_CHAVES = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
+  const chaveDia = DIAS_CHAVES[diaAtual]
+
+  // Pegar horários do dia
+  let horariosDia = horariosDias[chaveDia]
+
+  // Se não encontrar pelo nome, tenta pelo índice numérico
+  if (!horariosDia && Array.isArray(horariosDias)) {
+    horariosDia = horariosDias.find((item: any) => Number(item.dia ?? item.dia_semana) === diaAtual)
+  }
+
+  // Parse do horário
+  const parseTime = (s: any) => {
+    if (!s) return null
+    const parts = String(s).split(':').map(Number)
+    return parts.length >= 2 ? parts[0] * 60 + parts[1] : null
+  }
+
+  const inicioMin = parseTime(horariosDia?.abre || horariosDia?.inicio) ?? parseTime(horarioLegado.abre) ?? 480
+  const fimMin = parseTime(horariosDia?.fecha || horariosDia?.fim) ?? parseTime(horarioLegado.fecha) ?? 1320
+
+  // Verificar se o dia está marcado como inativo
+  const diaInativo = horariosDia?.ativo === false
+  const dentroHorario = !diaInativo && minutosAgora >= inicioMin && minutosAgora <= fimMin
+
+  // Mensagem do horário
+  const abre = horariosDia?.abre || horariosDia?.inicio || horarioLegado.abre || '08:00'
+  const fecha = horariosDia?.fecha || horariosDia?.fim || horarioLegado.fecha || '22:00'
+  const horarioMsg = diaInativo ? `${chaveDia} - Fechado` : `${abre} - ${fecha}`
+
+  return { aberto: dentroHorario, horarioMsg }
 }
 
 export default function VisaoGeralPage() {
@@ -70,8 +91,8 @@ export default function VisaoGeralPage() {
         const horariosDias = config.horarios_dias || null
         setHorarios(horariosDias)
 
-        // Calcula se está dentro do horário ATUALMENTE (função retorna false se não há horários)
-        const horarioAtual = verificarLojaAbertaPorHorario(horariosDias)
+        // Calcula se está dentro do horário ATUALMENTE
+        const { aberto: horarioAtual, horarioMsg } = verificarLojaAbertaPorHorario(config)
 
         // Lê override manual do banco (se existir)
         const overrideManual = config.loja_aberta
@@ -129,9 +150,10 @@ export default function VisaoGeralPage() {
     }
   }
 
-  // Verificar se está aberto por horário (para exibição sutil)
-  const abertoPorHorario = horarios ? verificarLojaAbertaPorHorario(horarios) : true
-  const horarioMsg = horarios ? getHorarioMsg(horarios) : ''
+  // Recalcular status baseado no horarios state
+  const calculoHorario = horarios ? verificarLojaAbertaPorHorario({ horarios_dias: horarios }) : { aberto: false, horarioMsg: '' }
+  const abertoPorHorario = calculoHorario.aberto
+  const horarioMsg = calculoHorario.horarioMsg
 
   // Status final: lojaAberta indica override manual (true/false) ou null = seguir horário
   // Quando dentro do horário → abre automático, SEM botão

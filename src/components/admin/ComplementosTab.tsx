@@ -87,6 +87,9 @@ export default function ComplementosTab() {
   }
 
   const compsPorLista = (listaId: string) => {
+    if (busca) {
+      console.log('[DEBUG] Busca ativa:', busca, 'normalizado:', normalizar(busca))
+    }
     return complementos.filter((c) => {
       if (c.categoria_id !== listaId) return false
       if (busca) {

@@ -425,7 +425,7 @@ export default function PedidosPage() {
   const [novosPedidosCount, setNovosPedidosCount] = useState(0)
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
-  const [filtroStatus, setFiltroStatus] = useState<string | null>(null) // Padrão: todos em aberto
+  const [filtroStatus, setFiltroStatus] = useState<string | null>('todos') // Padrão: todos
   const [filtroDataDe, setFiltroDataDe] = useState<string>(new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]) // 7 dias atrás
   const [filtroDataAte, setFiltroDataAte] = useState<string>(new Date().toISOString().split('T')[0]) // Hoje
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
@@ -1104,7 +1104,7 @@ export default function PedidosPage() {
         {(() => {
           const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
           const count = pedidos.filter((p) => STATUS_EM_ABERTO.includes(p.status)).length
-          const isActive = filtroStatus === 'em_aberto' || (!filtroStatus && pedidosTab === 'fluxo')
+          const isActive = filtroStatus === 'em_aberto'
           return (
             <button
               key="em_aberto"
