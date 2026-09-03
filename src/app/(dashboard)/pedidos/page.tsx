@@ -579,31 +579,29 @@ export default function PedidosPage() {
   }, [])
 
   const loadPedidos = async () => {
-    const tenantId = await activeTenantId()
-    if (!tenantId) { setLoading(false); return }
+    try {
+      const apiRes = await fetch('/api/pedidos/list', { cache: 'no-store' })
+      const apiData = await apiRes.json()
 
-    const { data } = await supabase
-      .from('pedidos')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('data_criacao', { ascending: false })
-      .limit(200)
+      if (!apiRes.ok || !apiData.ok) {
+        console.error('[DEBUG PEDIDOS] Erro no loadPedidos:', apiData)
+        return
+      }
 
-    const pedidosData = data || []
+      const pedidosData: any[] = apiData.pedidos || []
 
-    if (loading) {
-      inicializarIds(pedidosData)
+      if (loading) {
+        inicializarIds(pedidosData)
+      }
+
+      const countNovos = pedidosData.filter((p: any) => p.status === 'novo').length
+      setNovosPedidosCount(countNovos)
+
+      setPedidos(pedidosData)
+      verificarMudancaStatus(pedidosData)
+    } catch (err) {
+      console.error('[DEBUG PEDIDOS] Erro no loadPedidos:', err)
     }
-
-    const countNovos = pedidosData.filter((p) => p.status === 'novo').length
-    setNovosPedidosCount(countNovos)
-
-    setPedidos(pedidosData)
-    verificarMudancaStatus(pedidosData)
-
-    const { data: entregadores } = await supabase.from('motoboys').select('*').eq('tenant_id', tenantId).order('nome')
-    setMotoboys(entregadores || [])
-    setLoading(false)
   }
 
   const atribuirMotoboy = async (pedidoId: string, motoboyId: string) => {
