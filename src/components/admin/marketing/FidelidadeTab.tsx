@@ -54,6 +54,7 @@ export default function FidelidadeTab() {
       config: {
         ...configAtual,
         fidelidade_ativo: config.fidelidade_ativo,
+        fidelidade_tipo: config.fidelidade_ativo ? 'por_produto' : 'por_valor',
         pontos_por_real: config.pontos_por_real,
         cashback_ativo: config.cashback_ativo,
         cashback_percent: config.cashback_percent,

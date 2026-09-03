@@ -145,6 +145,7 @@ export async function POST(request: Request) {
       variante_nome: item.variante_nome || null,
       complementos: item.complementos || [],
       observacao: item.observacao || null,
+      pontos: item.pontos || 0,
     }))
 
     const { error: itensError } = await supabase

@@ -21,6 +21,7 @@ export interface CartItem {
   complementos: CartComplemento[]
   tempo_preparo_min?: number
   observacao?: string
+  pontos?: number
 }
 
 export interface CartComplemento {
@@ -372,6 +373,7 @@ export function CheckoutDrawer({
           variante_nome: item.variante_nome || null,
           complementos: item.complementos,
           observacao: item.observacao || '',
+          pontos: item.pontos || 0,
         })),
         valor_subtotal: subtotal,
         taxa_entrega: taxaEntregaAplicada,
@@ -1401,6 +1403,7 @@ export function ProdutoModal({
       complementos: complementoItems,
       tempo_preparo_min: produto.tempo_preparo_min || 30,
       observacao: observacao.trim() || undefined,
+      pontos: produto.pontos || 0,
     }
     if (initialItem && onReplaceItem) onReplaceItem(initialItem.id, itemMontado)
     else onAddToCart(itemMontado)

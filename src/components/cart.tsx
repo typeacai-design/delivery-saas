@@ -15,6 +15,7 @@ export interface CartItem {
   variante_preco?: number
   complementos: CartComplemento[]
   tempo_preparo_min?: number
+  pontos?: number
 }
 
 export interface CartComplemento {
@@ -330,7 +331,8 @@ export function ProdutoModal({
       variante_nome: variante?.nome,
       variante_preco: variante?.preco_adicional,
       complementos: complementoItems,
-      tempo_preparo_min: produto.tempo_preparo_min || 30
+      tempo_preparo_min: produto.tempo_preparo_min || 30,
+      pontos: produto.pontos || 0,
     })
 
     // Reset
