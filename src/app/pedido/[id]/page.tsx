@@ -24,14 +24,14 @@ export default async function PedidoClientePage({
   if (/^\d{5}\/\d{2}$/.test(id)) {
     const { data } = await supabase
       .from('pedidos')
-      .select('*, pedido_itens(*), tenants(nome, slug, logo_url, telefone, cor_principal)')
+      .select('*, pedido_itens(*), tenants(nome, slug, logo_url, telefone, cor_principal, config)')
       .eq('codigo', id)
       .single()
     pedido = data
   } else {
     const { data } = await supabase
       .from('pedidos')
-      .select('*, pedido_itens(*), tenants(nome, slug, logo_url, telefone, cor_principal)')
+      .select('*, pedido_itens(*), tenants(nome, slug, logo_url, telefone, cor_principal, config)')
       .eq('id', id)
       .single()
     pedido = data
@@ -44,6 +44,15 @@ export default async function PedidoClientePage({
   // Buscar o codigo formatado
   const codigoFormatado = pedido.codigo || `#${pedido.id.slice(0, 8)}`
 
+  // Extrair cores e tipografia do config do lojista
+  const tenantConfig = (pedido.tenants?.config as any) || {}
+  const customColors = {
+    primary: tenantConfig.cardapio_cores?.primary || pedido.tenants?.cor_principal || undefined,
+    secondary: tenantConfig.cardapio_cores?.secondary || undefined,
+    accent: tenantConfig.cardapio_cores?.accent || pedido.tenants?.cor_principal || undefined,
+  }
+  const tipografia = tenantConfig.cardapio_tipografia || 'classica'
+
   return (
     <PedidoClienteWrapper
       codigo={codigoFormatado}
@@ -54,6 +63,8 @@ export default async function PedidoClientePage({
       pedidoId={pedido.id}
       initialStatus={pedido.status}
       initialData={pedido}
+      customColors={customColors}
+      tipografia={tipografia}
     />
   )
 }

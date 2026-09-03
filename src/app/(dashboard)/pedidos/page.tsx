@@ -1299,12 +1299,6 @@ export default function PedidosPage() {
               </div>
             )}
 
-            {/* DEBUG: mostrar total de pedidos carregados */}
-            <div className="mb-4 text-xs text-gray-400 bg-gray-50 p-2 rounded font-mono">
-              📊 tenantId: <strong>{tenantIdAtual || 'vazio'}</strong> | Carregados: <strong>{pedidos.length}</strong> | Filtrados: <strong>{pedidosPorData.length}</strong>
-              <br />Status filter: <strong>{filtroStatus || '(nenhum)'}</strong> | Tab: <strong>{pedidosTab}</strong>
-            </div>
-
       {/* Lista de Pedidos em GRID 3 COLUNAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {loading ? (
