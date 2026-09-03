@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ChefHat, Check, Bike, Home, MapPin, Receipt, MessageCircle, ChevronLeft, MoreHorizontal, Package, X as XIcon } from 'lucide-react'
+import { Clock, Check, Truck, X, MapPin, Phone, User, Loader2, Package, ChefHat, Bike, Home } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 interface Props {
@@ -14,91 +14,15 @@ interface Props {
   pedidoId: string
   initialStatus: string
   initialData: any
-  // Cores personalizadas do lojista (cardapio_cores)
-  customColors?: { primary?: string; secondary?: string; accent?: string }
-  // Tipografia escolhida
-  tipografia?: string
 }
 
-const STATUS_CONFIG: Record<string, {
-  label: string
-  descricao: string
-  icon: any
-  previsaoMin: number
-  previsaoMax: number
-}> = {
-  novo: {
-    label: 'Aguardando confirmação',
-    descricao: 'Seu pedido foi recebido e está aguardando a loja confirmar.',
-    icon: Package,
-    previsaoMin: 5,
-    previsaoMax: 10,
-  },
-  preparando: {
-    label: 'Seu pedido está sendo preparado',
-    descricao: 'A cozinha já começou a preparar tudo com cuidado.',
-    icon: ChefHat,
-    previsaoMin: 20,
-    previsaoMax: 30,
-  },
-  pronto: {
-    label: 'Pedido pronto',
-    descricao: 'Tudo pronto! Em breve sai para entrega.',
-    icon: Check,
-    previsaoMin: 5,
-    previsaoMax: 10,
-  },
-  saiu: {
-    label: 'Saiu para entrega',
-    descricao: 'Seu pedido está a caminho!',
-    icon: Bike,
-    previsaoMin: 10,
-    previsaoMax: 25,
-  },
-  entregue: {
-    label: 'Pedido entregue',
-    descricao: 'Pedido entregue! Bom apetite 🎉',
-    icon: Home,
-    previsaoMin: 0,
-    previsaoMax: 0,
-  },
-  cancelado: {
-    label: 'Pedido cancelado',
-    descricao: 'Este pedido foi cancelado.',
-    icon: XIcon,
-    previsaoMin: 0,
-    previsaoMax: 0,
-  },
-}
-
-const ETAPAS = ['preparando', 'pronto', 'saiu', 'entregue'] as const
-
-// Converte hex pra HSL — usado para ajustar o accent
-function hexToHsl(hex: string): { h: number; s: number; l: number } {
-  const r = parseInt(hex.slice(1, 3), 16) / 255
-  const g = parseInt(hex.slice(3, 5), 16) / 255
-  const b = parseInt(hex.slice(5, 7), 16) / 255
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  let h = 0, s = 0
-  const l = (max + min) / 2
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break
-      case g: h = (b - r) / d + 2; break
-      case b: h = (r - g) / d + 4; break
-    }
-    h /= 6
-  }
-  return { h: h * 360, s: s * 100, l: l * 100 }
-}
-
-function isDark(hex: string): boolean {
-  if (!hex || !hex.startsWith('#')) return false
-  const { l } = hexToHsl(hex)
-  return l < 50
+const STATUS_LABELS: Record<string, { label: string; icon: any; color: string }> = {
+  novo: { label: 'Pedido Recebido', icon: Package, color: 'bg-orange-500' },
+  preparando: { label: 'Em Preparo', icon: ChefHat, color: 'bg-yellow-500' },
+  pronto: { label: 'Pronto', icon: Check, color: 'bg-green-500' },
+  saiu: { label: 'Saiu para Entrega', icon: Bike, color: 'bg-blue-500' },
+  entregue: { label: 'Entregue', icon: Home, color: 'bg-green-600' },
+  cancelado: { label: 'Cancelado', icon: X, color: 'bg-red-500' },
 }
 
 export default function PedidoClienteWrapper({
@@ -110,31 +34,12 @@ export default function PedidoClienteWrapper({
   pedidoId,
   initialStatus,
   initialData,
-  customColors,
-  tipografia,
 }: Props) {
   const [pedido, setPedido] = useState(initialData)
   const supabase = createClient()
 
-  // Resolve cores a partir do que o lojista configurou no Design
-  const palette = useMemo(() => {
-    const primary = customColors?.primary || '#16A34A'
-    const secondary = customColors?.secondary || '#15803D'
-    const accent = customColors?.accent || primary
-    return { primary, secondary, accent }
-  }, [customColors?.primary, customColors?.secondary, customColors?.accent])
-
-  // Font family baseado na tipografia escolhida
-  const fontFamily = useMemo(() => {
-    const map: Record<string, string> = {
-      classica: 'inherit',
-      moderna: '"Inter", system-ui, sans-serif',
-      minimalista: '"Syne", system-ui, sans-serif',
-    }
-    return map[tipografia || 'classica']
-  }, [tipografia])
-
   useEffect(() => {
+    // Inscrever no realtime para receber atualizacoes
     const channel = supabase
       .channel('pedido-cliente')
       .on(
@@ -154,142 +59,92 @@ export default function PedidoClienteWrapper({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [pedidoId, supabase])
+  }, [pedidoId])
 
   const status = pedido.status || initialStatus
-  const statusInfo = STATUS_CONFIG[status] || STATUS_CONFIG.novo
+  const statusInfo = STATUS_LABELS[status] || STATUS_LABELS.novo
   const StatusIcon = statusInfo.icon
+
+  // Ordem dos status
+  const ordem = ['novo', 'preparando', 'pronto', 'saiu', 'entregue']
+  const indexAtual = ordem.indexOf(status)
   const isCancelado = status === 'cancelado'
 
-  // Calcula etapa atual na timeline
-  const etapaAtualIndex = ETAPAS.indexOf(status as any)
-  const isCompleto = status === 'entregue'
-
-  // Monta endereço completo
-  const enderecoCompleto = pedido.endereco_entrega
-    ? [
-        pedido.endereco_entrega,
-        pedido.numero_entrega ? `, ${pedido.numero_entrega}` : '',
-        pedido.complemento_entrega ? ` (${pedido.complemento_entrega})` : '',
-      ].join('')
-    : pedido.bairro_entrega || ''
-
-  // Quantidade de itens
-  const totalItens = (pedido.pedido_itens || []).reduce((sum: number, i: any) => sum + (Number(i.quantidade) || 1), 0)
-
-  // Cor da timeline baseada na paleta
-  const activeColor = isCancelado ? '#DC2626' : palette.primary
-  const activeBg = isCancelado ? '#DC2626' : palette.primary
-  const inactiveColor = '#6B7280'
-
-  // Estilo do header (dark com accent do lojista)
-  const accentBg = isDark(palette.accent) ? palette.accent : palette.secondary
-  const accentText = '#FFFFFF'
-
   return (
-    <div className="min-h-screen" style={{ background: '#F8FAFC', fontFamily }}>
-      {/* ===================== HEADER ===================== */}
-      <div
-        className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between"
-        style={{ background: accentBg, color: accentText }}
-      >
-        <button
-          onClick={() => window.history.length > 1 ? window.history.back() : window.location.href = `/${tenantSlug}`}
-          className="size-10 rounded-full flex items-center justify-center"
-          style={{ background: 'rgba(255,255,255,0.12)' }}
-          aria-label="Voltar"
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <div className="flex-1 text-center">
-          <h1 className="font-bold text-base">Acompanhar pedido</h1>
-          <p className="text-xs opacity-90">Pedido #{codigo}</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b shadow-sm sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
+          {tenantLogo && <img src={tenantLogo} alt={tenantNome} className="w-10 h-10 rounded-full object-cover" />}
+          <div className="flex-1">
+            <h1 className="font-bold text-gray-900">{tenantNome}</h1>
+            <p className="text-xs text-gray-500">Acompanhamento do pedido</p>
+          </div>
+          <a
+            href={`/${tenantSlug}`}
+            className="text-sm text-green-600 font-medium"
+          >
+            Voltar ao cardápio
+          </a>
         </div>
-        <button
-          className="size-10 rounded-full flex items-center justify-center"
-          style={{ background: 'rgba(255,255,255,0.12)' }}
-          aria-label="Mais opções"
-        >
-          <MoreHorizontal size={20} />
-        </button>
       </div>
 
-      <div className="max-w-md mx-auto px-4 py-4 space-y-3">
-        {/* ===================== CARD PRINCIPAL — STATUS ATUAL ===================== */}
-        <div
-          className="rounded-3xl p-6 text-center shadow-sm"
-          style={{ background: '#FFFFFF' }}
-        >
-          <div
-            className="size-16 rounded-full mx-auto mb-4 flex items-center justify-center"
-            style={{
-              background: isCancelado ? '#FEE2E2' : `${palette.primary}22`,
-              color: isCancelado ? '#DC2626' : palette.primary,
-            }}
-          >
-            <StatusIcon size={28} />
-          </div>
-          <h2 className="text-xl font-bold mb-2" style={{ color: '#111827' }}>
-            {statusInfo.label}
-          </h2>
-          <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-            {statusInfo.descricao}
-          </p>
-          {!isCancelado && !isCompleto && (
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
-              style={{
-                background: `${palette.primary}22`,
-                color: palette.primary,
-              }}
-            >
-              <span>⏱</span>
-              <span>Previsão: {statusInfo.previsaoMin}-{statusInfo.previsaoMax} min</span>
+      <div className="max-w-2xl mx-auto p-4 space-y-4">
+        {/* Header do pedido */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className={`size-12 rounded-xl ${statusInfo.color} flex items-center justify-center text-white`}>
+              <StatusIcon size={24} />
             </div>
-          )}
+            <div className="flex-1">
+              <p className="text-xs text-gray-500">Pedido</p>
+              <p className="text-2xl font-bold text-gray-900">{codigo}</p>
+            </div>
+          </div>
+          <div className={`p-4 rounded-xl ${isCancelado ? 'bg-red-50' : 'bg-green-50'}`}>
+            <p className={`font-semibold text-lg ${isCancelado ? 'text-red-700' : 'text-green-700'}`}>
+              {statusInfo.label}
+            </p>
+            {!isCancelado && (
+              <p className="text-sm text-gray-600 mt-1">
+                {indexAtual === 0 && 'Aguardando confirmação da loja...'}
+                {indexAtual === 1 && 'Seu pedido está sendo preparado com carinho'}
+                {indexAtual === 2 && 'Pedido pronto! Em breve sai para entrega'}
+                {indexAtual === 3 && 'Saiu! Está a caminho'}
+                {indexAtual === 4 && 'Pedido entregue! Bom apetite 🎉'}
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* ===================== TIMELINE HORIZONTAL ===================== */}
+        {/* Timeline de status */}
         {!isCancelado && (
-          <div
-            className="rounded-3xl p-6 shadow-sm"
-            style={{ background: '#FFFFFF' }}
-          >
-            <div className="flex items-center justify-between">
-              {ETAPAS.map((etapa, idx) => {
-                const config = STATUS_CONFIG[etapa]
+          <div className="bg-white rounded-2xl p-6 shadow-sm">
+            <h2 className="font-semibold text-gray-900 mb-4">Status do Pedido</h2>
+            <div className="space-y-4">
+              {ordem.map((s, idx) => {
+                const config = STATUS_LABELS[s]
                 const Icon = config.icon
-                const completada = idx <= etapaAtualIndex
-                const atual = idx === etapaAtualIndex
+                const completed = idx <= indexAtual
+                const current = idx === indexAtual
                 return (
-                  <div key={etapa} className="flex-1 flex flex-col items-center relative">
-                    {/* Linha conectora (entre etapas) */}
-                    {idx < ETAPAS.length - 1 && (
-                      <div
-                        className="absolute top-5 left-1/2 w-full h-0.5"
-                        style={{
-                          background: idx < etapaAtualIndex ? activeBg : '#E5E7EB',
-                          zIndex: 0,
-                        }}
-                      />
-                    )}
-                    <div
-                      className="size-10 rounded-full flex items-center justify-center relative z-10 transition-all"
-                      style={{
-                        background: completada ? activeBg : '#FFFFFF',
-                        border: completada ? 'none' : '2px solid #E5E7EB',
-                        color: completada ? '#FFFFFF' : inactiveColor,
-                        boxShadow: atual ? `0 0 0 4px ${palette.primary}33` : 'none',
-                      }}
-                    >
-                      {completada ? <Check size={18} strokeWidth={3} /> : <Icon size={16} />}
+                  <div key={s} className="flex items-start gap-3">
+                    <div className={`size-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      completed ? `${config.color} text-white` : 'bg-gray-200 text-gray-400'
+                    } ${current ? 'ring-4 ring-green-200 animate-pulse' : ''}`}>
+                      <Icon size={18} />
                     </div>
-                    <p
-                      className={`mt-2 text-xs font-medium text-center ${atual ? 'font-bold' : ''}`}
-                      style={{ color: atual ? palette.primary : completada ? '#111827' : '#9CA3AF' }}
-                    >
-                      {config.label.replace('Seu pedido está sendo ', '').replace('Pedido ', '')}
-                    </p>
+                    <div className="flex-1 pt-1">
+                      <p className={`font-medium ${completed ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {config.label}
+                      </p>
+                      {current && (
+                        <p className="text-xs text-green-600 font-medium">Em andamento</p>
+                      )}
+                      {completed && !current && (
+                        <p className="text-xs text-gray-500">✓ Concluído</p>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -297,60 +152,10 @@ export default function PedidoClienteWrapper({
           </div>
         )}
 
-        {/* ===================== ENDEREÇO DE ENTREGA ===================== */}
-        <button
-          className="w-full rounded-3xl p-4 shadow-sm flex items-center gap-3 hover:opacity-80 transition"
-          style={{ background: '#FFFFFF' }}
-        >
-          <div
-            className="size-10 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: `${palette.primary}22`, color: palette.primary }}
-          >
-            <MapPin size={20} />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="font-semibold text-sm" style={{ color: '#111827' }}>
-              Endereço de entrega
-            </p>
-            <p className="text-xs text-gray-500 truncate">
-              {pedido.tipo_entrega === 'retirada' ? 'Retirada no local' : (enderecoCompleto || '—')}
-            </p>
-          </div>
-          <span className="text-gray-400">›</span>
-        </button>
-
-        {/* ===================== RESUMO DO PEDIDO ===================== */}
-        <button
-          className="w-full rounded-3xl p-4 shadow-sm flex items-center gap-3 hover:opacity-80 transition"
-          style={{ background: '#FFFFFF' }}
-        >
-          <div
-            className="size-10 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: `${palette.primary}22`, color: palette.primary }}
-          >
-            <Receipt size={20} />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="font-semibold text-sm" style={{ color: '#111827' }}>
-              Resumo do pedido
-            </p>
-            <p className="text-xs text-gray-500">
-              {totalItens} {totalItens === 1 ? 'item' : 'itens'} · Total {formatCurrency(Number(pedido.valor_total) || 0)}
-            </p>
-          </div>
-          <span className="text-gray-400">›</span>
-        </button>
-
-        {/* ===================== DETALHES EXPANDIDOS (lista de itens) ===================== */}
-        <details
-          className="rounded-3xl shadow-sm overflow-hidden"
-          style={{ background: '#FFFFFF' }}
-        >
-          <summary className="p-4 cursor-pointer font-semibold text-sm flex items-center justify-between" style={{ color: '#111827' }}>
-            <span>Ver itens do pedido</span>
-            <span className="text-gray-400">›</span>
-          </summary>
-          <div className="px-4 pb-4 space-y-3 border-t pt-3">
+        {/* Itens do pedido */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="font-semibold text-gray-900 mb-4">Itens do Pedido</h2>
+          <div className="space-y-3">
             {(pedido.pedido_itens || []).map((item: any) => {
               const comps = Array.isArray(item.complementos)
                 ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
@@ -359,12 +164,12 @@ export default function PedidoClienteWrapper({
                 <div key={item.id} className="border-b pb-3 last:border-0">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <p className="font-medium text-sm">{item.quantidade}x {item.nome}</p>
+                      <p className="font-medium">{item.quantidade}x {item.nome}</p>
                       {item.variante_nome && (
                         <p className="text-xs text-gray-500">({item.variante_nome})</p>
                       )}
                     </div>
-                    <p className="font-semibold text-sm">
+                    <p className="font-semibold">
                       {formatCurrency(Number(item.valor_unitario) * item.quantidade)}
                     </p>
                   </div>
@@ -380,59 +185,88 @@ export default function PedidoClienteWrapper({
                 </div>
               )
             })}
+          </div>
 
-            {/* Totais */}
-            <div className="pt-3 border-t space-y-1 text-sm">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal:</span>
-                <span>{formatCurrency(Number(pedido.valor_subtotal || pedido.valor_total || 0))}</span>
-              </div>
-              {Number(pedido.taxa_entrega) > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>Taxa de entrega:</span>
-                  <span>{formatCurrency(Number(pedido.taxa_entrega))}</span>
-                </div>
-              )}
-              {Number(pedido.valor_desconto) > 0 && (
-                <div className="flex justify-between" style={{ color: palette.primary }}>
-                  <span>Desconto:</span>
-                  <span>-{formatCurrency(Number(pedido.valor_desconto))}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                <span>TOTAL:</span>
-                <span style={{ color: palette.primary }}>{formatCurrency(Number(pedido.valor_total) || 0)}</span>
-              </div>
+          {/* Totais */}
+          <div className="mt-4 pt-4 border-t space-y-1 text-sm">
+            <div className="flex justify-between text-gray-600">
+              <span>Subtotal:</span>
+              <span>{formatCurrency(Number(pedido.valor_subtotal || pedido.valor_total) - Number(pedido.taxa_entrega || 0))}</span>
             </div>
-
-            {/* Forma de pagamento */}
-            {pedido.forma_pagamento && (
-              <div className="pt-3 border-t text-xs text-gray-500">
-                💳 Pagamento: {pedido.forma_pagamento}
+            {Number(pedido.taxa_entrega) > 0 && (
+              <div className="flex justify-between text-gray-600">
+                <span>Taxa de entrega:</span>
+                <span>{formatCurrency(Number(pedido.taxa_entrega))}</span>
               </div>
             )}
+            {Number(pedido.valor_desconto) > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>Desconto:</span>
+                <span>-{formatCurrency(Number(pedido.valor_desconto))}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-lg pt-2 border-t">
+              <span>TOTAL:</span>
+              <span className="text-green-600">{formatCurrency(Number(pedido.valor_total))}</span>
+            </div>
           </div>
-        </details>
+        </div>
 
-        {/* ===================== BOTÃO FALAR COM A LOJA ===================== */}
-        {tenantTelefone && !isCancelado && (
-          <a
-            href={`https://wa.me/55${tenantTelefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Estou acompanhando o pedido #${codigo}`)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full rounded-full py-4 flex items-center justify-center gap-2 font-semibold text-sm shadow-md hover:opacity-90 transition"
-            style={{
-              background: '#FFFFFF',
-              color: '#111827',
-              border: '1px solid #E5E7EB',
-            }}
-          >
-            <MessageCircle size={18} />
-            Falar com o estabelecimento
-          </a>
+        {/* Entrega */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="font-semibold text-gray-900 mb-3">
+            {pedido.tipo_entrega === 'retirada' ? '🏪 Retirada' : '🛵 Entrega'}
+          </h2>
+          {pedido.tipo_entrega === 'retirada' ? (
+            <p className="text-sm text-gray-600">Você vai retirar no local</p>
+          ) : (
+            <>
+              <div className="flex items-start gap-2 text-sm">
+                <MapPin size={16} className="text-gray-400 mt-0.5" />
+                <p className="text-gray-900">
+                  {pedido.endereco_entrega}, {pedido.numero_entrega || 's/n'}
+                  {pedido.complemento_entrega && ` (${pedido.complemento_entrega})`}
+                </p>
+              </div>
+              {pedido.bairro_entrega && (
+                <p className="ml-6 text-sm text-gray-600">Bairro: {pedido.bairro_entrega}</p>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Pagamento */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="font-semibold text-gray-900 mb-3">💳 Pagamento</h2>
+          <p className="text-sm text-gray-600">
+            {Array.isArray(pedido.forma_pagamento)
+              ? pedido.forma_pagamento.join(', ')
+              : pedido.forma_pagamento}
+          </p>
+          {pedido.observacoes && (
+            <div className="mt-3 p-3 bg-amber-50 rounded-lg">
+              <p className="text-xs font-medium text-amber-700">Observações:</p>
+              <p className="text-sm text-amber-800">{pedido.observacoes}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Contato */}
+        {tenantTelefone && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm">
+            <h2 className="font-semibold text-gray-900 mb-3">📞 Contato da Loja</h2>
+            <a
+              href={`https://wa.me/55${tenantTelefone.replace(/\D/g, '')}`}
+              target="_blank"
+              className="flex items-center gap-2 text-green-600 font-medium"
+            >
+              <Phone size={16} />
+              Falar com a loja via WhatsApp
+            </a>
+          </div>
         )}
 
-        <p className="text-center text-xs text-gray-400 pt-2">
+        <p className="text-center text-xs text-gray-400 pt-4">
           🔄 Atualização em tempo real
         </p>
       </div>
