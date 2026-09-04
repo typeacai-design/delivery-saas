@@ -52,6 +52,59 @@ export async function GET() {
   }
 }
 
+export async function POST(request: Request) {
+  try {
+    // Owner, manager e attendant podem lançar transações
+    const { tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
+    if (!tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+
+    const body = await request.json()
+    const { tipo, categoria, descricao, valor, data } = body
+
+    // Validações
+    if (!tipo || !['entrada', 'saida'].includes(tipo)) {
+      return NextResponse.json({ error: 'Tipo inválido. Use "entrada" ou "saida".' }, { status: 400 })
+    }
+    const categoriasValidas = ['pedido', 'despesa', 'manual', 'recebimento', 'fornecedor']
+    if (!categoria || !categoriasValidas.includes(categoria)) {
+      return NextResponse.json({ error: `Categoria inválida. Use uma de: ${categoriasValidas.join(', ')}.` }, { status: 400 })
+    }
+    const valorNum = Number(valor)
+    if (!Number.isFinite(valorNum) || valorNum <= 0) {
+      return NextResponse.json({ error: 'Valor deve ser um número positivo.' }, { status: 400 })
+    }
+    if (!descricao || typeof descricao !== 'string' || !descricao.trim()) {
+      return NextResponse.json({ error: 'Descrição é obrigatória.' }, { status: 400 })
+    }
+    const dataFinal = data || new Date().toISOString().split('T')[0]
+
+    // Usar service_role para BURLAR RLS — autenticação já foi validada acima
+    const admin = adminClient()
+    const { data: novaMov, error } = await admin
+      .from('movimentacoes_financeiras')
+      .insert({
+        tenant_id: tenantId,
+        tipo,
+        categoria,
+        descricao: descricao.trim().slice(0, 500),
+        valor: valorNum,
+        data: dataFinal,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Erro ao inserir movimentação:', error)
+      return NextResponse.json({ error: 'Não foi possível salvar a transação: ' + error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, movimentacao: novaMov }, { status: 201 })
+  } catch (error: any) {
+    console.error('financeiro_create_failed:', error)
+    return NextResponse.json({ error: error?.message || 'Erro interno' }, { status: 500 })
+  }
+}
+
 export async function PUT(request: Request) {
   const { supabase, tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
   if (!tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })

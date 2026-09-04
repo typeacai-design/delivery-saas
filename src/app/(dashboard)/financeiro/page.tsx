@@ -274,22 +274,24 @@ function LancarModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
   const[valor,setValor]=useState('')
   const[data,setData]=useState(new Date().toISOString().split('T')[0])
   const[saving,setSaving]=useState(false)
-  const supabase=createClient()
 
   const salvar=async()=>{
     if(!descricao.trim()||!valor){alert('Preencha descrição e valor');return}
     setSaving(true)
     try{
-      const tenantId=await fetch('/api/auth/meu-tenant').then(r=>r.json()).then(d=>d.tenantId)
-      const {error}=await supabase.from('movimentacoes_financeiras').insert({
-        tenant_id:tenantId,
-        tipo:forma,
-        categoria:tipo,
-        descricao:descricao.trim(),
-        valor:parseFloat(valor),
-        data
+      const response = await fetch('/api/financeiro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: forma,
+          categoria: tipo,
+          descricao: descricao.trim(),
+          valor: parseFloat(valor),
+          data,
+        }),
       })
-      if(error)throw error
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || 'Erro ao salvar')
       onSave()
     }catch(e:any){alert(e.message||'Erro ao salvar')}
     finally{setSaving(false)}
