@@ -107,6 +107,11 @@
 
 ## 🆕 Sessão 04/09/2026 — Ajustes solicitados pelo Rick
 
+### Status
+- **Commit**: `e58a5b7` — feat: ajustes pedidos/avaliacoes/meus pedidos - Rick 04/09
+- **Deploy produção**: https://delivery-saas-2gsrlbgic-delivery-saas1.vercel.app
+- **Site produção**: https://wedelivery.site (alias para o deployment acima)
+
 ### A. Sidebar
 - Removido item "Avaliações" do sidebar lateral (`src/components/sidebar-nav.tsx`).
 - "Avaliações" continua acessível como **subseção dentro de "Marketing"**.
