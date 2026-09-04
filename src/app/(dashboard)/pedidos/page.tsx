@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, Activity, History, ChefHat, Bell, Bike } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
 
@@ -419,14 +419,17 @@ export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
   const [pedidosTab, setPedidosTab] = useState<'fluxo' | 'historico'>('fluxo')
+  // ENTRA DIRETO NA SUBSEÇÃO "NOVO" + FILTRO "HOJE"
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
   const [itensPedido, setItensPedido] = useState<any[]>([])
   const [motoboys, setMotoboys] = useState<any[]>([])
   const [novosPedidosCount, setNovosPedidosCount] = useState(0)
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
-  const [filtroStatus, setFiltroStatus] = useState<string>('') // Padrão: sem filtro
-  const [filtroDataDe, setFiltroDataDe] = useState<string>(new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]) // 7 dias atrás
+  const [filtroStatus, setFiltroStatus] = useState<string>('novo') // Padrão: subseção "Novo"
+  // FILTRO PADRÃO: HOJE (somente pedidos do dia atual)
+  const [filtroPeriodo, setFiltroPeriodo] = useState<'hoje' | 'ontem' | 'todos'>('hoje')
+  const [filtroDataDe, setFiltroDataDe] = useState<string>(new Date().toISOString().split('T')[0]) // Hoje
   const [filtroDataAte, setFiltroDataAte] = useState<string>(new Date().toISOString().split('T')[0]) // Hoje
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
@@ -1086,7 +1089,7 @@ export default function PedidosPage() {
           <input
             type="date"
             value={filtroDataDe}
-            onChange={(e) => setFiltroDataDe(e.target.value)}
+            onChange={(e) => { setFiltroDataDe(e.target.value); setFiltroPeriodo('todos') }}
             className="form-input text-sm px-3 py-1.5"
           />
         </div>
@@ -1095,7 +1098,7 @@ export default function PedidosPage() {
           <input
             type="date"
             value={filtroDataAte}
-            onChange={(e) => setFiltroDataAte(e.target.value)}
+            onChange={(e) => { setFiltroDataAte(e.target.value); setFiltroPeriodo('todos') }}
             className="form-input text-sm px-3 py-1.5"
           />
         </div>
@@ -1103,22 +1106,39 @@ export default function PedidosPage() {
           <button
             onClick={() => {
               const hoje = new Date().toISOString().split('T')[0]
-              setFiltroDataDe(new Date(Date.now() - 86400000).toISOString().split('T')[0])
+              setFiltroDataDe(hoje)
               setFiltroDataAte(hoje)
+              setFiltroPeriodo('hoje')
             }}
-            className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+            className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'hoje' ? 'bg-green-600 text-white' : 'bg-green-100 hover:bg-green-200 text-green-700'}`}
+          >
+            Hoje
+          </button>
+          <button
+            onClick={() => {
+              // Data local (ontem) — usando componentes locais para evitar UTC shift
+              const agora = new Date()
+              const ontemLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 1)
+              const hojeLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate())
+              const ont = `${ontemLocal.getFullYear()}-${String(ontemLocal.getMonth() + 1).padStart(2, '0')}-${String(ontemLocal.getDate()).padStart(2, '0')}`
+              const hoj = `${hojeLocal.getFullYear()}-${String(hojeLocal.getMonth() + 1).padStart(2, '0')}-${String(hojeLocal.getDate()).padStart(2, '0')}`
+              setFiltroDataDe(ont)
+              setFiltroDataAte(hoj)
+              setFiltroPeriodo('ontem')
+            }}
+            className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'ontem' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
           >
             Ontem
           </button>
           <button
             onClick={() => {
-              const hoje = new Date().toISOString().split('T')[0]
-              setFiltroDataDe(hoje)
-              setFiltroDataAte(hoje)
+              setFiltroDataDe('')
+              setFiltroDataAte('')
+              setFiltroPeriodo('todos')
             }}
-            className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
+            className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'todos' && !filtroDataDe && !filtroDataAte ? 'bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
           >
-            Hoje
+            Todos
           </button>
         </div>
       </div>
@@ -1254,11 +1274,12 @@ export default function PedidosPage() {
 
         // Filtro por tab e status
         if (pedidosTab === 'fluxo') {
-          // Fluxo: sem filtro = todos os pedidos
-          if (!filtroStatus) {
-            pedidosFiltrados = [...pedidos]
-          } else {
+          // Fluxo: filtra pelo status (subseção) selecionado
+          if (filtroStatus) {
             pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
+          } else {
+            // Sem subseção: mostra todos do fluxo
+            pedidosFiltrados = [...pedidos]
           }
         } else {
           // Historico: sem filtro = todos não cancelados
@@ -1273,17 +1294,26 @@ export default function PedidosPage() {
           }
         }
 
-        // Aplicar filtro de data APENAS quando há filtro de status específico E datas definidas
-        const pedidosPorData = (filtroStatus && (filtroDataDe || filtroDataAte))
+        // Filtro de data: aplica-se a TODAS as subseções do Fluxo e do Histórico
+        // Compara usando a data local (YYYY-MM-DD) para evitar problemas de fuso horário
+        const dataLocalISO = (dateStr: string) => {
+          const d = new Date(dateStr)
+          if (Number.isNaN(d.getTime())) return ''
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        }
+        const pedidosPorData = (filtroDataDe || filtroDataAte)
           ? pedidosFiltrados.filter(p => {
-              const dataPedido = new Date(p.data_criacao).toISOString().split('T')[0]
+              const dataPedido = dataLocalISO(p.data_criacao)
+              if (!dataPedido) return true
               const deOk = !filtroDataDe || dataPedido >= filtroDataDe
               const ateOk = !filtroDataAte || dataPedido <= filtroDataAte
               return deOk && ateOk
             })
           : pedidosFiltrados
 
-        const statusConfig = filtroStatus ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
+        const statusConfig = filtroStatus && STATUS_CONFIG[filtroStatus as PedidoStatus]
+          ? STATUS_CONFIG[filtroStatus as PedidoStatus]
+          : null
         return (
           <>
             {filtroStatus && statusConfig && (
@@ -1293,7 +1323,7 @@ export default function PedidosPage() {
               </div>
             )}
 
-            {(filtroDataDe || filtroDataAte) && filtroStatus && (
+            {(filtroDataDe || filtroDataAte) && (
               <div className="mb-4 text-sm text-gray-500">
                 📅 Período: <strong>{filtroDataDe ? new Date(filtroDataDe + 'T00:00:00').toLocaleDateString('pt-BR') : '...'} até {filtroDataAte ? new Date(filtroDataAte + 'T00:00:00').toLocaleDateString('pt-BR') : '...'}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
               </div>
@@ -1328,7 +1358,7 @@ export default function PedidosPage() {
                 <div className={`p-3 border-b ${isNovo ? 'bg-orange-50/40' : 'bg-gray-50/40'}`}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-lg font-bold text-gray-900">
-                      {(pedido as any).codigo || ('#' + pedido.id.slice(0, 8))}
+                      {formatarCodigoPedido(pedido.id, pedido.data_criacao)}
                     </span>
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
                       <StatusIcon className="w-3 h-3" />
@@ -1507,7 +1537,7 @@ export default function PedidosPage() {
             <div className="p-6 border-b">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-xl font-bold">Pedido {(selectedPedido as any).codigo || ('#' + selectedPedido.id.slice(0, 8))}</h2>
+                  <h2 className="text-xl font-bold">Pedido {formatarCodigoPedido(selectedPedido.id, selectedPedido.data_criacao)}</h2>
                   <p className="text-gray-500">{formatDateFull(selectedPedido.data_criacao)}</p>
                 </div>
                 <button onClick={() => setSelectedPedido(null)} className="text-gray-400 hover:text-gray-600">

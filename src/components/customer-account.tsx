@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ChefHat, Check, Bike, Home, MapPin, Receipt, MessageCircle, Package, X as XIcon, ChevronRight, Loader2, MessageSquare } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { ChefHat, Check, Bike, Home, MapPin, Receipt, MessageCircle, Package, X as XIcon, ChevronRight, Loader2 } from 'lucide-react'
+import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
 
 type Customer = Record<string, string | undefined> & { whatsapp?: string; accessToken?: string }
 type OrderItem = { nome: string; quantidade: number; variante_nome?: string | null }
@@ -232,10 +232,10 @@ export function CustomerOrders({ slug, cliente }: { slug: string; cliente: Custo
 
     return (
       <div className="min-h-screen pb-24" style={{ background: '#F8FAFC', fontFamily }}>
-        {/* Header dark com cor accent do lojista */}
+        {/* Header dark com cor accent do lojista — texto branco fixo para legibilidade */}
         <div
           className="sticky top-0 z-20 px-4 py-4 flex items-center justify-between"
-          style={{ background: isDarkPrimary ? theme.primary : theme.secondary, color: isDarkPrimary ? '#FFFFFF' : '#111827' }}
+          style={{ background: theme.primary, color: '#FFFFFF' }}
         >
           <button
             onClick={() => setSelectedOrder(null)}
@@ -246,8 +246,8 @@ export function CustomerOrders({ slug, cliente }: { slug: string; cliente: Custo
             <ChevronRight size={20} className="rotate-180" />
           </button>
           <div className="flex-1 text-center">
-            <h1 className="font-bold text-base">Acompanhar pedido</h1>
-            <p className="text-xs opacity-90">Pedido #{order.id}</p>
+            <h1 className="font-bold text-base" style={{ color: '#FFFFFF' }}>Acompanhar pedido</h1>
+            <p className="text-xs opacity-90" style={{ color: '#FFFFFF' }}>Pedido {formatarCodigoPedido(order.id, order.created_at)}</p>
           </div>
           <div className="size-10" />
         </div>
@@ -391,7 +391,7 @@ export function CustomerOrders({ slug, cliente }: { slug: string; cliente: Custo
           {/* BOTÃO WHATSAPP */}
           {(theme.whatsapp || theme.telefone) && !isCancelado && (
             <a
-              href={`https://wa.me/55${(theme.whatsapp || theme.telefone).replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Estou acompanhando o pedido #${order.id}`)}`}
+              href={`https://wa.me/55${(theme.whatsapp || theme.telefone).replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Estou acompanhando o pedido ${formatarCodigoPedido(order.id, order.created_at)}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full rounded-full py-4 flex items-center justify-center gap-2 font-semibold text-sm shadow-md"
@@ -436,7 +436,7 @@ export function CustomerOrders({ slug, cliente }: { slug: string; cliente: Custo
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-semibold text-sm" style={{ color: '#111827' }}>
-                    #{order.id}
+                    {formatarCodigoPedido(order.id, order.created_at)}
                   </p>
                   <span
                     className="text-xs font-semibold"

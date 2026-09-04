@@ -13,7 +13,6 @@ import {
   Megaphone,
   Users,
   DollarSign,
-  Star,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -31,7 +30,6 @@ const items: NavItem[] = [
   { href: '/financeiro', label: 'Financeiro', icon: DollarSign },
   { href: '/equipe', label: 'Equipe', icon: Users },
   { href: '/marketing', label: 'Marketing', icon: Megaphone },
-  { href: '/avaliacoes', label: 'Avaliações', icon: Star },
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ]

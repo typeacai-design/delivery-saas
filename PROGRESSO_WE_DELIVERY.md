@@ -103,4 +103,53 @@
 - Limpar logs de debug adicionados
 - Verificar se há outras áreas que dependem do status da loja
 
+---
+
+## 🆕 Sessão 04/09/2026 — Ajustes solicitados pelo Rick
+
+### A. Sidebar
+- Removido item "Avaliações" do sidebar lateral (`src/components/sidebar-nav.tsx`).
+- "Avaliações" continua acessível como **subseção dentro de "Marketing"**.
+
+### B. Subseção Avaliações (Marketing > Avaliações)
+- **Removidos** cards de métrica "Notas pendentes" e "Notas visíveis".
+- Cards mantidos: Nota média, Total, Positivas, Negativas.
+- **Adicionado** botão **"Copiar Link"** no header, alinhado à direita e centralizado verticalmente.
+  - Copia `${origin}/${tenant.slug}#avaliar`
+  - Feedback visual: vira verde com "Link copiado!" por 2s.
+  - Fallback via `document.execCommand('copy')` para navegadores sem clipboard API.
+- Buscar `tenant.slug` no Supabase via `tenants` table para gerar o link.
+
+### C. Aba de Pedidos (lojista)
+- **Estado inicial alterado**: ao entrar na aba Pedidos, cai direto na **subseção "Novo"** (não mostra todos).
+- **Filtro padrão**: "Hoje" — só pedidos do dia atual.
+- **Botões de período** revisados:
+  - **Hoje**: verde quando ativo
+  - **Ontem**: agora funciona corretamente (componentes locais para evitar UTC shift que jogava para dia anterior)
+  - **Todos**: limpa filtro de data
+- **Filtro de data agora afeta todas as subseções do Fluxo** (Novo, Preparando, Pronto, Saiu, Entregue) — antes só filtrava se houvesse filtro de status explícito.
+- Histórico mantém comportamento (Concluídos / Cancelados).
+
+### D. Meus Pedidos (cardápio público)
+- **Código do pedido** agora usa função utilitária `formatarCodigoPedido(id, createdAt)` → padrão `XXXXX/AA` (5 dígitos + 2 do ano). Aplicado em:
+  - Lista de pedidos (cliente)
+  - Header "Acompanhar pedido" (modo detalhe)
+  - Botão WhatsApp (mensagem)
+  - Cards do lojista (`src/app/(dashboard)/pedidos/page.tsx`)
+- **Função utilitária** criada em `src/lib/utils.ts` (`formatarCodigoPedido`).
+- **Cor do título "Acompanhar Pedido #ID"** corrigida: agora usa `color: '#FFFFFF'` fixo no header (independente da paleta do lojista). Fundo sempre usa `theme.primary` (cor mais escura).
+- Botão **"Falar com o estabelecimento"** já estava verde WhatsApp (`#25D366`); ícone SVG do WhatsApp mantido; texto inalterado.
+- Frase "Atualização em tempo real" — já não estava no código atual.
+
+### E. Endereço de entrega no detalhe (cliente)
+- O bloco "Endereço de entrega" usa `enderecoCompleto` que concatena `endereco_entrega + numero + bairro + complemento`. Se o cliente digitou endereço no pedido, aparece normalmente.
+- **Verificação pendente**: confirmar que o `pedidos/public` retorna esses campos.
+
+## Arquivos modificados
+- `src/lib/utils.ts` — adicionada `formatarCodigoPedido`
+- `src/components/sidebar-nav.tsx` — removido item Avaliações
+- `src/app/(dashboard)/avaliacoes/page.tsx` — removidos cards + botão Copiar Link
+- `src/app/(dashboard)/pedidos/page.tsx` — estado inicial + filtros
+- `src/components/customer-account.tsx` — código do pedido, cor do header, ícone WhatsApp
+
 

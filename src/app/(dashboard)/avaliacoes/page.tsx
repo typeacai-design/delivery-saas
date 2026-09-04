@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Star, Check, X, MessageCircle, Trash2, Send, ThumbsUp, ThumbsDown, Filter, ChevronDown } from 'lucide-react'
+import { Star, Check, X, MessageCircle, Trash2, Send, ThumbsUp, ThumbsDown, Filter, ChevronDown, Copy, Link as LinkIcon } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
 
@@ -21,17 +21,29 @@ type Avaliacao = {
 export default function AvaliacoesPage() {
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([])
   const [loading, setLoading] = useState(true)
+  const [tenantSlug, setTenantSlug] = useState<string>('')
   const [filtroStatus, setFiltroStatus] = useState<'todas' | 'pendentes' | 'aprovadas' | 'rejeitadas'>('todas')
   const [filtroNota, setFiltroNota] = useState<number | null>(null)
   const [respostaOpen, setRespostaOpen] = useState<string | null>(null)
   const [respostaTexto, setRespostaTexto] = useState('')
   const [showFiltrosAvancados, setShowFiltrosAvancados] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
-    const tid=await activeTenantId();if(!tid){setLoading(false);return}
+    const tid = await activeTenantId()
+    if (!tid) { setLoading(false); return }
+
+    // Buscar slug do tenant para gerar o link público de avaliação
+    const { data: tenantData } = await supabase
+      .from('tenants')
+      .select('slug')
+      .eq('id', tid)
+      .single()
+    if (tenantData?.slug) setTenantSlug(tenantData.slug)
+
     const { data } = await supabase
       .from('avaliacoes')
       .select('*')
@@ -39,6 +51,26 @@ export default function AvaliacoesPage() {
       .order('created_at', { ascending: false })
     if (data) setAvaliacoes(data)
     setLoading(false)
+  }
+
+  const copiarLink = async () => {
+    if (!tenantSlug) return
+    const url = `${window.location.origin}/${tenantSlug}#avaliar`
+    try {
+      await navigator.clipboard.writeText(url)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    } catch {
+      // fallback para navegadores sem clipboard API
+      const textarea = document.createElement('textarea')
+      textarea.value = url
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    }
   }
 
   const setAprovado = async (id: string, aprovado: boolean) => {
@@ -104,8 +136,8 @@ export default function AvaliacoesPage() {
     <div>
       {/* Header */}
       <div className="bg-white rounded-2xl border p-5 mb-4" style={{ borderColor: '#E5E7EB' }}>
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 text-xs text-gray-500">
               <Star size={11} /> Reputação
             </div>
@@ -114,20 +146,34 @@ export default function AvaliacoesPage() {
               Gerencie o feedback dos clientes. Aprove para exibir publicamente e responda quando necessário.
             </p>
           </div>
-          {pendentes > 0 && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 border border-orange-200 rounded-xl">
-              <span className="text-xl">🔔</span>
-              <div>
-                <p className="text-sm font-bold text-orange-700">{pendentes} avaliação{pendentes > 1 ? 'ões' : ''} pendente{pendentes > 1 ? 's' : ''}</p>
-                <p className="text-xs text-orange-600">Aguardando sua análise</p>
-              </div>
-            </div>
-          )}
+          {/* Botão Copiar Link — alinhado à direita, verticalmente centralizado */}
+          <div className="flex items-center shrink-0 self-center">
+            <button
+              type="button"
+              onClick={copiarLink}
+              disabled={!tenantSlug}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition disabled:opacity-50"
+              style={{ background: linkCopied ? '#16A34A' : 'var(--green, #16A34A)' }}
+              title={tenantSlug ? `Copiar link de avaliação (${window.location.origin}/${tenantSlug}#avaliar)` : 'Carregando link…'}
+            >
+              {linkCopied ? (
+                <>
+                  <Check size={16} />
+                  Link copiado!
+                </>
+              ) : (
+                <>
+                  <Copy size={16} />
+                  Copiar link
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Cards métrica */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {/* Nota média */}
         <div className="bg-white rounded-2xl border p-4 text-center" style={{ borderColor: '#E5E7EB' }}>
           <div className="flex items-center justify-center gap-1 mb-1">
@@ -166,18 +212,6 @@ export default function AvaliacoesPage() {
             <ThumbsDown size={12} className="text-red-500" />
             Negativas (1-2⭐)
           </div>
-        </div>
-
-        {/* Pendentes */}
-        <div className="bg-white rounded-2xl border p-4 text-center" style={{ borderColor: '#E5E7EB' }}>
-          <div className="text-3xl font-bold text-orange-600">{pendentes}</div>
-          <div className="text-xs text-gray-500">Pendentes</div>
-        </div>
-
-        {/* Aprovadas */}
-        <div className="bg-white rounded-2xl border p-4 text-center" style={{ borderColor: '#E5E7EB' }}>
-          <div className="text-3xl font-bold text-green-600">{aprovadas}</div>
-          <div className="text-xs text-gray-500">Visíveis</div>
         </div>
       </div>
 
