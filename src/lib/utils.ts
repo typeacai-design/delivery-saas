@@ -27,14 +27,21 @@ export function generateWhatsAppLink(phone: string, message: string): string {
 }
 
 /**
- * Formata o código de exibição de um pedido no padrão:
- *   5 dígitos + "/" + 2 dígitos do ano de criação do pedido
- *   Ex.: id "abcd-..." criado em 2026 → "00021/26"
+ * Formata o código de exibição de um pedido.
  *
- * Usa o id quando não há data de criação ou quando o id é curto,
- * exibindo o id puro como fallback para evitar quebrar a UI.
+ * Preferência: usa o `codigo` salvo no banco (sequencial por tenant/ano,
+ * formato XXXXX/YY — gerado pela migration 053). Se o banco não retornou
+ * `codigo`, gera um fallback determinístico a partir do id (hash de 5 dígitos)
+ * para evitar mostrar IDs brutos na UI.
+ *
+ *  - id "abcd-..." + createdAt → usa `codigo` salvo, ou
+ *    "00021/26" como fallback.
  */
-export function formatarCodigoPedido(id: string, createdAt?: string | null): string {
+export function formatarCodigoPedido(id: string, createdAt?: string | null, codigoSalvo?: string | null): string {
+  if (codigoSalvo && typeof codigoSalvo === 'string' && codigoSalvo.includes('/')) {
+    return codigoSalvo
+  }
+
   const year = (() => {
     if (createdAt) {
       const d = new Date(createdAt)
@@ -43,7 +50,6 @@ export function formatarCodigoPedido(id: string, createdAt?: string | null): str
     return String(new Date().getFullYear()).slice(-2)
   })()
 
-  // Gera 5 dígitos a partir do id (qualquer string → número estável de 5 dígitos)
   const numericId = (() => {
     if (!id) return '00000'
     let hash = 0

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, Activity, History, ChefHat, Bell, Bike } from 'lucide-react'
+import { Clock, Check, Truck, X, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, Activity, History, ChefHat, Bell, Bike, MapPin, Home } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -1082,7 +1082,7 @@ export default function PedidosPage() {
         </div>
       </div>
 
-      {/* Filtro de Data De/Até */}
+      {/* Filtro de Data — FLUXO: só "Hoje" e "Ontem" | HISTÓRICO: só "Todos" */}
       <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border shadow-sm flex-wrap">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-gray-600">📅 De:</label>
@@ -1103,43 +1103,51 @@ export default function PedidosPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              const hoje = new Date().toISOString().split('T')[0]
-              setFiltroDataDe(hoje)
-              setFiltroDataAte(hoje)
-              setFiltroPeriodo('hoje')
-            }}
-            className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'hoje' ? 'bg-green-600 text-white' : 'bg-green-100 hover:bg-green-200 text-green-700'}`}
-          >
-            Hoje
-          </button>
-          <button
-            onClick={() => {
-              // Data local (ontem) — usando componentes locais para evitar UTC shift
-              const agora = new Date()
-              const ontemLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 1)
-              const hojeLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate())
-              const ont = `${ontemLocal.getFullYear()}-${String(ontemLocal.getMonth() + 1).padStart(2, '0')}-${String(ontemLocal.getDate()).padStart(2, '0')}`
-              const hoj = `${hojeLocal.getFullYear()}-${String(hojeLocal.getMonth() + 1).padStart(2, '0')}-${String(hojeLocal.getDate()).padStart(2, '0')}`
-              setFiltroDataDe(ont)
-              setFiltroDataAte(hoj)
-              setFiltroPeriodo('ontem')
-            }}
-            className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'ontem' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-          >
-            Ontem
-          </button>
-          <button
-            onClick={() => {
-              setFiltroDataDe('')
-              setFiltroDataAte('')
-              setFiltroPeriodo('todos')
-            }}
-            className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'todos' && !filtroDataDe && !filtroDataAte ? 'bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-          >
-            Todos
-          </button>
+          {pedidosTab === 'fluxo' ? (
+            <>
+              {/* ABA FLUXO: só "Hoje" e "Ontem" */}
+              <button
+                onClick={() => {
+                  const hoje = new Date().toISOString().split('T')[0]
+                  setFiltroDataDe(hoje)
+                  setFiltroDataAte(hoje)
+                  setFiltroPeriodo('hoje')
+                }}
+                className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'hoje' ? 'bg-green-600 text-white' : 'bg-green-100 hover:bg-green-200 text-green-700'}`}
+              >
+                Hoje
+              </button>
+              <button
+                onClick={() => {
+                  const agora = new Date()
+                  const ontemLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 1)
+                  const hojeLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate())
+                  const ont = `${ontemLocal.getFullYear()}-${String(ontemLocal.getMonth() + 1).padStart(2, '0')}-${String(ontemLocal.getDate()).padStart(2, '0')}`
+                  const hoj = `${hojeLocal.getFullYear()}-${String(hojeLocal.getMonth() + 1).padStart(2, '0')}-${String(hojeLocal.getDate()).padStart(2, '0')}`
+                  setFiltroDataDe(ont)
+                  setFiltroDataAte(hoj)
+                  setFiltroPeriodo('ontem')
+                }}
+                className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'ontem' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+              >
+                Ontem
+              </button>
+            </>
+          ) : (
+            <>
+              {/* ABA HISTÓRICO: só "Todos" */}
+              <button
+                onClick={() => {
+                  setFiltroDataDe('')
+                  setFiltroDataAte('')
+                  setFiltroPeriodo('todos')
+                }}
+                className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'todos' && !filtroDataDe && !filtroDataAte ? 'bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+              >
+                Todos
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1346,74 +1354,147 @@ export default function PedidosPage() {
             const StatusIcon = config.icon
             const nextStatus = NEXT_STATUS[pedido.status]
             const isNovo = pedido.status === 'novo'
+            const isCancelado = pedido.status === 'cancelado'
+            const isEntregue = pedido.status === 'entregue'
+
+            const itensDoCard = itensCache[pedido.id] || []
+            const totalItens = itensDoCard.reduce((acc: number, i: any) => acc + (Number(i.quantidade) || 1), 0)
 
             return (
               <div
                 key={pedido.id}
-                className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all flex flex-col ${
-                  isNovo ? 'border-orange-400 ring-2 ring-orange-200' : 'border-gray-200 hover:border-gray-300'
+                className={`order-card-redesign bg-white rounded-[18px] border overflow-hidden flex flex-col transition-all shadow-sm ${
+                  isNovo ? 'ring-2 ring-orange-300' : ''
                 }`}
+                style={{ borderColor: '#E4E8EE' }}
               >
                 {/* HEADER */}
-                <div className={`p-3 border-b ${isNovo ? 'bg-orange-50/40' : 'bg-gray-50/40'}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-lg font-bold text-gray-900">
-                      {formatarCodigoPedido(pedido.id, pedido.data_criacao)}
-                    </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
-                      <StatusIcon className="w-3 h-3" />
+                <div className="px-4 py-4 border-b" style={{ borderColor: '#E4E8EE' }}>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h2 className="text-[22px] font-medium tracking-tight" style={{ color: '#172033' }}>
+                      Pedido {formatarCodigoPedido(pedido.id, pedido.data_criacao, (pedido as any).codigo)}
+                    </h2>
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                      style={{
+                        background: isCancelado ? '#FFF1F1' : isEntregue ? '#EEFAF3' : '#FFF7E8',
+                        color: isCancelado ? '#D92D35' : isEntregue ? '#00A240' : '#B55C00',
+                      }}
+                    >
+                      <StatusIcon size={12} />
                       {config.label}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    🕐 {formatDate(pedido.data_criacao)} · {((pedido as any).tipo_entrega === 'retirada') ? '🏪 Retirada' : '🛵 Delivery'}
-                  </p>
+                  <div className="flex items-center gap-2 text-xs" style={{ color: '#697386' }}>
+                    <Clock size={12} />
+                    <span>{formatDate(pedido.data_criacao)}</span>
+                    <span className="w-1 h-1 rounded-full" style={{ background: '#697386' }} />
+                    <span>{((pedido as any).tipo_entrega === 'retirada') ? '🏪 Retirada' : '🛵 Delivery'}</span>
+                  </div>
                 </div>
 
                 {/* CLIENTE + ENDEREÇO */}
-                <div className="p-3 border-b border-gray-100 text-xs space-y-0.5">
-                  <p className="font-semibold text-sm text-gray-900">{(pedido as any).cliente_nome || 'Cliente'}</p>
-                  {(pedido as any).cliente_whatsapp && (
-                    <p className="text-gray-600">📱 {(pedido as any).cliente_whatsapp}</p>
-                  )}
+                <div className="mx-3 mt-3 p-4 rounded-[18px]" style={{ background: '#F8FAFC' }}>
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div
+                      className="size-10 rounded-full grid place-items-center font-medium text-sm shrink-0"
+                      style={{ background: '#EEFAF3', color: '#00A240' }}
+                    >
+                      {((pedido as any).cliente_nome || 'C').split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-[15px]" style={{ color: '#172033' }}>
+                        {(pedido as any).cliente_nome || 'Cliente'}
+                      </p>
+                      {(pedido as any).cliente_whatsapp && (
+                        <p className="text-xs mt-0.5" style={{ color: '#697386' }}>
+                          {(pedido as any).cliente_whatsapp}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   {((pedido as any).tipo_entrega !== 'retirada') && (pedido as any).endereco_entrega && (
-                    <p className="text-gray-600 truncate" title={(pedido as any).endereco_entrega + ', ' + ((pedido as any).numero_entrega || '') + ' - ' + ((pedido as any).bairro_entrega || '')}>
-                      📍 {(pedido as any).endereco_entrega}, {(pedido as any).numero_entrega || 's/n'} - {(pedido as any).bairro_entrega || ''}
-                    </p>
-                  )}
-                  {((pedido as any).tipo_entrega !== 'retirada') && (pedido as any).complemento_entrega && (
-                    <p className="text-gray-500 italic text-xs">└ {(pedido as any).complemento_entrega}</p>
+                    <div className="pt-3 space-y-1.5" style={{ borderTop: '1px solid #E4E8EE' }}>
+                      <p className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: '#172033' }}>
+                        <MapPin size={12} className="mt-0.5 shrink-0" style={{ color: '#697386' }} />
+                        <span>
+                          {(pedido as any).endereco_entrega}
+                          {(pedido as any).numero_entrega ? `, ${(pedido as any).numero_entrega}` : ''}
+                          {(pedido as any).bairro_entrega ? ` — ${(pedido as any).bairro_entrega}` : ''}
+                        </span>
+                      </p>
+                      {(pedido as any).complemento_entrega && (
+                        <p className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: '#697386' }}>
+                          <Home size={12} className="mt-0.5 shrink-0" />
+                          <span>Complemento: {(pedido as any).complemento_entrega}</span>
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
-                {/* ITENS */}
-                <ItensPedido pedidoId={pedido.id} compacto />
-
-                {/* DESCONTO - aparece quando há desconto cedido */}
-                {(pedido as any).valor_desconto > 0 && (
-                  <div className="px-3 py-2 bg-green-50 border-t border-green-100">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 text-green-800">
-                        <span className="text-base">🏷️</span>
-                        <span className="font-medium">Desconto cedido</span>
-                      </div>
-                      <span className="font-bold text-green-700">
-                        -{formatCurrency((pedido as any).valor_desconto)}
-                      </span>
-                    </div>
+                {/* ITENS DO PEDIDO */}
+                <div className="mx-3 mt-2 p-4 rounded-[18px]" style={{ background: '#F8FAFC' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-sm" style={{ color: '#172033' }}>Itens do pedido</h3>
+                    <span className="text-xs" style={{ color: '#697386' }}>{totalItens} {totalItens === 1 ? 'item' : 'itens'}</span>
                   </div>
-                )}
+                  {itensDoCard.length === 0 ? (
+                    <p className="text-xs" style={{ color: '#697386' }}>Carregando...</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {itensDoCard.map((item: any) => {
+                        const comps = Array.isArray(item.complementos)
+                          ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
+                          : []
+                        return (
+                          <div key={item.id}>
+                            <div className="flex justify-between gap-3 text-[14px] font-medium" style={{ color: '#172033' }}>
+                              <span className="truncate">{item.quantidade}× {item.nome}</span>
+                              <span className="whitespace-nowrap">{formatCurrency(item.valor_unitario * item.quantidade)}</span>
+                            </div>
+                            {comps.length > 0 && (
+                              <div className="mt-2 pl-2.5 border-l-2 space-y-1.5" style={{ borderColor: '#E4E8EE' }}>
+                                {comps.map((c: any, i: number) => (
+                                  <div key={i} className="flex justify-between gap-3 text-xs" style={{ color: '#697386' }}>
+                                    <span className="truncate">
+                                      {c.quantidade > 1 ? `${c.quantidade}x ` : ''}{c.nome}
+                                    </span>
+                                    <span className="whitespace-nowrap">{formatCurrency((c.valor || 0) * (c.quantidade || 1))}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* DESCONTO */}
+                  {(pedido as any).valor_desconto > 0 && (
+                    <div
+                      className="mt-4 px-3 py-2.5 rounded-xl flex items-center justify-between text-[13px] font-medium"
+                      style={{ background: '#EEFAF3', color: '#00A240' }}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <Percent size={12} /> Desconto concedido
+                      </span>
+                      <span>− {formatCurrency((pedido as any).valor_desconto)}</span>
+                    </div>
+                  )}
+                </div>
 
                 {/* OBS */}
                 {(pedido as any).observacoes && (
-                  <div className="px-3 py-2 bg-amber-50 border-t border-amber-100">
-                    <p className="text-xs text-amber-800 truncate">📝 {(pedido as any).observacoes}</p>
+                  <div className="mx-3 mt-2 p-3 rounded-xl text-xs" style={{ background: '#FFF7E8', color: '#B55C00' }}>
+                    📝 {(pedido as any).observacoes}
                   </div>
                 )}
 
                 {/* TEMPO ALERTA */}
                 {pedido.status !== 'entregue' && pedido.status !== 'cancelado' && (
-                  <div className="px-3 py-2 border-t">
+                  <div className="mx-3 mt-2">
                     <TempoAlerta
                       dataCriacao={pedido.data_criacao}
                       tempoEstimadoMin={(pedido as any).tempo_estimado_min}
@@ -1421,102 +1502,110 @@ export default function PedidosPage() {
                   </div>
                 )}
 
-                {/* TOTAIS + AÇÕES */}
-                <div className="mt-auto p-3 bg-gray-50 border-t border-gray-200">
-                  {/* Totais simplificados */}
-                  <div className="flex justify-between items-center text-sm mb-3">
-                    <div className="text-gray-600">
-                      <span className="text-xs">{formatFormaPagamento((pedido as any).forma_pagamento)}</span>
+                {/* PAGAMENTO + AÇÕES */}
+                <div className="mt-2 mx-3 mb-3 p-4 rounded-[18px]" style={{ background: '#F8FAFC' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xs" style={{ color: '#697386' }}>Forma de pagamento</p>
+                      <p className="text-[14px] font-medium capitalize" style={{ color: '#172033' }}>
+                        {formatFormaPagamento((pedido as any).forma_pagamento)}
+                      </p>
                     </div>
-                    <span className="font-bold text-green-600">{formatCurrency(pedido.valor_total)}</span>
+                    <div className="text-right">
+                      <p className="text-xs" style={{ color: '#697386' }}>Total do pedido</p>
+                      <p className="text-[21px] font-medium" style={{ color: '#00A240' }}>
+                        {formatCurrency(pedido.valor_total)}
+                      </p>
+                    </div>
                   </div>
 
-                  {/* LINHA 1: Avançar status (GRANDE) */}
+                  {/* LINHA 1: Avançar status (quando aplicável) */}
                   {nextStatus && (
                     <button
                       onClick={() => updateStatus(pedido, nextStatus)}
-                      className="w-full px-4 py-3 mb-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
+                      className="w-full min-h-[43px] mb-2 flex items-center justify-center gap-2 rounded-xl text-[12px] font-medium transition-all active:scale-[0.98]"
+                      style={{ background: '#00A240', color: '#FFFFFF' }}
                       title={`Avançar para ${STATUS_CONFIG[nextStatus].label}`}
                     >
-                      <ChevronRight className="w-5 h-5" />
+                      <ChevronRight size={16} />
                       AVANÇAR PARA {STATUS_CONFIG[nextStatus].label.toUpperCase()}
                     </button>
                   )}
 
-                  {/* LINHA 2: Botões de ação (grid 3 colunas x 2 linhas) */}
-                  <div className="grid grid-cols-3 gap-1.5 px-3 pb-3">
+                  {/* LINHA 2: Grid 2x3 ações */}
+                  <div className="grid grid-cols-2 gap-2 mt-3">
                     {/* Pago */}
                     <button
                       onClick={() => togglePago(pedido)}
-                      className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg text-xs transition-all ${
-                        (pedido as any).pago
-                          ? 'bg-green-500 text-white'
-                          : 'bg-green-50 text-green-700 hover:bg-green-100'
-                      }`}
+                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      style={{
+                        background: (pedido as any).pago ? '#00A240' : '#FFFFFF',
+                        color: (pedido as any).pago ? '#FFFFFF' : '#172033',
+                        border: (pedido as any).pago ? 'none' : '1px solid #E4E8EE',
+                      }}
                       title={(pedido as any).pago ? 'Pago - clique para desmarcar' : 'Marcar como pago'}
                     >
-                      <Check className="w-4 h-4" />
-                      <span>{(pedido as any).pago ? '✓ Pago' : 'Pago'}</span>
+                      <Check size={14} /> {(pedido as any).pago ? 'Pago' : 'Marcar pago'}
                     </button>
 
                     {/* Editar */}
                     <button
                       onClick={() => abrirModalEditar(pedido)}
-                      className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 text-xs transition-all"
+                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      style={{ background: '#FFFFFF', color: '#172033', border: '1px solid #E4E8EE' }}
                       title="Editar pedido"
                     >
-                      <Pencil className="w-4 h-4" />
-                      <span>Editar</span>
-                    </button>
-
-                    {/* Imprimir */}
-                    <button
-                      onClick={() => imprimirPedido(pedido)}
-                      className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 text-xs transition-all"
-                      title="Imprimir pedido"
-                    >
-                      <Printer className="w-4 h-4" />
-                      <span>Imprimir</span>
+                      <Pencil size={14} /> Editar
                     </button>
 
                     {/* WhatsApp */}
                     <button
                       onClick={() => confirmarPedidoWPP(pedido)}
-                      className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 text-xs transition-all"
+                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      style={{ background: '#EEFAF3', color: '#00A240' }}
                       title="Confirmar pedido (WhatsApp)"
                     >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>WhatsApp</span>
+                      <MessageCircle size={14} /> WhatsApp
+                    </button>
+
+                    {/* Imprimir */}
+                    <button
+                      onClick={() => imprimirPedido(pedido)}
+                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      style={{ background: '#FFFFFF', color: '#172033', border: '1px solid #E4E8EE' }}
+                      title="Imprimir pedido"
+                    >
+                      <Printer size={14} /> Imprimir
                     </button>
 
                     {/* Desconto */}
                     <button
                       onClick={() => abrirModalDesconto(pedido)}
-                      className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs transition-all"
+                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      style={{ background: '#FFF7E8', color: '#B55C00' }}
                       title="Dar desconto"
                     >
-                      <Percent className="w-4 h-4" />
-                      <span>Desconto</span>
+                      <Percent size={14} /> Desconto
                     </button>
 
                     {/* Cancelar ou Apagar */}
                     {pedido.status === 'cancelado' ? (
                       <button
                         onClick={() => apagarPedido(pedido)}
-                        className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-red-100 hover:text-red-700 text-xs transition-all"
+                        className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                        style={{ background: '#FFF1F1', color: '#D92D35' }}
                         title="Apagar pedido (somente cancelados)"
                       >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Apagar</span>
+                        <Trash2 size={14} /> Apagar
                       </button>
                     ) : (
                       <button
                         onClick={() => abrirModalCancelamento(pedido)}
-                        className="flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 text-xs transition-all"
+                        className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                        style={{ background: '#FFF1F1', color: '#D92D35' }}
                         title="Cancelar pedido"
                       >
-                        <X className="w-4 h-4" />
-                        <span>Cancelar</span>
+                        <X size={14} /> Cancelar
                       </button>
                     )}
                   </div>
@@ -1537,7 +1626,7 @@ export default function PedidosPage() {
             <div className="p-6 border-b">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-xl font-bold">Pedido {formatarCodigoPedido(selectedPedido.id, selectedPedido.data_criacao)}</h2>
+                  <h2 className="text-xl font-bold">Pedido {formatarCodigoPedido(selectedPedido.id, selectedPedido.data_criacao, (selectedPedido as any).codigo)}</h2>
                   <p className="text-gray-500">{formatDateFull(selectedPedido.data_criacao)}</p>
                 </div>
                 <button onClick={() => setSelectedPedido(null)} className="text-gray-400 hover:text-gray-600">

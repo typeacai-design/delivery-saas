@@ -247,7 +247,7 @@ export function CustomerOrders({ slug, cliente }: { slug: string; cliente: Custo
           </button>
           <div className="flex-1 text-center">
             <h1 className="font-bold text-base" style={{ color: '#FFFFFF' }}>Acompanhar pedido</h1>
-            <p className="text-xs opacity-90" style={{ color: '#FFFFFF' }}>Pedido {formatarCodigoPedido(order.id, order.created_at)}</p>
+            <p className="text-xs opacity-90" style={{ color: '#FFFFFF' }}>Pedido {formatarCodigoPedido(order.id, order.created_at, (order as any).codigo)}</p>
           </div>
           <div className="size-10" />
         </div>
@@ -391,7 +391,7 @@ export function CustomerOrders({ slug, cliente }: { slug: string; cliente: Custo
           {/* BOTÃO WHATSAPP */}
           {(theme.whatsapp || theme.telefone) && !isCancelado && (
             <a
-              href={`https://wa.me/55${(theme.whatsapp || theme.telefone).replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Estou acompanhando o pedido ${formatarCodigoPedido(order.id, order.created_at)}`)}`}
+              href={`https://wa.me/55${(theme.whatsapp || theme.telefone).replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Estou acompanhando o pedido ${formatarCodigoPedido(order.id, order.created_at, (order as any).codigo)}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full rounded-full py-4 flex items-center justify-center gap-2 font-semibold text-sm shadow-md"
@@ -436,7 +436,7 @@ export function CustomerOrders({ slug, cliente }: { slug: string; cliente: Custo
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-semibold text-sm" style={{ color: '#111827' }}>
-                    {formatarCodigoPedido(order.id, order.created_at)}
+                    {formatarCodigoPedido(order.id, order.created_at, (order as any).codigo)}
                   </p>
                   <span
                     className="text-xs font-semibold"
