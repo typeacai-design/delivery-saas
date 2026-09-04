@@ -1,160 +1,235 @@
 # We Delivery - Progresso do Sistema
 
-## Última Atualização: 02/09/2026
+## Última Atualização: 04/09/2026 (final do dia)
 
 ## Deploy em Produção
 - **URL**: https://wedelivery.site
 - **Repositório**: https://github.com/typeacai-design/delivery-saas
-- **Último Deploy**: Sessão de 02/09/2026 — correções críticas + layout cliente
+- **Último Deploy**: 04/09/2026 — sessão completa de ajustes
 
 ---
 
-## 🐛 Bugs Críticos Resolvidos — Sessão 02/09/2026
+## 📜 Regra de Habilidades e Skills (do CLAUDE.md)
 
-### 1. Pedidos não apareciam na aba de Pedidos (CRÍTICO)
-- **Sintoma:** Lojista não conseguia ver nenhum pedido, mesmo fazendo pedidos de teste (som tocava mas lista vazia).
-- **Causa raiz:** Query do frontend (`supabase.from('pedidos').select(...)`) usava o cliente do navegador que não tinha o token de autenticação válido para passar pelo RLS do Supabase. O `auth.uid()` retornava null no contexto, fazendo a função `has_active_tenant_role` retornar false.
-- **Correção:** Criada rota API `/api/pedidos/list` que usa **service role** no servidor (bypassa RLS) e retorna os pedidos via fetch do frontend.
-- **Arquivo:** `src/app/api/pedidos/list/route.ts`
-- **Impacto:** Cards somiam após cada ação (desconto, mudar status) — corrigido para também usar `/api/pedidos/list`
+> **TODA HABILIDADE RELEVANTE DEVE SER SALVA.**
 
-### 2. Horário da loja não seguia configuração do lojista
-- **Sintoma:** Loja Type Açaí configurada para abrir 19h-23h mostrava "Aberto" às 15h.
-- **Causa raiz:** Função `verificarLojaAbertaPorHorario` retornava `true` quando não havia horários configurados (`if (!horarios) return true`). Também faltava timezone de Brasília.
-- **Correção:** Função agora retorna `false` quando não há horários; usa `America/Sao_Paulo` timezone; segue a mesma lógica do cardápio público.
-- **Arquivo:** `src/app/dashboard-view.tsx`
+Skills já registradas em `.claude/skills/`:
+- `deploy-vercel.md` — Como fazer deploy sem erro
+- `supabase-client-pattern.md` — Padrão correto de uso do Supabase em páginas 'use client'
 
-### 3. Lojista sem autonomia para abrir/fechar loja
-- **Sintoma:** Lojista não conseguia forçar abertura/fechamento fora do horário.
-- **Causa raiz:** Lógica só mostrava botão "Abrir agora", sem opção de "Fechar". Cardápio público também bloqueava se `!dentroHorario`.
-- **Correção:** Lojista agora pode abrir/fechar a qualquer momento. Botão muda entre "Abrir" e "Fechar" baseado no estado. Cardápio público respeita `config.loja_aberta === true` com prioridade sobre horário.
-- **Arquivos:** `src/app/dashboard-view.tsx`, `src/app/cardapio/[slug]/page.tsx`
+---
 
-### 4. Cardápio público não refletia mudanças em tempo real
-- **Sintoma:** Lojista abria a loja, mas cliente via "Fechado" no cardápio por até 30s.
-- **Causa raiz:** `export const revalidate = 30` na página do cardápio cacheava por 30s.
-- **Correção:** `revalidate = 0` (sem cache). Mudanças refletem imediatamente.
-- **Arquivo:** `src/app/cardapio/[slug]/page.tsx`
+## 🐛 Sessão 02/09/2026 — Bugs Críticos Iniciais
+
+### 1. Pedidos não apareciam na aba de Pedidos
+- Causa: cliente do navegador sem token válido para RLS
+- Correção: API `/api/pedidos/list` usando service_role
+- Arquivo: `src/app/api/pedidos/list/route.ts`
+
+### 2. Horário da loja não seguia configuração
+- Correção: timezone `America/Sao_Paulo`, retorna `false` quando sem horários
+- Arquivo: `src/app/dashboard-view.tsx`
+
+### 3. Lojista sem autonomia para abrir/fechar
+- Correção: botão dinâmico Abrir/Fechar, cardápio respeita `config.loja_aberta`
+
+### 4. Cardápio público com cache de 30s
+- Correção: `revalidate = 0`
 
 ### 5. Busca de complementos não funcionava
-- **Sintoma:** Lojista digitava nome de complemento e nada aparecia.
-- **Causa raiz:** Filtro de busca estava em `listasFiltradas` mas só procurava no nome da lista, não nos complementos dentro dela.
-- **Correção:** Lógica agora mostra listas que contêm complementos que correspondem à busca. Adicionada busca por nome no formulário de produtos.
-- **Arquivos:** `src/components/admin/ComplementosTab.tsx`, `src/components/admin/ProdutoFormModal.tsx`
+- Correção: filtrava só nome da lista, agora busca nos complementos
 
-### 6. Aba de Pedidos com filtros reorganizados
-- **Fluxo:** Novo, Preparando, Pronto, Saiu, Entregue (sem botão "Todos")
-- **Histórico:** Concluídos, Cancelados
-- **Arquivo:** `src/app/(dashboard)/pedidos/page.tsx`
-- **Debug removido:** Linha do `tenantId | Carregados | Filtrados` foi apagada
+### 6. Aba de Pedidos reorganizada
+- Fluxo: Novo, Preparando, Pronto, Saiu, Entregue
+- Histórico: Concluídos, Cancelados
 
-### 7. Layout "Meus Pedidos" do Cliente — Dark Mode com Paleta Dinâmica
-- **Sintoma:** Página de "Meus pedidos" do cliente tinha visual genérico, sem identidade do lojista.
-- **Correção:** Reescrito `src/components/customer-account.tsx` com:
-  - Lista de pedidos com ícone do status + cor da paleta
-  - Ao clicar, mostra layout dark mode completo:
-    - Header com cor accent do lojista
-    - Card central com ícone + status atual + descrição + tag de previsão
-    - Timeline horizontal (Preparando → Pronto → Saiu → Entregue)
-    - Card endereço de entrega
-    - Card resumo do pedido (expansível)
-    - Botão "Falar com o estabelecimento" via WhatsApp
-  - **Paleta dinâmica:** usa `cardapio_cores` (primary/secondary/accent) do lojista
-  - **Tipografia dinâmica:** usa `cardapio_tipografia` (classica/moderna/minimalista)
-  - **Realtime:** atualização instantânea via Supabase channel
-- **Erro corrigido:** inicialmente aplicado em `/pedido/[id]/wrapper.tsx` (errado); revertido e aplicado corretamente em `customer-account.tsx`
+### 7. Layout "Meus Pedidos" Dark Mode com Paleta Dinâmica
+- Reescrito `customer-account.tsx` com paleta/tipografia dinâmica
 
-### 8. Fluxo de Caixa Automático
-- **Sintoma:** Marcar pedido como pago não refletia no financeiro/fluxo de caixa.
-- **Correção:** API `/api/pedidos/[id]/pago` agora registra automaticamente em `movimentacoes_financeiras` como entrada quando pago=true. Quando desmarcado, remove o registro.
-- **Arquivo:** `src/app/api/pedidos/[id]/pago/route.ts`
-- **Bug corrigido:** Campo da tabela era `referencia_id`, não `pedido_id`
+### 8. Fluxo de Caixa Automático (1ª versão)
+- API `/api/pedidos/[id]/pago` inseria em `movimentacoes_financeiras`
+
+---
+
+## 🆕 Sessão 04/09/2026 — Ajustes Solicitados pelo Rick
+
+### Commits principais
+- `e58a5b7` — ajustes pedidos/avaliacoes/meus pedidos
+- `927d3e3` — codigo sequencial + filtros contextualizados + novo visual + trigger fluxo caixa
+- `34fe6b1` — pagina avaliacao publica + link WhatsApp + abertura direta pedido
+- `6c2b52d` — URLs dinamicas no cardapio publico + fluxo de caixa correto
+- `99180c3` — remove debug logs fluxo de caixa
+- `fe2e845` — LancarModal via API (bypassa RLS)
+
+---
+
+### A. Sidebar (04/09)
+- **Removido** item "Avaliações" do sidebar lateral
+- "Avaliações" continua acessível como **subseção dentro de "Marketing"**
+- Arquivo: `src/components/sidebar-nav.tsx`
+
+### B. Subseção Avaliações (Marketing > Avaliações)
+- **Removidos** cards "Notas pendentes" e "Notas visíveis"
+- **Mantidos**: Nota média, Total, Positivas, Negativas
+- **Adicionado** botão "Copiar Link" no header (verde, à direita)
+  - Copia `${origin}/avaliar-loja/${tenantSlug}`
+  - Feedback visual "Link copiado!" por 2s
+- Arquivo: `src/app/(dashboard)/avaliacoes/page.tsx`
+
+### C. Aba de Pedidos (lojista) — 04/09
+- **Estado inicial**: cai direto na subseção "Novo" + filtro "Hoje"
+- **Filtros contextualizados por aba**:
+  - **Fluxo**: só "Hoje" e "Ontem"
+  - **Histórico**: só "Todos"
+- **Filtro "Ontem" corrigido** (componentes locais, sem UTC shift)
+- **Filtro de data afeta todas as subseções do Fluxo**
+- Arquivo: `src/app/(dashboard)/pedidos/page.tsx`
+
+### D. Meus Pedidos (cardápio público - cliente)
+- Função `formatarCodigoPedido(id, createdAt, codigoSalvo)` em `src/lib/utils.ts`
+  - Preferência: usa `codigo` salvo no banco (sequencial `XXXXX/AA`)
+  - Fallback: hash determinístico do id
+- Aplicado em: lista, header, WhatsApp, cards do lojista
+- **Cor do título "Acompanhar Pedido"** — forçada branca (`#FFFFFF`)
+- **Botão "Falar com o estabelecimento"** — verde WhatsApp (`#25D366`)
+- API `/api/pedidos/public` agora retorna campos de endereço
+- Arquivos: `src/components/customer-account.tsx`, `src/components/cardapio-cliente.tsx`, `src/lib/utils.ts`
+
+### E. NOVO Visual dos Cards de Pedido
+- Aplicado design baseado no `preview.html` do Rick
+- Header com código grande (22px) + badge de status colorido
+- Avatar do cliente com iniciais + telefone
+- Card de endereço com ícone MapPin/Home
+- Seção de itens com extras (complementos) indentados
+- Bloco de desconto verde
+- Footer com forma de pagamento + total + grid de ações 2x3
+- Arquivo: `src/app/(dashboard)/pedidos/page.tsx`
+
+### F. Página de Avaliação Pública (NOVO)
+- **Nova rota**: `/avaliar-loja/[slug]` (foi renomeada de `/avaliar/[slug]` para evitar conflito com `/avaliar/[token]`)
+- Formulário: logo + nome do lojista, 5 estrelas (hover + selecionada), comentário (500 chars), nome + WhatsApp opcionais
+- **Nova API**: `/api/avaliar-publico` (POST, com rate limit)
+- Avaliações ficam com `aprovado: false` para moderação do lojista
+- Arquivos: `src/app/avaliar-loja/page.tsx`, `src/app/avaliar-loja/form.tsx`, `src/app/api/avaliar-publico/route.ts`
+
+### G. Link "Acompanhe seu pedido" no WhatsApp (NOVO)
+- Mudou de `${BASE_URL}/pedido/${id}` para `${BASE_URL}/${slug}?pedido=${codigo}`
+- Quando cliente clica: vai direto na aba "Meus Pedidos" do cardápio público com o pedido selecionado
+- Arquivo: `src/lib/whatsapp/template.ts`, `src/components/checkout-flow.tsx`, `src/app/(dashboard)/pedidos/page.tsx`
+
+### H. URLs Dinâmicas no Cardápio Público (NOVO)
+- Cada aba atualiza a URL via `history.pushState`:
+  - `/typeacai` — Início
+  - `/typeacai?aba=pedidos` — Meus Pedidos
+  - `/typeacai?aba=perfil` — Perfil
+  - `/typeacai?aba=pedidos&pedido=00021/26` — Detalhe do pedido
+- Arquivos: `src/components/cardapio-cliente.tsx`, `src/components/customer-account.tsx`, `src/app/cardapio/[slug]/page.tsx`
+
+### I. Migration 062 — Trigger Automático no Banco (NOVO)
+- Cria `trigger trg_pedido_pago_fluxo_caixa` em `public.pedidos`
+- Quando `pago=true`: insere automaticamente em `movimentacoes_financeiras` (categoria='pedido')
+- Quando `pago=false`: remove a entrada correspondente
+- UPSERT via `ON CONFLICT (referencia_id)` para evitar duplicação
+- Arquivo: `supabase/migrations/062_trigger_fluxo_caixa_automatico.sql`
+
+### J. Retroativo dos Pedidos Pagos (04/09)
+- SQL rodado direto no banco para inserir lançamentos faltantes
+- 12 pedidos pagos do Cozinha da Cris + 11 do Type Açaí processados
+- Resultado: 100% dos pedidos pagos agora têm lançamento
+
+### K. Fluxo de Caixa — Correções Críticas (04/09)
+1. **Bug 1**: API quebrava porque tabela `despesas` não tem coluna `pago` → removida do SELECT
+2. **Bug 2**: Promise.all rejeitava tudo se uma query falhava → resolvido com Bug 1
+3. **Bug 3**: RLS bloqueava leitura no cliente → API `/api/financeiro` agora usa `service_role` (bypassa RLS, mas valida tenant antes)
+4. **Bug 4**: LancarModal tentava INSERT direto pelo cliente (RLS bloqueava) → movido para POST na API
+5. **Bug 5**: Deduplicação entre orders pagos e transactions manuais → lógica melhorada (compara com e sem `#`)
+- Arquivo: `src/app/api/financeiro/route.ts` (GET, POST, PUT)
+- Arquivo: `src/app/(dashboard)/financeiro/page.tsx`
 
 ---
 
 ## 📊 APIs Criadas/Modificadas
 
-- `/api/pedidos/list` — Lista pedidos (bypass RLS com service role)
-- `/api/pedidos/[id]/pago` — Marca pago + registra entrada no fluxo de caixa
-- `/api/diagnostico/session` — Verifica sessão/tenant
-- `/api/diagnostico/pedidos` — Verifica pedidos (debug)
+| API | Função |
+|-----|--------|
+| `/api/pedidos/list` | Lista pedidos (service_role) |
+| `/api/pedidos/[id]/pago` | Marca pago + registra entrada |
+| `/api/financeiro` (GET) | Lista orders/expenses/transactions (service_role) |
+| `/api/financeiro` (POST) | Lançar transação manual |
+| `/api/financeiro` (PUT) | Salvar formas de pagamento |
+| `/api/avaliar-publico` | Avaliação pública (rate limited) |
+| `/api/avaliacoes/public` | Avaliação via token (existente) |
 
 ---
 
-## Estado funcional atual
+## 📁 Migrations Aplicadas
 
-- Pedidos aparecem corretamente na aba de Pedidos ✅
-- Cards não somem após ações (desconto, mudar status) ✅
-- Horário da loja segue configuração ✅
-- Lojista pode abrir/fechar loja manualmente a qualquer momento ✅
-- Cardápio público reflete status em tempo real ✅
-- Busca de complementos funcionando ✅
-- Filtros de pedidos organizados por status ✅
-- Debug removido da aba Pedidos ✅
-- Layout "Meus Pedidos" do cliente com paleta dinâmica ✅
-- Realtime entre lojista e cliente ✅
-- Fluxo de caixa automático ✅
+| Migration | Função |
+|-----------|--------|
+| 053 | Código do pedido formatado (XXXXX/YY) — sequencial por tenant/ano |
+| 054 | Status de pagamento por pedido (pago, pago_em, pago_por) |
+| 058 | Liberar UPDATE em campos de pagamento |
+| 062 | Trigger automático para fluxo de caixa ao marcar pago |
+
+---
+
+## 🛠️ Onde salvar coisas novas (do CLAUDE.md)
+
+- **Progresso do projeto:** `PROGRESSO_WE_DELIVERY.md` (este arquivo)
+- **Habilidades aprendidas:** `.claude/skills/<nome>.md`
+- **Mudanças em banco:** `supabase/migrations/<numero>_<nome>.sql`
+- **Componentes reutilizáveis:** `src/components/`
+
+## ⚠️ Nunca Esquecer
+
+- Build local ANTES de promoção pra produção
+- `createClient()` do Supabase sempre DENTRO de handler, nunca no topo
+- Validar visualmente em preview antes de subir pra produção
+- RLS pode bloquear reads no cliente — usar API com service_role + validar tenant antes
+- Trigger do banco garante fluxo de caixa automático (não duplica)
+
+---
+
+## 📋 Comandos Padrão
+
+```powershell
+# Validar build local
+pnpm run build
+
+# Deploy preview
+vercel --yes
+
+# Deploy produção
+vercel deploy --prod --yes
+
+# Ver logs do servidor
+vercel logs --since 1h
+```
+
+---
+
+## Estado funcional atual (04/09)
+
+- ✅ Sidebar sem Avaliações (subseção de Marketing)
+- ✅ Cards de avaliação sem Pendentes/Visíveis
+- ✅ Botão Copiar Link funcional
+- ✅ Filtros de pedidos: Fluxo só Hoje/Ontem, Histórico só Todos
+- ✅ Código do pedido XXXXX/YY sequencial
+- ✅ NOVO visual dos cards de pedido
+- ✅ NOVA página de avaliação pública `/avaliar-loja/[slug]`
+- ✅ Link WhatsApp leva ao cardápio com pedido selecionado
+- ✅ URLs dinâmicas no cardápio público
+- ✅ Trigger automático de fluxo de caixa (banco)
+- ✅ Retroativo dos pedidos pagos aplicado
+- ✅ Fluxo de caixa aparecendo (lançamento manual + orders pagos)
+- ✅ Lançar transação manual funcionando via API
 
 ---
 
 ## Próximas pendências
 
-- Remover APIs de diagnóstico (ou manter em modo dev)
-- Limpar logs de debug adicionados
 - Verificar se há outras áreas que dependem do status da loja
-
----
-
-## 🆕 Sessão 04/09/2026 — Ajustes solicitados pelo Rick
-
-### Status
-- **Commit**: `e58a5b7` — feat: ajustes pedidos/avaliacoes/meus pedidos - Rick 04/09
-- **Deploy produção**: https://delivery-saas-2gsrlbgic-delivery-saas1.vercel.app
-- **Site produção**: https://wedelivery.site (alias para o deployment acima)
-
-### A. Sidebar
-- Removido item "Avaliações" do sidebar lateral (`src/components/sidebar-nav.tsx`).
-- "Avaliações" continua acessível como **subseção dentro de "Marketing"**.
-
-### B. Subseção Avaliações (Marketing > Avaliações)
-- **Removidos** cards de métrica "Notas pendentes" e "Notas visíveis".
-- Cards mantidos: Nota média, Total, Positivas, Negativas.
-- **Adicionado** botão **"Copiar Link"** no header, alinhado à direita e centralizado verticalmente.
-  - Copia `${origin}/${tenant.slug}#avaliar`
-  - Feedback visual: vira verde com "Link copiado!" por 2s.
-  - Fallback via `document.execCommand('copy')` para navegadores sem clipboard API.
-- Buscar `tenant.slug` no Supabase via `tenants` table para gerar o link.
-
-### C. Aba de Pedidos (lojista)
-- **Estado inicial alterado**: ao entrar na aba Pedidos, cai direto na **subseção "Novo"** (não mostra todos).
-- **Filtro padrão**: "Hoje" — só pedidos do dia atual.
-- **Botões de período** revisados:
-  - **Hoje**: verde quando ativo
-  - **Ontem**: agora funciona corretamente (componentes locais para evitar UTC shift que jogava para dia anterior)
-  - **Todos**: limpa filtro de data
-- **Filtro de data agora afeta todas as subseções do Fluxo** (Novo, Preparando, Pronto, Saiu, Entregue) — antes só filtrava se houvesse filtro de status explícito.
-- Histórico mantém comportamento (Concluídos / Cancelados).
-
-### D. Meus Pedidos (cardápio público)
-- **Código do pedido** agora usa função utilitária `formatarCodigoPedido(id, createdAt)` → padrão `XXXXX/AA` (5 dígitos + 2 do ano). Aplicado em:
-  - Lista de pedidos (cliente)
-  - Header "Acompanhar pedido" (modo detalhe)
-  - Botão WhatsApp (mensagem)
-  - Cards do lojista (`src/app/(dashboard)/pedidos/page.tsx`)
-- **Função utilitária** criada em `src/lib/utils.ts` (`formatarCodigoPedido`).
-- **Cor do título "Acompanhar Pedido #ID"** corrigida: agora usa `color: '#FFFFFF'` fixo no header (independente da paleta do lojista). Fundo sempre usa `theme.primary` (cor mais escura).
-- Botão **"Falar com o estabelecimento"** já estava verde WhatsApp (`#25D366`); ícone SVG do WhatsApp mantido; texto inalterado.
-- Frase "Atualização em tempo real" — já não estava no código atual.
-
-### E. Endereço de entrega no detalhe (cliente)
-- O bloco "Endereço de entrega" usa `enderecoCompleto` que concatena `endereco_entrega + numero + bairro + complemento`. Se o cliente digitou endereço no pedido, aparece normalmente.
-- **Verificação pendente**: confirmar que o `pedidos/public` retorna esses campos.
-
-## Arquivos modificados
-- `src/lib/utils.ts` — adicionada `formatarCodigoPedido`
-- `src/components/sidebar-nav.tsx` — removido item Avaliações
-- `src/app/(dashboard)/avaliacoes/page.tsx` — removidos cards + botão Copiar Link
-- `src/app/(dashboard)/pedidos/page.tsx` — estado inicial + filtros
-- `src/components/customer-account.tsx` — código do pedido, cor do header, ícone WhatsApp
-
+- Limpar logs de debug adicionados (console.log em rotas — já removido do financeiro)
+- Verificar RLS de movimentacoes_financeiras — policy `movimentacoes_tenant_usuarios` exige `auth.uid() = usuarios_loja.user_id` mas o user_id da Type Açaí está com mesmo UUID do tenant_id (anomalia histórica). A solução atual (service_role bypass) contorna isso.
+- Possível migration para corrigir o `user_id` correto em usuarios_loja
 
