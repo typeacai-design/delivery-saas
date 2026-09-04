@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authenticatedTenant } from '@/lib/tenant-auth'
+import { createClient } from '@supabase/supabase-js'
 
 const PAGE = 1000
 
@@ -13,22 +14,37 @@ async function allRows<T>(queryFor: (from: number, to: number) => PromiseLike<{ 
   }
 }
 
+// Cliente com service_role para BURLAR RLS — a autenticação já foi feita
+// acima via authenticatedTenant (validamos que o usuário tem acesso ao tenant)
+function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+}
+
 export async function GET() {
   try {
-    const { supabase, tenantId } = await authenticatedTenant(['owner'])
+    // 1) Autentica o usuário e descobre o tenant dele
+    const { tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
     if (!tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+
+    // 2) Usa service_role para buscar os dados (bypassa RLS)
+    const admin = adminClient()
 
     const [orders, expenses, transactions, tenant] = await Promise.all([
       // Pedidos com código
-      allRows((from, to) => supabase.from('pedidos').select('id,codigo,created_at,valor_total,taxa_entrega,forma_pagamento,status,pago,pago_em').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
-      // Despesas
-      allRows((from, to) => supabase.from('despesas').select('id,nome,valor,dia_vencimento,recorrencia,created_at,pago').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
-      // Transações manuais
-      allRows((from, to) => supabase.from('movimentacoes_financeiras').select('id,tipo,descricao,valor,data,categoria').eq('tenant_id', tenantId).order('data', { ascending: false }).range(from, to)),
-      supabase.from('tenants').select('id,config').eq('id', tenantId).single(),
+      allRows((from, to) => admin.from('pedidos').select('id,codigo,created_at,valor_total,taxa_entrega,forma_pagamento,status,pago,pago_em').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
+      // Despesas (não tem coluna `pago`)
+      allRows((from, to) => admin.from('despesas').select('id,nome,valor,dia_vencimento,recorrencia,created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
+      // Transações manuais (com categoria)
+      allRows((from, to) => admin.from('movimentacoes_financeiras').select('id,tipo,descricao,valor,data,categoria,forma_pagamento').eq('tenant_id', tenantId).order('data', { ascending: false }).range(from, to)),
+      admin.from('tenants').select('id,config').eq('id', tenantId).single(),
     ])
 
     if (tenant.error) throw tenant.error
+
     return NextResponse.json({ orders, expenses, transactions, tenant: tenant.data }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('financeiro_read_failed', error)

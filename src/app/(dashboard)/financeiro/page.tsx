@@ -92,35 +92,19 @@ export default function FinanceiroPage(){
 const Empty=({text}:{text:string})=><p className="hint text-sm py-8 text-center">{text}</p>
 
 function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{orders:Order[];expenses:Expense[];transactions:ManualTransaction[];onNewTransaction:()=>void;onSaved:()=>void}){
-  // Construir conjunto de IDs de pedidos que JÁ TEM transação manual (categoria='pedido')
-  // — se tem, NÃO mostra de novo na lista de orders para evitar duplicação
-  const pedidosComTransacao = new Set(
+  // Constrói a lista:
+  // 1) Transactions manuais SEMPRE aparecem (incluindo categoria='pedido' vindas do trigger)
+  // 2) Despesas aparecem como saída
+  // 3) Orders pagos aparecem APENAS se não há transação manual correspondente
+  //    (evita duplicação quando o trigger já inseriu automaticamente)
+  const transacoesPedidoDescricoes = new Set(
     transactions
       .filter(t => t.categoria === 'pedido' && t.descricao)
       .map(t => t.descricao as string)
   )
 
-  // Constrói a lista:
-  // - Para cada pedido PAGO (não cancelado), verifica se já existe transação manual com a mesma descrição
-  // - Se NÃO existe transação manual, gera label "Pedido #CODIGO" e inclui
-  // - Se existe transação manual, não inclui (vai aparecer via transactions abaixo)
   const rows=[
-    ...orders.filter(o => {
-      if (o.pago !== true) return false
-      if (o.status === 'cancelado') return false
-      const labelComHash = `Pedido #${o.codigo || o.id.slice(0,8)}`
-      const labelSemHash = `Pedido ${o.codigo || o.id.slice(0,8)}`
-      // Se NÃO existe transação manual correspondente, mostra
-      return !pedidosComTransacao.has(labelComHash) && !pedidosComTransacao.has(labelSemHash)
-    }).map(o => ({
-      date:o.created_at,
-      label:`Pedido #${o.codigo || o.id.slice(0,8)}`,
-      value:Number(o.valor_total),
-      kind:'entrada' as const,
-      pago:o.pago,
-      status:o.status
-    })),
-    // Inclui TODAS as transactions manuais (categoria='pedido' OU outras)
+    // 1) Transações manuais PRIMEIRO (incluindo as de pedidos via trigger)
     ...transactions.map(t=>({
       date:t.data,
       label:t.descricao,
@@ -129,6 +113,22 @@ function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{order
       pago:null as null,
       status:null as null
     })),
+    // 2) Pedidos pagos que NÃO têm transação manual
+    ...orders.filter(o => {
+      if (o.pago !== true) return false
+      if (o.status === 'cancelado') return false
+      const labelComHash = `Pedido #${o.codigo || o.id.slice(0,8)}`
+      const labelSemHash = `Pedido ${o.codigo || o.id.slice(0,8)}`
+      return !transacoesPedidoDescricoes.has(labelComHash) && !transacoesPedidoDescricoes.has(labelSemHash)
+    }).map(o => ({
+      date:o.created_at,
+      label:`Pedido #${o.codigo || o.id.slice(0,8)}`,
+      value:Number(o.valor_total),
+      kind:'entrada' as const,
+      pago:o.pago,
+      status:o.status
+    })),
+    // 3) Despesas como saída
     ...expenses.map(e=>({
       date:e.created_at,
       label:e.nome,
