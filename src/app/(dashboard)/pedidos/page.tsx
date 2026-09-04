@@ -436,6 +436,7 @@ export default function PedidosPage() {
   const [itensEditando, setItensEditando] = useState<any[]>([])
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
   const [tenantIdAtual, setTenantIdAtual] = useState<string>('')
+  const [tenantSlugAtual, setTenantSlugAtual] = useState<string>('')
   const [modalCancelarAberto, setModalCancelarAberto] = useState(false)
   const [pedidoCancelando, setPedidoCancelando] = useState<any>(null)
   const [motivoSelecionado, setMotivoSelecionado] = useState('')
@@ -466,6 +467,14 @@ export default function PedidosPage() {
         return
       }
       setTenantIdAtual(tenantId)
+
+      // Buscar slug do tenant para gerar o link do WhatsApp corretamente
+      const { data: tenantData } = await supabase
+        .from('tenants')
+        .select('slug')
+        .eq('id', tenantId)
+        .single()
+      if (tenantData?.slug) setTenantSlugAtual(tenantData.slug)
 
       // 1. Carrega pedidos iniciais via API do servidor (garante RLS correto)
       console.log('[DEBUG PEDIDOS] Carregando pedidos para tenantId:', tenantId)
@@ -714,6 +723,7 @@ export default function PedidosPage() {
     const mensagem = gerarMensagemWhatsApp({
       pedidoId: pedido.id,
       pedidoCodigo: pedido.codigo || null,
+      tenantSlug: tenantSlugAtual || undefined,
       tenantNome: 'Nossa Loja', // Será substituído depois pelo tenant real
       clienteNome: pedido.cliente_nome || '',
       clienteWhatsapp: pedido.cliente_whatsapp || '',

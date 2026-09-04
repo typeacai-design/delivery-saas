@@ -171,6 +171,7 @@ interface CardapioData {
   whatsappAjuda: { ativo: boolean; numero: string; mensagem: string }
   faixaAvisos: { ativo: boolean; mensagem: string; corFundo: string; corTexto: string; link: string }
   segundaFaixa: { ativo: boolean; mensagem: string; link: string }
+  pedidoInicial?: string | null // codigo do pedido vindo de ?pedido=CODIGO na URL
 }
 
 function AnnouncementStrip({ faixa }: { faixa: any }) {
@@ -198,7 +199,10 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
   const [itemEmEdicao, setItemEmEdicao] = useState<CartItem | null>(null)
   const [busca, setBusca] = useState('')
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null)
-  const [abaAtiva, setAbaAtiva] = useState<'inicio' | 'pedidos' | 'perfil'>('inicio')
+  const [abaAtiva, setAbaAtiva] = useState<'inicio' | 'pedidos' | 'perfil'>(
+    // Se a pagina foi aberta com ?pedido=CODIGO, vai direto pra aba de pedidos
+    data.pedidoInicial ? 'pedidos' : 'inicio'
+  )
   const [enderecoAberto, setEnderecoAberto] = useState(false)
   const [clienteLocal, setClienteLocal] = useState<any>({ nome: '', whatsapp: '', aniversario: '', endereco: '', numero: '', bairro: '', complemento: '', observacoes: '' })
 
@@ -1011,7 +1015,7 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
         </div>
       )}
 
-      {abaAtiva === 'pedidos' ? <CustomerOrders slug={data.tenant.slug} cliente={clienteLocal} /> : abaAtiva === 'perfil' ? <CustomerProfile slug={data.tenant.slug} cliente={clienteLocal} setCliente={setClienteLocal} /> : <main className="wd-content px-4 py-4">
+      {abaAtiva === 'pedidos' ? <CustomerOrders slug={data.tenant.slug} cliente={clienteLocal} pedidoInicial={data.pedidoInicial || null} /> : abaAtiva === 'perfil' ? <CustomerProfile slug={data.tenant.slug} cliente={clienteLocal} setCliente={setClienteLocal} /> : <main className="wd-content px-4 py-4">
         <StoreActions data={data} />
         <SecondaryStrip data={data}/>
         {/* Banner Hero */}

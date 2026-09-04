@@ -9,6 +9,7 @@ type Customer = Record<string, string | undefined> & { whatsapp?: string; access
 type OrderItem = { nome: string; quantidade: number; variante_nome?: string | null }
 type Order = {
   id: string
+  codigo?: string | null
   status: string
   created_at: string
   valor_total: number
@@ -163,7 +164,7 @@ function isDark(hex: string): boolean {
   return l < 0.5
 }
 
-export function CustomerOrders({ slug, cliente }: { slug: string; cliente: Customer }) {
+export function CustomerOrders({ slug, cliente, pedidoInicial }: { slug: string; cliente: Customer; pedidoInicial?: string | null }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [message, setMessage] = useState(cliente.whatsapp && cliente.accessToken ? 'Carregando…' : 'Finalize seu primeiro pedido neste aparelho para acompanhar o histórico.')
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -187,11 +188,19 @@ export function CustomerOrders({ slug, cliente }: { slug: string; cliente: Custo
     }).then(async response => {
       const body = await response.json()
       if (!response.ok) throw new Error(body.error)
-      setOrders(body.pedidos || []); setMessage('')
+      const list: Order[] = body.pedidos || []
+      setOrders(list)
+      setMessage('')
+
+      // Se veio com pedidoInicial (via ?pedido=CODIGO na URL), seleciona automaticamente
+      if (pedidoInicial && !selectedOrder) {
+        const found = list.find(o => o.codigo === pedidoInicial)
+        if (found) setSelectedOrder(found)
+      }
     }).catch(() => setMessage('Não foi possível consultar seus pedidos.'))
     load(); const timer = window.setInterval(load, 15_000) // 15s para atualização mais rápida
     return () => window.clearInterval(timer)
-  }, [slug, cliente.whatsapp, cliente.accessToken])
+  }, [slug, cliente.whatsapp, cliente.accessToken, pedidoInicial])
 
   // Realtime: atualiza automaticamente quando lojista muda status
   useEffect(() => {

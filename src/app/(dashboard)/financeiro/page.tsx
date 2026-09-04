@@ -36,11 +36,34 @@ export default function FinanceiroPage(){
       setExpenses(body.expenses||[])
       setTransactions(body.transactions||[])
       setTenant(body.tenant)
-      // Calcular saldo total - SÓ conta pedidos PAGOS como entrada
-      const entradas = (body.orders||[]).filter((o:any)=>o.pago===true && o.status!=='cancelado').reduce((s:number,o:any)=>s+Number(o.valor_total||0),0)
-      const saidas = (body.expenses||[]).reduce((s:number,e:any)=>s+Number(e.valor||0),0)
-      const manual = (body.transactions||[]).reduce((s:number,t:any)=>s+(t.tipo==='entrada'?1:-1)*Number(t.valor||0),0)
-      setSaldoTotal(entradas - saidas + manual)
+      // Calcular saldo SEM duplicação:
+      // - Entradas: pedidos pagos (excluindo cancelados) que NÃO têm transação manual
+      //   OU transactions manuais do tipo 'entrada' com categoria='pedido'
+      // - Saídas: despesas + transactions manuais do tipo 'saida'
+      const transacoesPedido = new Set(
+        (body.transactions||[])
+          .filter((t:any) => t.categoria === 'pedido' && t.descricao)
+          .map((t:any) => t.descricao as string)
+      )
+      const entradasPedidos = (body.orders||[])
+        .filter((o:any) => {
+          if (o.pago !== true || o.status === 'cancelado') return false
+          const labelComHash = `Pedido #${o.codigo || o.id.slice(0,8)}`
+          const labelSemHash = `Pedido ${o.codigo || o.id.slice(0,8)}`
+          return !transacoesPedido.has(labelComHash) && !transacoesPedido.has(labelSemHash)
+        })
+        .reduce((s:number,o:any)=>s+Number(o.valor_total||0),0)
+      const entradasManuaisPedido = (body.transactions||[])
+        .filter((t:any) => t.tipo === 'entrada' && t.categoria === 'pedido')
+        .reduce((s:number,t:any)=>s+Number(t.valor||0),0)
+      const entradasManuaisOutras = (body.transactions||[])
+        .filter((t:any) => t.tipo === 'entrada' && t.categoria !== 'pedido')
+        .reduce((s:number,t:any)=>s+Number(t.valor||0),0)
+      const saidasDespesas = (body.expenses||[]).reduce((s:number,e:any)=>s+Number(e.valor||0),0)
+      const saidasManuais = (body.transactions||[])
+        .filter((t:any) => t.tipo === 'saida')
+        .reduce((s:number,t:any)=>s+Number(t.valor||0),0)
+      setSaldoTotal(entradasPedidos + entradasManuaisPedido + entradasManuaisOutras - saidasDespesas - saidasManuais)
     }finally{setLoading(false)}
   })()},[])
 
@@ -72,11 +95,29 @@ export default function FinanceiroPage(){
 const Empty=({text}:{text:string})=><p className="hint text-sm py-8 text-center">{text}</p>
 
 function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{orders:Order[];expenses:Expense[];transactions:ManualTransaction[];onNewTransaction:()=>void;onSaved:()=>void}){
-  // Só mostra PEDIDOS PAGOS como entrada no fluxo de caixa
+  // Construir conjunto de descrições de transações manuais (categoria='pedido')
+  // para evitar DUPLICAÇÃO: o pedido entra OU pela lista de orders pagos OU
+  // pela transaction manual, nunca pelos dois.
+  const transacoesPedido = new Set(
+    transactions
+      .filter(t => t.categoria === 'pedido' && t.descricao)
+      .map(t => t.descricao as string)
+  )
+
+  // Mostra pedidos pagos que NÃO têm lançamento manual correspondente
   const rows=[
-    ...orders.filter(o=>o.pago===true).map(o=>({
+    ...orders.filter(o => {
+      if (o.pago !== true) return false
+      if (o.status === 'cancelado') return false
+      // Labels possíveis (compatibilidade: a descrição manual usa 'Pedido #00021/26')
+      const labelComHash = `Pedido #${o.codigo || o.id.slice(0,8)}`
+      const labelSemHash = `Pedido ${o.codigo || o.id.slice(0,8)}`
+      if (transacoesPedido.has(labelComHash)) return false
+      if (transacoesPedido.has(labelSemHash)) return false
+      return true
+    }).map(o => ({
       date:o.created_at,
-      label:`Pedido ${o.codigo || `#${o.id.slice(0,8)}`}`,
+      label:`Pedido #${o.codigo || o.id.slice(0,8)}`,
       value:Number(o.valor_total),
       kind:'entrada' as const,
       pago:o.pago,

@@ -441,6 +441,7 @@ export function CheckoutDrawer({
     const mensagemUnificada = gerarMensagemWhatsApp({
       pedidoId: pedido?.id || String(Date.now()),
       pedidoCodigo: pedido?.codigo || null,
+      tenantSlug,
       tenantNome, clienteNome: cliente.nome,
       clienteWhatsapp: cliente.whatsapp,
       itens: carrinhoLocal.map(item => ({ nome: item.nome, quantidade: item.quantidade,

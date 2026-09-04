@@ -12,6 +12,7 @@ export interface ItemPedido {
 export interface DadosPedido {
   pedidoId: string
   pedidoCodigo?: string // codigo formatado (00001/26)
+  tenantSlug?: string // slug do tenant para montar link do cardápio público
   tenantNome: string
   clienteNome: string
   clienteWhatsapp: string
@@ -34,7 +35,12 @@ export interface DadosPedido {
 export function gerarMensagemWhatsApp(d: DadosPedido): string {
   // Usar codigo formatado (00001/26) ao inves de UUID
   const codigoExibir = d.pedidoCodigo || `#${d.pedidoId.slice(-6)}`
-  const linkPedido = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://wedelivery.site'}/pedido/${d.pedidoCodigo || d.pedidoId}`
+  // Link aponta para o cardapio publico do tenant com query param ?pedido=CODIGO
+  // O cardapio detecta esse param e abre direto a aba "Meus Pedidos" com o pedido selecionado
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://wedelivery.site'
+  const linkPedido = d.tenantSlug
+    ? `${baseUrl}/${d.tenantSlug}?pedido=${encodeURIComponent(codigoExibir)}`
+    : `${baseUrl}/pedido/${d.pedidoCodigo || d.pedidoId}`
 
   let texto = `🛒 *PEDIDO - ${d.tenantNome}*\n`
   texto += `📋 *#${codigoExibir}*\n`

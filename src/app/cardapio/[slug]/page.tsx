@@ -10,10 +10,13 @@ export const revalidate = 0
 // Page SEM auth - cardápio é público
 export default async function CardapioPublicoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ pedido?: string }>
 }) {
   const { slug } = await params
+  const { pedido: pedidoParam } = await searchParams
 
   // Esta pagina roda somente no servidor. A service role evita que o cardapio
   // publico dependa da sessao anonima/RLS para carregar os dados, sem expor a
@@ -233,6 +236,7 @@ export default async function CardapioPublicoPage({
     segundaFaixa: { ativo: config.cardapio_segunda_faixa_ativa === true, mensagem: config.cardapio_segunda_faixa_mensagem || '', link: config.cardapio_segunda_faixa_link || '' },
     valorMinimoPedido: config.valor_minimo_pedido || 0,
     totalBairros: enderecos?.length || 0,
+    pedidoInicial: pedidoParam || null,
   }
 
   return <CardapioCliente data={cardapioData} />

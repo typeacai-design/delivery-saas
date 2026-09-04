@@ -55,7 +55,7 @@ export default function AvaliacoesPage() {
 
   const copiarLink = async () => {
     if (!tenantSlug) return
-    const url = `${window.location.origin}/${tenantSlug}#avaliar`
+    const url = `${window.location.origin}/avaliar-loja/${tenantSlug}`
     try {
       await navigator.clipboard.writeText(url)
       setLinkCopied(true)
@@ -154,7 +154,7 @@ export default function AvaliacoesPage() {
               disabled={!tenantSlug}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition disabled:opacity-50"
               style={{ background: linkCopied ? '#16A34A' : 'var(--green, #16A34A)' }}
-              title={tenantSlug ? `Copiar link de avaliação (${window.location.origin}/${tenantSlug}#avaliar)` : 'Carregando link…'}
+              title={tenantSlug ? `Copiar link de avaliação (${window.location.origin}/avaliar-loja/${tenantSlug})` : 'Carregando link…'}
             >
               {linkCopied ? (
                 <>
