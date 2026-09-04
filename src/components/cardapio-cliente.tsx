@@ -206,6 +206,32 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
   const [enderecoAberto, setEnderecoAberto] = useState(false)
   const [clienteLocal, setClienteLocal] = useState<any>({ nome: '', whatsapp: '', aniversario: '', endereco: '', numero: '', bairro: '', complemento: '', observacoes: '' })
 
+  // Sincroniza URL com a aba ativa e pedido selecionado
+  const updateUrl = (aba: 'inicio' | 'pedidos' | 'perfil', pedidoCodigo?: string | null) => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams()
+    if (aba !== 'inicio') params.set('aba', aba)
+    if (pedidoCodigo) params.set('pedido', pedidoCodigo)
+    const queryString = params.toString()
+    const novaUrl = `${window.location.pathname}${queryString ? '?' + queryString : ''}`
+    window.history.pushState({ aba, pedido: pedidoCodigo }, '', novaUrl)
+  }
+
+  const navegarPara = (aba: 'inicio' | 'pedidos' | 'perfil', pedidoCodigo?: string | null) => {
+    setAbaAtiva(aba)
+    updateUrl(aba, pedidoCodigo)
+  }
+
+  // Ao carregar, se a URL já tem ?aba= ou ?pedido=, respeita
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const abaUrl = params.get('aba') as 'inicio' | 'pedidos' | 'perfil' | null
+    if (abaUrl && (abaUrl === 'pedidos' || abaUrl === 'perfil' || abaUrl === 'inicio')) {
+      if (!data.pedidoInicial) setAbaAtiva(abaUrl)
+    }
+  }, [data.pedidoInicial])
+
   useEffect(() => {
     try {
       const salvo = localStorage.getItem(`delivery_carrinho_${data.tenant.slug}`)
@@ -386,7 +412,7 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
           categoriaAtiva={categoriaAtiva}
           setCategoriaAtiva={setCategoriaAtiva}
           abaAtiva={abaAtiva}
-          setAbaAtiva={setAbaAtiva}
+          navegarPara={navegarPara}
           enderecoCliente={clienteLocal.endereco ? `${clienteLocal.endereco}${clienteLocal.numero ? `, ${clienteLocal.numero}` : ''}` : ''}
           onEditarEndereco={() => setEnderecoAberto(true)}
           totalItens={totalItens}
@@ -929,7 +955,7 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
 // ============================================================
 // LAYOUT CLÁSSICO — Sabor da Casa (App-style laranja)
 // ============================================================
-function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAtiva, abaAtiva, setAbaAtiva, totalItens, produtosFiltrados, onAbrirModal, onAbrirCarrinho, enderecoCliente, onEditarEndereco, clienteLocal, setClienteLocal }: any) {
+function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAtiva, abaAtiva, navegarPara, totalItens, produtosFiltrados, onAbrirModal, onAbrirCarrinho, enderecoCliente, onEditarEndereco, clienteLocal, setClienteLocal }: any) {
   const cor = data.theme.primary
   const corSecundaria = data.theme.secondary
 
@@ -1015,7 +1041,7 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
         </div>
       )}
 
-      {abaAtiva === 'pedidos' ? <CustomerOrders slug={data.tenant.slug} cliente={clienteLocal} pedidoInicial={data.pedidoInicial || null} /> : abaAtiva === 'perfil' ? <CustomerProfile slug={data.tenant.slug} cliente={clienteLocal} setCliente={setClienteLocal} /> : <main className="wd-content px-4 py-4">
+      {abaAtiva === 'pedidos' ? <CustomerOrders slug={data.tenant.slug} cliente={clienteLocal} pedidoInicial={data.pedidoInicial || null} onVoltar={() => navegarPara('inicio')} onSelecionarPedido={(codigo) => navegarPara('pedidos', codigo)} /> : abaAtiva === 'perfil' ? <CustomerProfile slug={data.tenant.slug} cliente={clienteLocal} setCliente={setClienteLocal} /> : <main className="wd-content px-4 py-4">
         <StoreActions data={data} />
         <SecondaryStrip data={data}/>
         {/* Banner Hero */}
@@ -1162,7 +1188,12 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
           ].map((item) => (
             <button
               key={item.id}
-              onClick={() => setAbaAtiva(item.id)}
+              onClick={() => {
+                const abaId = item.id
+                if (abaId === 'inicio' || abaId === 'pedidos' || abaId === 'perfil') {
+                  navegarPara(abaId)
+                }
+              }}
               aria-current={abaAtiva === item.id ? 'page' : undefined}
               className="flex min-h-11 flex-col items-center justify-center gap-1 px-3"
               style={{ color: abaAtiva === item.id ? cor : data.theme.secondary }}

@@ -164,7 +164,19 @@ function isDark(hex: string): boolean {
   return l < 0.5
 }
 
-export function CustomerOrders({ slug, cliente, pedidoInicial }: { slug: string; cliente: Customer; pedidoInicial?: string | null }) {
+export function CustomerOrders({
+  slug,
+  cliente,
+  pedidoInicial,
+  onVoltar,
+  onSelecionarPedido,
+}: {
+  slug: string
+  cliente: Customer
+  pedidoInicial?: string | null
+  onVoltar?: () => void
+  onSelecionarPedido?: (codigo: string | null) => void
+}) {
   const [orders, setOrders] = useState<Order[]>([])
   const [message, setMessage] = useState(cliente.whatsapp && cliente.accessToken ? 'Carregando…' : 'Finalize seu primeiro pedido neste aparelho para acompanhar o histórico.')
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -228,6 +240,13 @@ export function CustomerOrders({ slug, cliente, pedidoInicial }: { slug: string;
     const etapaAtualIndex = ETAPAS.indexOf(status as any)
     const isCompleto = status === 'entregue'
 
+    // Handler do botão voltar — limpa URL e fecha detalhe
+    const handleVoltar = () => {
+      setSelectedOrder(null)
+      onVoltar?.()
+      onSelecionarPedido?.(null)
+    }
+
     const enderecoCompleto = order.endereco_entrega
       ? [
           order.endereco_entrega,
@@ -247,7 +266,7 @@ export function CustomerOrders({ slug, cliente, pedidoInicial }: { slug: string;
           style={{ background: theme.primary, color: '#FFFFFF' }}
         >
           <button
-            onClick={() => setSelectedOrder(null)}
+            onClick={handleVoltar}
             className="size-10 rounded-full flex items-center justify-center"
             style={{ background: 'rgba(255,255,255,0.18)' }}
             aria-label="Voltar"
@@ -429,7 +448,11 @@ export function CustomerOrders({ slug, cliente, pedidoInicial }: { slug: string;
           return (
             <button
               key={order.id}
-              onClick={() => setSelectedOrder(order)}
+              onClick={() => {
+                setSelectedOrder(order)
+                const codigo = (order as any).codigo || order.id.slice(0, 8)
+                onSelecionarPedido?.(codigo)
+              }}
               className="w-full text-left rounded-3xl p-4 shadow-sm flex items-center gap-3 hover:opacity-80 transition"
               style={{ background: '#FFFFFF' }}
             >
