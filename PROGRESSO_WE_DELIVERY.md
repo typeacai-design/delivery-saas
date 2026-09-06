@@ -1,12 +1,12 @@
 # We Delivery - Progresso do Sistema
 
-## Última Atualização: 06/09/2026 (correções críticas — checkout + cardápio)
+## Última Atualização: 06/09/2026 (final do dia)
 
 ## Deploy em Produção
 - **URL**: https://wedelivery.site
 - **Repositório**: https://github.com/typeacai-design/delivery-saas
-- **Último Deploy**: 06/09/2026 — 6 demandas + correções críticas (função RPC consolidada + coluna deleted_at em produtos)
-- **Deployment ID**: `dpl_AiPL3MJk5VFTbHChdX5MLyL7Hkp7`
+- **Último Deploy**: 06/09/2026 — 6 demandas + 4 bugs críticos corrigidos
+- **Deployment ID**: `dpl_Fhxw5SCD5...` (alias `wedelivery.site`)
 - **Build**: ✅ Compiled successfully (96 páginas)
 
 ---
@@ -322,3 +322,76 @@ vercel logs --since 1h
 - **Sintoma**: Cliente tentava finalizar pedido → erro genérico 409
 - **Causa**: Havia 3 overloads da função `criar_pedido_atomico` no banco (6, 7 e 8 parâmetros). PostgREST retornava `PGRST203` por não conseguir escolher entre eles
 - **Fix**: Migration `063_consolidar_criar_pedido_atomico.sql` remove as 2 versões antigas, mantendo só a mais recente (com `p_convite_codigo`)
+
+---
+
+## 🚨 Sessão Crítica 06/09 (tarde) — Pedidos Quebrados + Clientes Duplicados
+
+### Bug C — TODOS os pedidos falhando (relation does not exist)
+- **Sintoma**: Cliente tentava finalizar pedido → erro 409 "Nao foi possivel concluir o pedido"
+- **Causa raiz**: A funcao `criar_pedido_atomico` (deixada em migrations anteriores) referenciava:
+  - Tabela `idempotency_keys` que NUNCA foi criada
+  - Tabela `convite_codigos` que NUNCA foi criada
+  - Coluna `pedidos.idempotency_hash` (correto: `idempotency_key_hash`)
+- Toda chamada quebrava com `relation idempotency_keys does not exist`
+- **Fix**: Migration `065_corrigir_criar_pedido_atomico.sql` reescreve a funcao com schema real
+- **Validacao**: Pedido de teste criado via RPC → codigo 00022/26, R\$ 18, status `novo`
+
+### Bug D — Clientes duplicados (Rick Machado = 5 cadastros!)
+- **Sintoma**: `clientes` com 3-5 registros para o mesmo telefone. Rick Machado (47991701079) tinha 5 entradas.
+- **Causa**: 
+  1. `cardapio-cliente.tsx` salvava `clienteLocal` no localStorage sem o `accessToken`
+  2. A cada reload/dispositivo novo, checkout gerava novo token aleatorio
+  3. `POST /api/clientes/public` buscava por `acesso_token_hash` → nao encontrava → INSERIA novo registro
+  4. Resultado: mesmo cliente fisico com N cadastros (mesmo telefone, tokens diferentes)
+- **Fix frontend** (`src/components/cardapio-cliente.tsx`):
+  - `onClienteCadastrado` agora persiste o `accessToken` no localStorage imediatamente
+  - Recarregar a pagina ou trocar de dispositivo reutiliza o mesmo token
+- **Limpeza do banco** (`migration 066_deduplicar_clientes.sql`):
+  - Marca duplicatas adicionando sufixo `[dup-AAAAMMDDHH24MI]` no nome
+  - Preserva o registro mais antigo como primario
+  - Nao deleta (mantem auditoria)
+- **Resultado**: 6 duplicatas marcadas na Type Acai (Rick: 4, Zidane: 1, Natanael: 1)
+
+---
+
+## 📊 Resumo Geral da Sessão 06/09/2026
+
+### Demandas originais do Rick (todas entregues):
+1. Cardapio publico - loja fora do horario (avisos + bloqueio no modal)
+2. Relatorios - Ticket Medio
+3. Cardapio publico - barra de pesquisa de bairro
+4. Marketing - modal "Criar cupom" repaginado
+5. Bug loja aberta manualmente (override na API)
+6. Link de avaliacao quebrado (rota dinamica + repaginacao visual)
+
+### Bugs criticos descobertos e corrigidos no mesmo dia:
+- A. Cardapio do lojista mostrava 0 produtos (coluna deleted_at faltando)
+- B. 3 overloads de criar_pedido_atomico (PGRST203)
+- C. Funcao RPC com referencias quebradas (todos pedidos falhavam)
+- D. Clientes duplicados (accessToken nao persistido)
+
+### Migrations aplicadas em 06/09:
+- 063: Consolida criar_pedido_atomico (remove overloads)
+- 064: Adiciona coluna deleted_at em produtos
+- 065: Reescreve criar_pedido_atomico com schema real
+- 066: Dedup clientes por telefone (marca duplicatas)
+
+### Fix de frontend aplicado:
+- `src/components/checkout-flow.tsx`: useEffect redistribui valores de pagamento quando total muda (cupom, taxa)
+- `src/components/cardapio-cliente.tsx`: 
+  - remove `className="hidden"` dos 3 layouts (avisos visiveis)
+  - busca de bairro no modal de endereco
+  - persiste accessToken no localStorage apos cadastro
+
+---
+
+## Estado funcional atual (06/09 final)
+
+- 6 demandas do Rick entregues e em producao
+- 4 bugs criticos descobertos e corrigidos no mesmo dia
+- Build: Compiled successfully (96 paginas)
+- Deployment producao: alias wedelivery.site OK
+- Pedidos funcionando normalmente
+- Sem mais duplicacao de clientes (novos)
+- Cardapio do lojista e publico exibindo produtos
