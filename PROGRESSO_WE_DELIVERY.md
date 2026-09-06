@@ -1,11 +1,13 @@
 # We Delivery - Progresso do Sistema
 
-## Última Atualização: 06/09/2026
+## Última Atualização: 06/09/2026 (deploy em produção)
 
 ## Deploy em Produção
 - **URL**: https://wedelivery.site
 - **Repositório**: https://github.com/typeacai-design/delivery-saas
-- **Último Deploy**: 06/09/2026 — correções de bugs + 5 novas demandas
+- **Último Deploy**: 06/09/2026 — 6 demandas corrigidas e publicadas
+- **Deployment ID**: `dpl_AiPL3MJk5VFTbHChdX5MLyL7Hkp7`
+- **Build**: ✅ Compiled successfully (96 páginas)
 
 ---
 
