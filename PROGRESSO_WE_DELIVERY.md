@@ -1,11 +1,11 @@
 # We Delivery - Progresso do Sistema
 
-## Última Atualização: 06/09/2026 (deploy em produção)
+## Última Atualização: 06/09/2026 (correções críticas — checkout + cardápio)
 
 ## Deploy em Produção
 - **URL**: https://wedelivery.site
 - **Repositório**: https://github.com/typeacai-design/delivery-saas
-- **Último Deploy**: 06/09/2026 — 6 demandas corrigidas e publicadas
+- **Último Deploy**: 06/09/2026 — 6 demandas + correções críticas (função RPC consolidada + coluna deleted_at em produtos)
 - **Deployment ID**: `dpl_AiPL3MJk5VFTbHChdX5MLyL7Hkp7`
 - **Build**: ✅ Compiled successfully (96 páginas)
 
@@ -307,3 +307,18 @@ vercel logs --since 1h
 - Verificar RLS de movimentacoes_financeiras — policy `movimentacoes_tenant_usuarios` exige `auth.uid() = usuarios_loja.user_id` mas o user_id da Type Açaí está com mesmo UUID do tenant_id (anomalia histórica). A solução atual (service_role bypass) contorna isso.
 - Possível migration para corrigir o `user_id` correto em usuarios_loja
 
+
+---
+
+## 🚨 Bugs Críticos Resolvidos em 06/09 (mesmo dia)
+
+### Bug A — Cardápio do lojista mostrava 0 produtos
+- **Sintoma**: Na aba Cardápio > Produtos, as sessões apareciam vazias mesmo com produtos cadastrados
+- **Causa**: Código usava `.is('deleted_at', null)` mas a coluna `produtos.deleted_at` nunca havia sido criada
+- **Fix**: Migration `064_soft_delete_produtos.sql` adiciona coluna + índice
+- **Validação**: Confirmado via SQL — Type Açaí tem 6 produtos distribuídos em 3 sessões
+
+### Bug B — Erro "Não foi possível concluir o pedido"
+- **Sintoma**: Cliente tentava finalizar pedido → erro genérico 409
+- **Causa**: Havia 3 overloads da função `criar_pedido_atomico` no banco (6, 7 e 8 parâmetros). PostgREST retornava `PGRST203` por não conseguir escolher entre eles
+- **Fix**: Migration `063_consolidar_criar_pedido_atomico.sql` remove as 2 versões antigas, mantendo só a mais recente (com `p_convite_codigo`)
