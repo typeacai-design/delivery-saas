@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { X, Plus, Minus, ShoppingCart, Clock, MapPin, User, Phone, CreditCard, Calendar, MessageSquare, ChevronDown, Tag, Loader2, Check, AlertCircle, Trash2 } from 'lucide-react'
+import { X, Plus, Minus, ShoppingCart, Clock, MapPin, User, Phone, CreditCard, Calendar, MessageSquare, ChevronDown, Tag, Loader2, Check, AlertCircle, Trash2, Search } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { formatBirthdayInput, isValidBirthday, birthdayToIso } from '@/lib/checkout-date'
 import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
@@ -854,6 +854,13 @@ function AniversarioView({ cliente, setCliente, onContinuar }: any) {
 
 function EntregaView({ cliente, setCliente, bairroSelecionado, setBairroSelecionado, enderecos, taxaEntrega, tenantEndereco, entregaConfig, tenantSlug, onContinuar }: any) {
   const [mostrarBairros, setMostrarBairros] = useState(false)
+  const [buscaBairro, setBuscaBairro] = useState('')
+  const bairrosFiltrados = useMemo(
+    () => (enderecos || []).filter((end: any) =>
+      (end.bairro || '').toLowerCase().includes(buscaBairro.toLowerCase())
+    ),
+    [enderecos, buscaBairro]
+  )
   const [sugestoes,setSugestoes]=useState<any[]>([]); const [routeError,setRouteError]=useState('');const [mapConfigured,setMapConfigured]=useState<boolean|null>(null)
   useEffect(()=>{if(entregaConfig?.metodo!=='km')return;fetch('/api/mapbox/public',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',tenant_slug:tenantSlug})}).then(r=>r.json()).then(b=>{setMapConfigured(Boolean(b.configured));if(!b.configured)setRouteError('Entrega por quilômetro indisponível agora. Escolha retirada ou fale com a loja para usar entrega por bairro.')}).catch(()=>{setMapConfigured(false);setRouteError('Não foi possível carregar o cálculo de entrega.')})},[entregaConfig?.metodo])
   useEffect(()=>{if(entregaConfig?.metodo!=='km'||mapConfigured!==true||cliente.endereco?.length<3)return;const timer=setTimeout(async()=>{const r=await fetch('/api/mapbox/public',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'search',tenant_slug:tenantSlug,query:cliente.endereco})});const b=await r.json();if(!r.ok)setRouteError(b.error||'Busca de endereço indisponível');setSugestoes(b.suggestions||[])},350);return()=>clearTimeout(timer)},[cliente.endereco,entregaConfig?.metodo,tenantSlug,mapConfigured])
@@ -930,27 +937,43 @@ function EntregaView({ cliente, setCliente, bairroSelecionado, setBairroSelecion
         </button>
 
         {mostrarBairros && (
-          <div className="mt-2 border rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-            {enderecos.length === 0 ? (
-              <p className="p-3 text-sm text-gray-500">Nenhum bairro cadastrado</p>
-            ) : (
-              enderecos.map((end: any) => (
-                <button
-                  key={end.id}
-                  onClick={() => {
-                    setBairroSelecionado(end)
-                    setCliente({ ...cliente, bairro: end.bairro })
-                    setMostrarBairros(false)
-                  }}
-                  className={`w-full p-3 text-left hover:bg-gray-50 flex justify-between items-center ${
-                    bairroSelecionado?.id === end.id ? 'bg-green-50' : ''
-                  }`}
-                >
-                  <span className="font-medium">{end.bairro}</span>
-                  <span className="text-green-600 font-semibold">{formatCurrency(end.taxa)}</span>
-                </button>
-              ))
-            )}
+          <div className="mt-2 border rounded-xl overflow-hidden">
+            {/* Barra de pesquisa */}
+            <div className="relative border-b">
+              <input
+                type="text"
+                value={buscaBairro}
+                onChange={(e) => setBuscaBairro(e.target.value)}
+                placeholder="Buscar bairro…"
+                className="w-full py-2.5 pl-3 pr-10 outline-none text-sm bg-white"
+              />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {enderecos.length === 0 ? (
+                <p className="p-3 text-sm text-gray-500">Nenhum bairro cadastrado</p>
+              ) : bairrosFiltrados.length === 0 ? (
+                <p className="p-3 text-sm text-gray-500">Nenhum bairro encontrado para “{buscaBairro}”</p>
+              ) : (
+                bairrosFiltrados.map((end: any) => (
+                  <button
+                    key={end.id}
+                    onClick={() => {
+                      setBairroSelecionado(end)
+                      setCliente({ ...cliente, bairro: end.bairro })
+                      setMostrarBairros(false)
+                      setBuscaBairro('')
+                    }}
+                    className={`w-full p-3 text-left hover:bg-gray-50 flex justify-between items-center ${
+                      bairroSelecionado?.id === end.id ? 'bg-green-50' : ''
+                    }`}
+                  >
+                    <span className="font-medium">{end.bairro}</span>
+                    <span className="text-green-600 font-semibold">{formatCurrency(end.taxa)}</span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>}
@@ -1299,6 +1322,7 @@ interface ProdutoModalProps {
   paletaCor: string
   initialItem?: CartItem | null
   onReplaceItem?: (itemId: string, item: Omit<CartItem, 'id'>) => void
+  lojaAberta?: boolean
 }
 
 export function ProdutoModal({
@@ -1313,6 +1337,7 @@ export function ProdutoModal({
   paletaCor,
   initialItem,
   onReplaceItem,
+  lojaAberta = true,
 }: ProdutoModalProps) {
   const [quantidade, setQuantidade] = useState(1)
   const [varianteSelecionada, setVarianteSelecionada] = useState<string | null>(
@@ -1423,7 +1448,27 @@ export function ProdutoModal({
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
 
-      <div role="dialog" aria-modal="true" aria-label={`Personalizar ${produto.nome}`} className="wd-product-dialog wd-overlay fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md rounded-3xl z-50 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      {/* Overlay bloqueante quando loja esta fora do horario */}
+      {!lojaAberta && (
+        <div className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md rounded-3xl z-[60] flex items-center justify-center p-6 shadow-2xl" style={{ background: 'var(--cardapio-surface, #FFFFFF)' }}>
+          <div className="text-center w-full">
+            <div className="text-5xl mb-3">🕐</div>
+            <h3 className="text-xl font-bold mb-1" style={{ color: 'var(--cardapio-text, #111827)' }}>Loja Fechada</h3>
+            <p className="text-sm mb-5" style={{ color: 'var(--cardapio-muted, #6B7280)' }}>
+              Esta loja está fora do horário de funcionamento. Não é possível selecionar produtos agora.
+            </p>
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl font-semibold text-white transition active:scale-95"
+              style={{ background: paletaCor }}
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div role="dialog" aria-modal="true" aria-label={`Personalizar ${produto.nome}`} className={`wd-product-dialog wd-overlay fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md rounded-3xl z-50 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden ${!lojaAberta ? 'pointer-events-none opacity-30' : ''}`}>
         <button onClick={onClose} aria-label="Fechar" className="wd-icon-button absolute top-4 right-4 z-10 p-2 rounded-full shadow-lg">
           <X className="w-5 h-5" />
         </button>

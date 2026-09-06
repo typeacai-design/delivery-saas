@@ -125,13 +125,19 @@ export async function POST(request: Request) {
     }
 
     // 2) Verifica loja aberta
+    // Override manual tem prioridade sobre o horario:
+    //   - cfg.loja_aberta === false → forca fechada (mesmo dentro do horario)
+    //   - cfg.loja_aberta === true  → forca aberta (mesmo fora do horario)
+    //   - undefined/null            → segue a tabela de horarios
     const cfg = (tenant.config || {}) as any
     if (cfg.loja_aberta === false) {
       return NextResponse.json({ error: 'Loja está fechada no momento' }, { status: 403 })
     }
-    const horario = checkHorarioAberto(cfg.horarios_dias)
-    if (!horario.aberto) {
-      return NextResponse.json({ error: `Loja fechada — ${horario.motivo}` }, { status: 403 })
+    if (cfg.loja_aberta !== true) {
+      const horario = checkHorarioAberto(cfg.horarios_dias)
+      if (!horario.aberto) {
+        return NextResponse.json({ error: `Loja fechada — ${horario.motivo}` }, { status: 403 })
+      }
     }
 
     // 3) Valor mínimo

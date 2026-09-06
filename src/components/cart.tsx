@@ -270,6 +270,7 @@ interface ProdutoModalProps {
   complementos: any[]
   onAddToCart: (item: Omit<CartItem, 'id'>) => void
   paletaCor: string
+  lojaAberta?: boolean
 }
 
 export function ProdutoModal({
@@ -279,7 +280,8 @@ export function ProdutoModal({
   variantes,
   complementos,
   onAddToCart,
-  paletaCor
+  paletaCor,
+  lojaAberta = true,
 }: ProdutoModalProps) {
   const [quantidade, setQuantidade] = useState(1)
   const [varianteSelecionada, setVarianteSelecionada] = useState<string | null>(
@@ -348,7 +350,27 @@ export function ProdutoModal({
         onClick={onClose}
       />
 
-      <div className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white rounded-3xl z-50 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      {/* Overlay bloqueante quando loja esta fora do horario */}
+      {!lojaAberta && (
+        <div className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white rounded-3xl z-[60] flex items-center justify-center p-6 shadow-2xl">
+          <div className="text-center w-full">
+            <div className="text-5xl mb-3">🕐</div>
+            <h3 className="text-xl font-bold mb-1 text-gray-900">Loja Fechada</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Esta loja está fora do horário de funcionamento. Não é possível selecionar produtos agora.
+            </p>
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl font-semibold text-white transition active:scale-95"
+              style={{ background: paletaCor }}
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white rounded-3xl z-50 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden ${!lojaAberta ? 'pointer-events-none opacity-30' : ''}`}>
         {/* Header com imagem */}
         <div className="relative">
           {produto.imagem_url ? (

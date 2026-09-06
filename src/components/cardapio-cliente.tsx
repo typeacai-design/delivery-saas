@@ -204,6 +204,13 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
     data.pedidoInicial ? 'pedidos' : 'inicio'
   )
   const [enderecoAberto, setEnderecoAberto] = useState(false)
+  const [buscaBairro, setBuscaBairro] = useState('')
+  const bairrosFiltrados = useMemo(
+    () => data.enderecos.filter((item: any) =>
+      item.bairro.toLowerCase().includes(buscaBairro.toLowerCase())
+    ),
+    [data.enderecos, buscaBairro]
+  )
   const [clienteLocal, setClienteLocal] = useState<any>({ nome: '', whatsapp: '', aniversario: '', endereco: '', numero: '', bairro: '', complemento: '', observacoes: '' })
 
   // Sincroniza URL com a aba ativa e pedido selecionado
@@ -457,6 +464,7 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         paletaCor={data.corPaleta}
         initialItem={itemEmEdicao}
         onReplaceItem={substituirItem}
+        lojaAberta={data.lojaAberta}
       />
       <FloatingWhatsApp data={data} />
       {enderecoAberto && <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={() => setEnderecoAberto(false)}>
@@ -465,13 +473,35 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
           <p className="text-sm text-gray-500 mt-1 mb-4">Ficará salvo neste navegador para as próximas compras.</p>
           <div className="space-y-3">
             <input className="w-full border rounded-xl p-3" placeholder="Rua ou avenida" value={clienteLocal.endereco} onChange={(e) => setClienteLocal({ ...clienteLocal, endereco: e.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
-              <input className="w-full border rounded-xl p-3" placeholder="Número" value={clienteLocal.numero} onChange={(e) => setClienteLocal({ ...clienteLocal, numero: e.target.value })} />
-              <select className="w-full border rounded-xl p-3" value={clienteLocal.bairro} onChange={(e) => setClienteLocal({ ...clienteLocal, bairro: e.target.value })}>
-                <option value="">Bairro</option>
-                {data.enderecos.map((item: any) => <option key={item.id} value={item.bairro}>{item.bairro}</option>)}
-              </select>
+            <input className="w-full border rounded-xl p-3" placeholder="Número" value={clienteLocal.numero} onChange={(e) => setClienteLocal({ ...clienteLocal, numero: e.target.value })} />
+            {/* Barra de pesquisa do bairro */}
+            <div className="relative">
+              <input
+                type="text"
+                className="w-full border rounded-xl p-3 pr-10"
+                placeholder="Buscar bairro…"
+                value={buscaBairro}
+                onChange={(e) => setBuscaBairro(e.target.value)}
+              />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
+            {bairrosFiltrados.length > 0 ? (
+              <select
+                className="w-full border rounded-xl p-3"
+                value={clienteLocal.bairro}
+                onChange={(e) => setClienteLocal({ ...clienteLocal, bairro: e.target.value })}
+                size={Math.min(6, bairrosFiltrados.length + 1)}
+              >
+                <option value="">Selecione o bairro</option>
+                {bairrosFiltrados.map((item: any) => (
+                  <option key={item.id} value={item.bairro}>{item.bairro}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="border rounded-xl p-3 text-sm text-gray-500 bg-gray-50">
+                Nenhum bairro encontrado para “{buscaBairro}”
+              </div>
+            )}
             <input className="w-full border rounded-xl p-3" placeholder="Complemento ou referência" value={clienteLocal.complemento} onChange={(e) => setClienteLocal({ ...clienteLocal, complemento: e.target.value })} />
           </div>
           <div className="flex gap-3 mt-5">
@@ -584,13 +614,11 @@ function LayoutMinimalista({ data, busca, setBusca, totalItens, produtosFiltrado
 
       {/* Aviso loja fechada */}
       {!data.lojaAberta && (
-        <div className="hidden">
-          <div className="p-4 rounded-lg border-2 border-dashed border-red-300 bg-red-50 flex items-center gap-3">
-            <span className="text-2xl">🕐</span>
-            <div>
-              <p className="font-semibold text-red-700">Loja Fechada</p>
-              <p className="text-sm text-red-600">Voltamos em breve!</p>
-            </div>
+        <div className="p-4 mx-4 mt-3 rounded-lg border-2 border-dashed border-red-300 bg-red-50 flex items-center gap-3">
+          <span className="text-2xl">🕐</span>
+          <div>
+            <p className="font-semibold text-red-700">Loja Fechada</p>
+            <p className="text-sm text-red-600">Esta loja está fora do horário de funcionamento. Voltamos em breve!</p>
           </div>
         </div>
       )}
@@ -748,11 +776,11 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
 
         {/* Aviso loja fechada */}
         {!data.lojaAberta && (
-          <div className="hidden">
+          <div className="p-4 mx-4 mt-3 rounded-lg border-2 border-dashed border-red-300 bg-red-50 flex items-center gap-3">
             <span className="text-2xl">🕐</span>
             <div>
               <p className="font-semibold text-red-700">Loja Fechada</p>
-              <p className="text-sm text-red-600">Voltamos em breve!</p>
+              <p className="text-sm text-red-600">Esta loja está fora do horário de funcionamento. Voltamos em breve!</p>
             </div>
           </div>
         )}
@@ -1032,11 +1060,11 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
 
       {/* Aviso loja fechada */}
       {!data.lojaAberta && (
-        <div className="hidden">
+        <div className="p-4 mx-4 mt-3 rounded-lg border-2 border-dashed border-red-300 bg-red-50 flex items-center gap-3">
           <span className="text-2xl">🕐</span>
           <div>
             <p className="font-semibold text-red-700">Loja Fechada</p>
-            <p className="text-sm text-red-600">Voltamos em breve!</p>
+            <p className="text-sm text-red-600">Esta loja está fora do horário de funcionamento. Voltamos em breve!</p>
           </div>
         </div>
       )}

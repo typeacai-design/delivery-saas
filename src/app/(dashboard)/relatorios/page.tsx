@@ -25,6 +25,8 @@ export default function RelatoriosPage() {
   const [totalGeral, setTotalGeral] = useState(0)
   const [totalEntradas, setTotalEntradas] = useState(0)
   const [totalSaidas, setTotalSaidas] = useState(0)
+  const [ticketMedio, setTicketMedio] = useState(0)
+  const [numeroPedidosPagos, setNumeroPedidosPagos] = useState(0)
   const supabase = createClient()
 
   useEffect(() => {
@@ -80,6 +82,10 @@ export default function RelatoriosPage() {
     })
     setVendasPorDia(Object.entries(gruposDia).map(([dia, d]) => ({ dia, ...d })).sort((a, b) => a.dia.localeCompare(b.dia)))
     setTotalGeral(total)
+    // Ticket médio: valor total / número de pedidos pagos
+    const totalCount = pedidosPagos.length
+    setNumeroPedidosPagos(totalCount)
+    setTicketMedio(totalCount > 0 ? total / totalCount : 0)
 
     // Vendas por forma de pagamento (apenas pagos)
     const gruposForma: Record<string, number> = {}
@@ -227,7 +233,7 @@ export default function RelatoriosPage() {
       </div>
 
       {/* Resumo */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-5">
         <div className="glass p-5">
           <div className="eyebrow mb-2 flex items-center gap-1"><DollarSign size={12}/> Entradas</div>
           <div className="text-2xl font-semibold text-green-600">{formatCurrency(totalEntradas)}</div>
@@ -245,8 +251,15 @@ export default function RelatoriosPage() {
         <div className="glass p-5">
           <div className="eyebrow mb-2">Pedidos</div>
           <div className="text-2xl font-semibold gradient-text-teal">
-            {vendasPorDia.reduce((s, v) => s + v.count, 0)}
+            {numeroPedidosPagos}
           </div>
+        </div>
+        <div className="glass p-5">
+          <div className="eyebrow mb-2 flex items-center gap-1"><BarChart3 size={12}/> Ticket Médio</div>
+          <div className="text-2xl font-semibold gradient-text-teal">
+            {formatCurrency(ticketMedio)}
+          </div>
+          <div className="hint text-[10px] mt-1">por pedido pago</div>
         </div>
       </div>
 

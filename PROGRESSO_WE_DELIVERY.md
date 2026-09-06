@@ -1,11 +1,11 @@
 # We Delivery - Progresso do Sistema
 
-## Última Atualização: 04/09/2026 (final do dia)
+## Última Atualização: 06/09/2026
 
 ## Deploy em Produção
 - **URL**: https://wedelivery.site
 - **Repositório**: https://github.com/typeacai-design/delivery-saas
-- **Último Deploy**: 04/09/2026 — sessão completa de ajustes
+- **Último Deploy**: 06/09/2026 — correções de bugs + 5 novas demandas
 
 ---
 
@@ -223,6 +223,78 @@ vercel logs --since 1h
 - ✅ Retroativo dos pedidos pagos aplicado
 - ✅ Fluxo de caixa aparecendo (lançamento manual + orders pagos)
 - ✅ Lançar transação manual funcionando via API
+
+---
+
+## 🆕 Sessão 06/09/2026 — 6 Demandas do Rick
+
+### A. Bug crítico — Loja aberta manualmente bloqueada no checkout (Demanda 5)
+- **Sintoma**: Lojista clicava "Abrir loja" fora do horário, dashboard e cardápio mostravam aberta, mas `POST /api/pedidos/public` rejeitava com `Loja fechada — fora do horário (19:00 às 23:00)`
+- **Causa**: API validava horário mesmo com override manual `loja_aberta === true`
+- **Fix**: Pular validação de horário quando `cfg.loja_aberta === true`
+- **Arquivo**: `src/app/api/pedidos/public/route.ts` (linhas 127-138)
+
+### B. Cardápio público — Loja fora do horário (Demanda 1)
+- Avisos de "Loja Fechada" estavam com `className="hidden"` nos 3 layouts (Clássico, Moderno, Minimalista)
+- Removido `className="hidden"`, padronizado o aviso com ícone 🕐 e texto "Esta loja está fora do horário de funcionamento"
+- **Bloqueio no modal de produto**: adicionado overlay bloqueante no `ProdutoModal` (`checkout-flow.tsx` e `cart.tsx`) quando `lojaAberta === false`
+  - Modal fica com `pointer-events-none opacity-30` por baixo do overlay
+  - Overlay mostra ícone, título "Loja Fechada" e botão "Entendi" com cor do lojista
+- Passada prop `lojaAberta` do `CardapioCliente` para o `ProdutoModal`
+- **Arquivos**: `src/components/cardapio-cliente.tsx` (linhas 586, 750, 1034 + chamada do `ProdutoModal`), `src/components/checkout-flow.tsx` (interface + overlay), `src/components/cart.tsx` (interface + overlay)
+
+### C. Relatórios — Ticket Médio (Demanda 2)
+- Novo card "Ticket Médio" ao lado de Pedidos
+- Cálculo: `totalGeral / numeroPedidosPagos` (com proteção contra divisão por zero)
+- Grid de cards agora é `grid-cols-2 sm:grid-cols-3 lg:grid-cols-5`
+- Card mostra valor formatado + label discreto "por pedido pago"
+- **Arquivo**: `src/app/(dashboard)/relatorios/page.tsx`
+
+### D. Cardápio público — Busca de bairro (Demanda 3)
+- Adicionada barra de pesquisa de bairro em 2 lugares:
+  1. **Modal "Seu endereço"** (`cardapio-cliente.tsx`): input com ícone `Search` + `<select>` filtrado (mostra até 6 bairros)
+  2. **Dropdown "Selecione o bairro" no checkout** (`checkout-flow.tsx`): input acima da lista, filtra dinamicamente
+- Empty state: "Nenhum bairro encontrado para X"
+- Limpa busca automaticamente após selecionar
+- **Arquivos**: `src/components/cardapio-cliente.tsx`, `src/components/checkout-flow.tsx`
+
+### E. Marketing — Modal "Criar novo cupom" repaginado (Demanda 4)
+- Inputs sem classes CSS do design system (estilos inline inconsistentes)
+- Aplicadas classes `form-input` em todos os inputs/selects
+- Labels com classe `eyebrow` (mesma usada em outros cards do dashboard)
+- Espaçamento aumentado: `space-y-3` → `space-y-4`, `gap-3` → `gap-4` nos grids
+- Adicionado `max-h-[90vh] overflow-y-auto` para não estourar em telas pequenas
+- **Arquivo**: `src/app/(dashboard)/marketing/page.tsx`
+
+### F. Link de Avaliações quebrado (Demanda 6)
+- **Sintoma**: `${origin}/avaliar-loja/${tenantSlug}` retornava 404 (página preta)
+- **Causa**: rota `/avaliar-loja/[slug]` não existia — só havia `avaliar-loja/page.tsx` (estática, esperava slug nos params mas nunca era roteada)
+- **Fix**:
+  - Criada rota dinâmica `src/app/avaliar-loja/[slug]/page.tsx` com a lógica antiga
+  - Deletada `src/app/avaliar-loja/page.tsx` (estática)
+  - **Repaginação visual completa** do `form.tsx` baseada no HTML de referência (`avaliacao-experiencia-cliente.html`):
+    - Topbar com botão voltar circular + título "Avaliar experiência"
+    - Card branco arredondado (28px radius) com shadow
+    - Box do logo do lojista (60×60) com fundo soft tintado pela cor principal
+    - 5 estrelas grandes (48px) interativas (hover translateY(-2px), selected = dourado)
+    - Mensagem dinâmica da nota (1=Muito ruim → 5=Excelente!)
+    - Textarea com contador 0/300
+    - Botão submit desabilitado até selecionar nota, com ícone `Send`
+    - Estado de sucesso com ícone `Check` + "Obrigado pela avaliação!"
+    - **Paleta dinâmica**: `--review-accent` interno usa `tenant.cor_principal` com fallback `#16A34A`
+    - Dark mode automático via `@media (prefers-color-scheme: dark)`
+
+---
+
+## Estado funcional atual (06/09)
+
+- ✅ Bug do checkout (override manual) corrigido
+- ✅ Aviso de loja fechada visível nos 3 layouts
+- ✅ Modal de produto bloqueia seleção quando loja fechada
+- ✅ Card "Ticket Médio" em Relatórios
+- ✅ Barra de pesquisa de bairro no modal de endereço e checkout
+- ✅ Modal de cupom padronizado com design system
+- ✅ Link `/avaliar-loja/[slug]` funciona com visual repaginado
 
 ---
 

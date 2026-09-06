@@ -311,43 +311,78 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-strong rounded-3xl p-6 w-full max-w-md">
+          <div className="glass-strong rounded-3xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-1">{editing ? 'Editar cupom' : 'Novo cupom'}</h2>
-            <p className="hint text-xs mb-4">Cupons funcionam no checkout via WhatsApp</p>
-            <div className="space-y-3">
+            <p className="hint text-xs mb-5">Cupons funcionam no checkout via WhatsApp</p>
+            <div className="space-y-4">
               <div>
-                <label>Código do cupom</label>
-                <input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} placeholder="Ex: BEMVINDO10" autoFocus className="font-mono" />
+                <label className="block eyebrow mb-1.5">Código do cupom</label>
+                <input
+                  value={form.codigo}
+                  onChange={(e) => setForm({ ...form, codigo: e.target.value })}
+                  placeholder="Ex: BEMVINDO10"
+                  autoFocus
+                  className="form-input font-mono"
+                />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label>Tipo</label>
-                  <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
+                  <label className="block eyebrow mb-1.5">Tipo</label>
+                  <select
+                    value={form.tipo}
+                    onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+                    className="form-input"
+                  >
                     <option value="percentual">Percentual (%)</option>
                     <option value="valor_fixo">Valor fixo (R$)</option>
                   </select>
                 </div>
                 <div>
-                  <label>Valor</label>
-                  <input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} placeholder="Ex: 10" />
+                  <label className="block eyebrow mb-1.5">Valor</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.valor}
+                    onChange={(e) => setForm({ ...form, valor: e.target.value })}
+                    placeholder="Ex: 10"
+                    className="form-input"
+                  />
                 </div>
               </div>
               <div>
-                <label>Validade</label>
-                <input type="date" value={form.validade} onChange={(e) => setForm({ ...form, validade: e.target.value })} />
+                <label className="block eyebrow mb-1.5">Validade</label>
+                <input
+                  type="date"
+                  value={form.validade}
+                  onChange={(e) => setForm({ ...form, validade: e.target.value })}
+                  className="form-input"
+                />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label>Valor mín. pedido (R$)</label>
-                  <input type="number" step="0.01" value={form.valor_minimo_pedido} onChange={(e) => setForm({ ...form, valor_minimo_pedido: e.target.value })} placeholder="0 = sem mínimo" />
+                  <label className="block eyebrow mb-1.5">Valor mín. pedido</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.valor_minimo_pedido}
+                    onChange={(e) => setForm({ ...form, valor_minimo_pedido: e.target.value })}
+                    placeholder="0 = sem mínimo"
+                    className="form-input"
+                  />
                 </div>
                 <div>
-                  <label>Máx. usos (0 = ilimitado)</label>
-                  <input type="number" value={form.max_usos} onChange={(e) => setForm({ ...form, max_usos: e.target.value })} placeholder="Ilimitado" />
+                  <label className="block eyebrow mb-1.5">Máx. usos</label>
+                  <input
+                    type="number"
+                    value={form.max_usos}
+                    onChange={(e) => setForm({ ...form, max_usos: e.target.value })}
+                    placeholder="Ilimitado"
+                    className="form-input"
+                  />
                 </div>
               </div>
             </div>
-            <div className="flex gap-3 mt-5">
+            <div className="flex gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="btn-ghost flex-1 justify-center" disabled={saving}>Cancelar</button>
               <button onClick={salvar} className="btn-primary flex-1 justify-center" disabled={saving || !form.codigo || !form.valor || !form.validade}>
                 {saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar cupom'}
