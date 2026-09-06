@@ -318,6 +318,32 @@ export function CheckoutDrawer({
   }
 
   // ============================================================
+  // Recalcula os valores das formas de pagamento sempre que o total
+  // muda por causa de cupom, taxa, bairro etc. Mantém a proporção
+  // entre as formas já escolhidas; se nenhuma forma está selecionada,
+  // não faz nada. Não recalcula se a soma já bate com o total.
+  // ============================================================
+  useEffect(() => {
+    if (formasPagamentoSelecionadas.length === 0) return
+    const somaAtual = formasPagamentoSelecionadas.reduce((s: number, fp: any) => s + Number(fp.valor || 0), 0)
+    if (Math.abs(somaAtual - total) < 0.01) return
+    if (somaAtual <= 0) return
+    const fator = total / somaAtual
+    const redistribuido = formasPagamentoSelecionadas.map((fp: any) => ({
+      ...fp,
+      valor: Math.round(fp.valor * fator * 100) / 100,
+    }))
+    // Ajuste de centavos: a diferença residual vai pra primeira forma
+    const novaSoma = redistribuido.reduce((s: number, fp: any) => s + Number(fp.valor || 0), 0)
+    const diff = Math.round((total - novaSoma) * 100) / 100
+    if (Math.abs(diff) > 0) {
+      redistribuido[0].valor = Math.round((redistribuido[0].valor + diff) * 100) / 100
+    }
+    setFormasPagamentoSelecionadas(redistribuido)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total])
+
+  // ============================================================
   // FINALIZAR PEDIDO
   // ============================================================
   const [finalizando, setFinalizando] = useState(false)
