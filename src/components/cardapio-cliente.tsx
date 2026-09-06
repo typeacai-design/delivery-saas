@@ -449,7 +449,22 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         formasPagamento={data.formasPagamento}
         entregaConfig={data.entregaConfig}
         valorMinimoPedido={data.valorMinimoPedido}
-        onClienteCadastrado={(cliente) => setClienteLocal((current: any) => ({ ...current, ...cliente }))}
+        onClienteCadastrado={(cliente) => {
+          setClienteLocal((current: any) => {
+            const merged = { ...current, ...cliente }
+            // Persiste imediatamente no localStorage para nao perder
+            // o accessToken entre reloads/dispositivos. Sem isso, cada
+            // novo acesso gera um token diferente e cadastra o mesmo
+            // cliente varias vezes.
+            try {
+              localStorage.setItem(
+                `delivery_cliente_dados_${data.tenant.slug}`,
+                JSON.stringify({ ...merged, tenantSlug: data.tenant.slug })
+              )
+            } catch { /* noop */ }
+            return merged
+          })
+        }}
       />
 
       <ProdutoModal
