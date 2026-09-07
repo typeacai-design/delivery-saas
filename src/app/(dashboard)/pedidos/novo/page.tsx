@@ -337,6 +337,8 @@ function ProdutoModal({
         }]
       })
 
+    if (!produto) return
+
     const item: Omit<ItemPedido, 'id'> = {
       produto_id: produto.id,
       nome: produto.nome,
