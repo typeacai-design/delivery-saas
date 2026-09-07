@@ -35,12 +35,10 @@ export interface DadosPedido {
 export function gerarMensagemWhatsApp(d: DadosPedido): string {
   // Usar codigo formatado (00001/26) ao inves de UUID
   const codigoExibir = d.pedidoCodigo || `#${d.pedidoId.slice(-6)}`
-  // Link aponta para o cardapio publico do tenant com query param ?pedido=CODIGO
-  // O cardapio detecta esse param e abre direto a aba "Meus Pedidos" com o pedido selecionado
+  // Link aponta para /pedido/[codigo] - rota dedicada que funciona SEM precisar de
+  // localStorage/token (util quando cliente abre link no WhatsApp Web no celular)
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://wedelivery.site'
-  const linkPedido = d.tenantSlug
-    ? `${baseUrl}/${d.tenantSlug}?pedido=${encodeURIComponent(codigoExibir)}`
-    : `${baseUrl}/pedido/${d.pedidoCodigo || d.pedidoId}`
+  const linkPedido = `${baseUrl}/pedido/${d.pedidoCodigo || d.pedidoId}`
 
   let texto = `🛒 *PEDIDO - ${d.tenantNome}*\n`
   texto += `📋 *#${codigoExibir}*\n`
