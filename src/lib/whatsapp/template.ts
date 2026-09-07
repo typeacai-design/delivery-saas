@@ -60,7 +60,13 @@ export function gerarMensagemWhatsApp(d: DadosPedido): string {
     if (item.complementos && item.complementos.length > 0) {
       texto += `   Adicionais:\n`
       item.complementos.forEach(c => {
-        texto += `   • ${c.quantidade}x ${c.nome}\n`
+        const precoAdic = c.valor * c.quantidade
+        // Mostra preco apenas se for maior que zero
+        if (precoAdic > 0) {
+          texto += `   • ${c.quantidade}x ${c.nome} (+${formatCurrency(precoAdic)})\n`
+        } else {
+          texto += `   • ${c.quantidade}x ${c.nome} (Grátis)\n`
+        }
       })
     }
     if (item.observacao) texto += `   📝 _${item.observacao}_\n`
