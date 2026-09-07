@@ -437,6 +437,7 @@ export default function PedidosPage() {
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
   const [tenantIdAtual, setTenantIdAtual] = useState<string>('')
   const [tenantSlugAtual, setTenantSlugAtual] = useState<string>('')
+  const [tenantNomeAtual, setTenantNomeAtual] = useState<string>('Nossa Loja')
   const [modalCancelarAberto, setModalCancelarAberto] = useState(false)
   const [pedidoCancelando, setPedidoCancelando] = useState<any>(null)
   const [motivoSelecionado, setMotivoSelecionado] = useState('')
@@ -471,10 +472,13 @@ export default function PedidosPage() {
       // Buscar slug do tenant para gerar o link do WhatsApp corretamente
       const { data: tenantData } = await supabase
         .from('tenants')
-        .select('slug')
+        .select('slug,nome')
         .eq('id', tenantId)
         .single()
-      if (tenantData?.slug) setTenantSlugAtual(tenantData.slug)
+      if (tenantData?.slug) {
+        setTenantSlugAtual(tenantData.slug)
+        setTenantNomeAtual(tenantData.nome || 'Nossa Loja')
+      }
 
       // 1. Carrega pedidos iniciais via API do servidor (garante RLS correto)
       console.log('[DEBUG PEDIDOS] Carregando pedidos para tenantId:', tenantId)
@@ -629,7 +633,7 @@ export default function PedidosPage() {
     if (!response.ok) return alert(body.error || 'Não foi possível gerar o convite')
     const link = `${window.location.origin}/avaliar/${body.token}`
     await navigator.clipboard.writeText(link)
-    alert('Novo convite copiado. O link anterior foi invalidado.')
+    alert(`Link de avaliação copiado!\n\nCliente: ${(pedidos.find((p: any) => p.id === pedidoId) as any)?.cliente_nome || '—'}\n\nCole o link no WhatsApp do cliente.`)
   }
 
   const updateStatus = async (pedido: Pedido, newStatus: PedidoStatus, motivo?: { tipo: string; descricao?: string }) => {
@@ -666,7 +670,7 @@ export default function PedidosPage() {
 
   // Toggle pago/nao pago via API
   const togglePago = async (pedido: any) => {
-    const novoStatus = !pedido.pago
+    const novoStatus = !Boolean(pedido.pago)
     try {
       const res = await fetch(`/api/pedidos/${pedido.id}/pago`, {
         method: 'PATCH',
@@ -719,39 +723,60 @@ export default function PedidosPage() {
   }
 
   // Confirmar pedido via WPP (envia msg ao cliente)
-  const confirmarPedidoWPP = (pedido: any) => {
-    const mensagem = gerarMensagemWhatsApp({
-      pedidoId: pedido.id,
-      pedidoCodigo: pedido.codigo || null,
-      tenantSlug: tenantSlugAtual || undefined,
-      tenantNome: 'Nossa Loja', // Será substituído depois pelo tenant real
-      clienteNome: pedido.cliente_nome || '',
-      clienteWhatsapp: pedido.cliente_whatsapp || '',
-      itens: itensCache[pedido.id] || [],
-      subtotal: pedido.valor_subtotal || (pedido.valor_total - (pedido.taxa_entrega || 0)),
-      taxaEntrega: pedido.taxa_entrega || 0,
-      desconto: pedido.valor_desconto || 0,
-      total: pedido.valor_total,
-      formaPagamento: Array.isArray(pedido.forma_pagamento) ? pedido.forma_pagamento[0] : pedido.forma_pagamento,
-      trocoPara: pedido.troco_para,
-      endereco: pedido.endereco_entrega || '',
-      numero: pedido.numero_entrega || '',
-      complemento: pedido.complemento_entrega,
-      bairro: pedido.bairro_entrega || '',
-      observacoes: pedido.observacoes || '',
-      tipoEntrega: pedido.tipo_entrega || 'delivery',
-    })
-    const fone = (pedido.cliente_whatsapp || '').replace(/\D/g, '')
-    window.open(`https://wa.me/55${fone}?text=${encodeURIComponent(mensagem)}`, '_blank')
+  const confirmarPedidoWPP = async (pedido: any) => {
+    try {
+      // Buscar itens inline se não estiverem no cache (evita itens vazios)
+      let itens = itensCache[pedido.id]
+      if (!itens || itens.length === 0) {
+        const { data: fetched } = await supabase.from('pedido_itens').select('*').eq('pedido_id', pedido.id)
+        itens = fetched || []
+      }
+
+      const fp = Array.isArray(pedido.forma_pagamento) ? (pedido.forma_pagamento[0] || '') : (pedido.forma_pagamento || '')
+      const mensagem = gerarMensagemWhatsApp({
+        pedidoId: pedido.id,
+        pedidoCodigo: pedido.codigo || null,
+        tenantSlug: tenantSlugAtual || undefined,
+        tenantNome: tenantNomeAtual || 'Nossa Loja',
+        clienteNome: pedido.cliente_nome || '',
+        clienteWhatsapp: pedido.cliente_whatsapp || '',
+        itens,
+        subtotal: pedido.valor_subtotal || (pedido.valor_total - (pedido.taxa_entrega || 0)),
+        taxaEntrega: pedido.taxa_entrega || 0,
+        desconto: pedido.valor_desconto || 0,
+        total: pedido.valor_total,
+        formaPagamento: fp,
+        trocoPara: pedido.troco,
+        endereco: pedido.endereco_entrega || '',
+        numero: pedido.numero_entrega || '',
+        complemento: pedido.complemento_entrega,
+        bairro: pedido.bairro_entrega || '',
+        observacoes: pedido.observacoes || '',
+        tipoEntrega: pedido.tipo_entrega || 'delivery',
+      })
+      const fone = (pedido.cliente_whatsapp || '').replace(/\D/g, '')
+      if (!fone) {
+        alert('Cliente sem WhatsApp cadastrado neste pedido.')
+        return
+      }
+      window.open(`https://wa.me/55${fone}?text=${encodeURIComponent(mensagem)}`, '_blank')
+    } catch (err: any) {
+      console.error('Erro ao gerar mensagem WhatsApp:', err)
+      alert('Erro ao abrir WhatsApp: ' + (err?.message || 'falha desconhecida'))
+    }
   }
 
   // Imprimir pedido
   const imprimirPedido = async (pedido: any) => {
-    const janela = window.open('', '_blank', 'width=400,height=600')
-    if (!janela) return alert('Permita popups para imprimir')
+    try {
+      const janela = window.open('', '_blank', 'width=400,height=600')
+      if (!janela) {
+        alert('Permita popups para imprimir')
+        return
+      }
 
-    // Buscar itens com complementos do cache
-    const itensDoPedido = itensCache[pedido.id] || []
+      // Buscar itens com complementos do cache
+      const itensDoPedido = itensCache[pedido.id] || []
 
     // Gerar HTML dos itens com complementos
     const itensHtml = itensDoPedido.map((i: any) => {
@@ -834,6 +859,10 @@ export default function PedidosPage() {
       <script>window.onload = function() { window.print(); }</script>
       </body></html>
     `)
+    } catch (err: any) {
+      console.error('Erro ao imprimir pedido:', err)
+      alert('Erro ao imprimir: ' + (err?.message || 'falha desconhecida'))
+    }
   }
 
   // Dar desconto
@@ -1380,20 +1409,34 @@ export default function PedidosPage() {
               >
                 {/* HEADER */}
                 <div className="px-4 py-4 border-b" style={{ borderColor: '#E4E8EE' }}>
-                  <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-start justify-between gap-2 mb-2">
                     <h2 className="text-[22px] font-medium tracking-tight" style={{ color: '#172033' }}>
                       Pedido {formatarCodigoPedido(pedido.id, pedido.data_criacao, (pedido as any).codigo)}
                     </h2>
-                    <span
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-                      style={{
-                        background: isCancelado ? '#FFF1F1' : isEntregue ? '#EEFAF3' : '#FFF7E8',
-                        color: isCancelado ? '#D92D35' : isEntregue ? '#00A240' : '#B55C00',
-                      }}
-                    >
-                      <StatusIcon size={12} />
-                      {config.label}
-                    </span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                        style={{
+                          background: isCancelado ? '#FFF1F1' : isEntregue ? '#EEFAF3' : '#FFF7E8',
+                          color: isCancelado ? '#D92D35' : isEntregue ? '#00A240' : '#B55C00',
+                        }}
+                      >
+                        <StatusIcon size={12} />
+                        {config.label}
+                      </span>
+                      {pedido.status === 'entregue' && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); gerarConviteAvaliacao(pedido.id) }}
+                          className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full transition"
+                          style={{ background: '#FEF9C3', color: '#92400E', border: '1px solid #FDE68A' }}
+                          title="Copiar link de avaliação"
+                        >
+                          <Star size={10} />
+                          Avaliação
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs" style={{ color: '#697386' }}>
                     <Clock size={12} />
@@ -1816,7 +1859,7 @@ export default function PedidosPage() {
                           // Gerar mensagem de avaliação
                           const { gerarMensagemAvaliacao } = await import('@/lib/whatsapp/template')
                           const msg = gerarMensagemAvaliacao({
-                            tenantNome: 'Nossa Loja',
+                            tenantNome: tenantNomeAtual || 'Nossa Loja',
                             codigo: selectedPedido.codigo || selectedPedido.id.slice(0, 8),
                             linkAvaliacao: link
                           })

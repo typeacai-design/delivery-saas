@@ -67,6 +67,111 @@ function verificarLojaAbertaPorHorario(config: any): { aberto: boolean; horarioM
   return { aberto: dentroHorario, horarioMsg }
 }
 
+// ---------------------------------------------------------------------------
+// Calcula o timestamp em que um override manual deve expirar.
+//
+// tipo === 'abrir'  -> loja foi aberta manualmente. Expira no proximo
+//                       horario PROGRAMADO de fechamento (do dia atual
+//                       se ainda nao fechou, senao do proximo dia ativo).
+// tipo === 'fechar' -> loja foi fechada manualmente. Expira no proximo
+//                       horario PROGRAMADO de abertura (hoje se ainda nao
+//                       abriu, senao no proximo dia ativo).
+//
+// Retorna Date ou null se nenhum horario configurado.
+// ---------------------------------------------------------------------------
+function calcularExpiracaoOverride(
+  horariosDias: any,
+  tipo: 'abrir' | 'fechar'
+): Date | null {
+  if (!horariosDias || Object.keys(horariosDias).length === 0) return null
+
+  const agora = new Date()
+  // Minutos de hoje no fuso de Brasilia (mesmo criterio do verificarLojaAbertaPorHorario)
+  const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+  const diaAtualIdx = brasilia.getDay()
+  const minutosHoje = brasilia.getHours() * 60 + brasilia.getMinutes()
+
+  const parseTime = (s: any): number | null => {
+    if (!s) return null
+    const parts = String(s).split(':').map(Number)
+    return parts.length >= 2 ? parts[0] * 60 + parts[1] : null
+  }
+
+  const DIAS_CHAVES = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
+
+  // Tenta encontrar o slot do dia. Aceita formato {seg:{abre,fecha,ativo}} ou array.
+  const slotDoDia = (diaIdx: number): any => {
+    const chave = DIAS_CHAVES[diaIdx]
+    const item = horariosDias[chave]
+    if (item) return item
+    if (Array.isArray(horariosDias)) {
+      return horariosDias.find((x: any) => Number(x.dia ?? x.dia_semana) === diaIdx)
+    }
+    return null
+  }
+
+  // Calcula a diferenca em dias entre hoje (Brasilia) e o dia destino
+  const diffDias = (diaDestinoIdx: number): number => {
+    let diff = (diaDestinoIdx - diaAtualIdx + 7) % 7
+    return diff
+  }
+
+  // Constrói um Date em Brasilia (UTC-3) para dia+hora especificados
+  const diaParaTimestamp = (diaIdx: number, minutos: number): Date => {
+    // Pega o inicio do dia de hoje em Brasilia
+    const inicioHojeBrasilia = new Date(brasilia)
+    inicioHojeBrasilia.setHours(0, 0, 0, 0)
+    // Soma os dias (em horario local do servidor; servidor roda em UTC, mas
+    // brasilia ja tem offset -3 embutido no .toLocaleString -- entao a hora
+    // do servidor reflete a hora local de Brasilia).
+    const target = new Date(inicioHojeBrasilia)
+    target.setDate(target.getDate() + diffDias(diaIdx))
+    target.setHours(Math.floor(minutos / 60), minutos % 60, 0, 0)
+    return target
+  }
+
+  if (tipo === 'abrir') {
+    // Precisa achar o proximo horario de FECHAMENTO programado (fecha >= agora)
+    // Tenta hoje primeiro
+    const slotHoje = slotDoDia(diaAtualIdx)
+    if (slotHoje && slotHoje.ativo !== false) {
+      const fimMin = parseTime(slotHoje.fecha || slotHoje.fim)
+      if (fimMin != null && fimMin > minutosHoje) {
+        return diaParaTimestamp(diaAtualIdx, fimMin)
+      }
+    }
+    // Senao, procura o proximo dia ativo
+    for (let i = 1; i <= 7; i++) {
+      const diaIdx = (diaAtualIdx + i) % 7
+      const slot = slotDoDia(diaIdx)
+      if (slot && slot.ativo !== false) {
+        const fimMin = parseTime(slot.fecha || slot.fim)
+        if (fimMin != null) return diaParaTimestamp(diaIdx, fimMin)
+      }
+    }
+    return null
+  }
+
+  // tipo === 'fechar'
+  // Precisa achar o proximo horario de ABERTURA programado (abre >= agora)
+  const slotHoje = slotDoDia(diaAtualIdx)
+  if (slotHoje && slotHoje.ativo !== false) {
+    const inicioMin = parseTime(slotHoje.abre || slotHoje.inicio)
+    if (inicioMin != null && inicioMin > minutosHoje) {
+      return diaParaTimestamp(diaAtualIdx, inicioMin)
+    }
+  }
+  for (let i = 1; i <= 7; i++) {
+    const diaIdx = (diaAtualIdx + i) % 7
+    const slot = slotDoDia(diaIdx)
+    if (slot && slot.ativo !== false) {
+      const inicioMin = parseTime(slot.abre || slot.inicio)
+      if (inicioMin != null) return diaParaTimestamp(diaIdx, inicioMin)
+    }
+  }
+  return null
+}
+
 export default function VisaoGeralPage() {
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
@@ -105,18 +210,29 @@ export default function VisaoGeralPage() {
         // Calcula se está dentro do horário ATUALMENTE
         const { aberto: horarioAtual, horarioMsg } = verificarLojaAbertaPorHorario(config)
 
-        // Lê override manual do banco (se existir)
+        // Override manual persiste ate o timestamp em
+        // config.loja_aberta_override_until. Enquanto nao passou, respeitamos
+        // o override (true=aberto, false=fechado). Quando passa, removemos
+        // do banco e seguimos o horario automatico.
         const overrideManual = config.loja_aberta
+        const overrideUntil = config.loja_aberta_override_until
+          ? new Date(config.loja_aberta_override_until)
+          : null
+
         if (overrideManual !== undefined && overrideManual !== null) {
-          // Verifica se o override ainda é válido (dentro do horário atual)
-          if (overrideManual === horarioAtual) {
-            setLojaAberta(overrideManual)
-          } else {
-            // Override expirou - remove do banco e segue horário
+          // Override existe. Verifica se ja expirou.
+          const expirou = overrideUntil && overrideUntil.getTime() <= Date.now()
+          if (expirou) {
+            // Override expirou - remove do banco e segue horario
             const newConfig = { ...config }
             delete newConfig.loja_aberta
+            delete newConfig.loja_aberta_override_until
             await supabase.from('tenants').update({ config: newConfig }).eq('id', tenantId)
             setLojaAberta(null)
+          } else {
+            // Override ainda valido. Respeita o que o lojista definiu,
+            // mesmo que esteja fora do horario programado.
+            setLojaAberta(overrideManual)
           }
         } else {
           setLojaAberta(null)
@@ -204,6 +320,14 @@ export default function VisaoGeralPage() {
 
       const config = (current?.config as any) || {}
       config.loja_aberta = true // Forçar aberta
+      // Calcula ate quando o override vale: proximo horario programado
+      // de fechamento do dia (ou proximo dia ativo se ja fechou).
+      const expiraEm = calcularExpiracaoOverride(config.horarios_dias, 'abrir')
+      if (expiraEm) {
+        config.loja_aberta_override_until = expiraEm.toISOString()
+      } else {
+        delete config.loja_aberta_override_until
+      }
 
       await supabase
         .from('tenants')
@@ -233,6 +357,14 @@ export default function VisaoGeralPage() {
 
       const config = (current?.config as any) || {}
       config.loja_aberta = false // Forçar fechada
+      // Expira no proximo horario programado de abertura (hoje se ainda
+      // nao abriu, senao proximo dia ativo).
+      const expiraEm = calcularExpiracaoOverride(config.horarios_dias, 'fechar')
+      if (expiraEm) {
+        config.loja_aberta_override_until = expiraEm.toISOString()
+      } else {
+        delete config.loja_aberta_override_until
+      }
 
       await supabase
         .from('tenants')

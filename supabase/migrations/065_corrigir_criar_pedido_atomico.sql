@@ -55,10 +55,28 @@ BEGIN
   END IF;
 
   -- 2) Encontrar ou criar cliente (uma unica entrada por token)
-  SELECT id INTO v_cliente_id FROM clientes
-  WHERE tenant_id=p_tenant_id AND acesso_token_hash=p_token_hash
-  FOR UPDATE;
-  IF NOT FOUND THEN
+  --
+  -- Antes de tudo: se ja existe OUTRO cliente com mesmo telefone neste
+  -- tenant (criado por outro dispositivo/navegador), reaproveita ele
+  -- para evitar novos duplicados. A funcao buscar_ou_unificar_cliente
+  -- cuida de mover pedidos, desativar duplicados e recalcular metricas.
+  v_cliente_id := public.buscar_ou_unificar_cliente(
+    p_tenant_id,
+    p_cliente->>'telefone',
+    p_token_hash
+  );
+  IF v_cliente_id IS NOT NULL THEN
+    -- Reaproveitou cliente existente. Atualiza dados de perfil (nome,
+    -- endereco) sem perder o historico.
+    UPDATE clientes SET
+      nome=COALESCE(NULLIF(p_cliente->>'nome',''),nome),
+      telefone=COALESCE(NULLIF(p_cliente->>'telefone',''),telefone),
+      endereco=COALESCE(NULLIF(p_cliente->>'endereco',''),endereco),
+      total_pedidos=COALESCE(total_pedidos,0)+1,
+      ultimo_pedido_em=now()
+    WHERE id=v_cliente_id AND tenant_id=p_tenant_id;
+  ELSE
+    -- Nenhum cliente com esse telefone ainda: cria um novo.
     INSERT INTO clientes(id,tenant_id,nome,telefone,endereco,data_nascimento,cpf,acesso_token_hash,total_pedidos,ultimo_pedido_em)
     VALUES(gen_random_uuid(),p_tenant_id,
            p_cliente->>'nome',p_cliente->>'telefone',
@@ -67,14 +85,6 @@ BEGIN
            NULLIF(p_cliente->>'cpf',''),
            p_token_hash,1,now())
     RETURNING id INTO v_cliente_id;
-  ELSE
-    UPDATE clientes SET
-      nome=COALESCE(NULLIF(p_cliente->>'nome',''),nome),
-      telefone=COALESCE(NULLIF(p_cliente->>'telefone',''),telefone),
-      endereco=COALESCE(NULLIF(p_cliente->>'endereco',''),endereco),
-      total_pedidos=COALESCE(total_pedidos,0)+1,
-      ultimo_pedido_em=now()
-    WHERE id=v_cliente_id AND tenant_id=p_tenant_id;
   END IF;
 
   -- 3) Validar e consumir cupom

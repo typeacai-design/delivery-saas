@@ -75,6 +75,17 @@ const STATUS_CONFIG: Record<string, {
 
 const ETAPAS = ['preparando', 'pronto', 'saiu', 'entregue'] as const
 
+// Labels curtos para a timeline (consistentes com STATUS_CONFIG do lojista).
+// Antes era derivado por string-replace do label longo, o que produzia
+// "preparado" (particípio) em vez de "Preparando" (gerúndio, igual ao
+// nome do status no banco).
+const STEP_LABEL: Record<string, string> = {
+  preparando: 'Preparando',
+  pronto: 'Pronto',
+  saiu: 'Saiu',
+  entregue: 'Entregue',
+}
+
 const customerKey = (slug: string) => `delivery_cliente_dados_${slug}`
 
 function formatDate(value: string | undefined) {
@@ -344,7 +355,7 @@ export function CustomerOrders({
                         className={`mt-2 text-xs font-medium text-center ${atual ? 'font-bold' : ''}`}
                         style={{ color: atual ? theme.primary : completada ? '#111827' : '#9CA3AF' }}
                       >
-                        {config.label.replace('Seu pedido está sendo ', '').replace('Pedido ', '')}
+                        {STEP_LABEL[etapa] || config.label}
                       </p>
                     </div>
                   )

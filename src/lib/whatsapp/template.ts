@@ -83,7 +83,7 @@ export function gerarMensagemWhatsApp(d: DadosPedido): string {
   texto += `\n`
 
   texto += `💳 *Pagamento:* ${d.formaPagamento}\n`
-  if (d.formaPagamento.toLowerCase().includes('dinheiro') && d.trocoPara) {
+  if ((d.formaPagamento || '').toLowerCase().includes('dinheiro') && d.trocoPara) {
     const troco = d.trocoPara - d.total
     texto += `💵 *Troco para:* ${formatCurrency(d.trocoPara)} (volta: ${formatCurrency(Math.max(0, troco))})\n`
   }

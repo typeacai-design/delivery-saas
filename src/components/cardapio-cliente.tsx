@@ -627,17 +627,6 @@ function LayoutMinimalista({ data, busca, setBusca, totalItens, produtosFiltrado
         ))}
       </div>
 
-      {/* Aviso loja fechada */}
-      {!data.lojaAberta && (
-        <div className="p-4 mx-4 mt-3 rounded-lg border-2 border-dashed border-red-300 bg-red-50 flex items-center gap-3">
-          <span className="text-2xl">🕐</span>
-          <div>
-            <p className="font-semibold text-red-700">Loja Fechada</p>
-            <p className="text-sm text-red-600">Esta loja está fora do horário de funcionamento. Voltamos em breve!</p>
-          </div>
-        </div>
-      )}
-
       {/* Banner campanha */}
       <div className="hidden">
         <div className="rounded-xl overflow-hidden bg-gradient-to-r from-purple-500 to-pink-500 p-6 text-white text-center">
@@ -788,17 +777,6 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
             </button>
           </div>
         </header>
-
-        {/* Aviso loja fechada */}
-        {!data.lojaAberta && (
-          <div className="p-4 mx-4 mt-3 rounded-lg border-2 border-dashed border-red-300 bg-red-50 flex items-center gap-3">
-            <span className="text-2xl">🕐</span>
-            <div>
-              <p className="font-semibold text-red-700">Loja Fechada</p>
-              <p className="text-sm text-red-600">Esta loja está fora do horário de funcionamento. Voltamos em breve!</p>
-            </div>
-          </div>
-        )}
 
         <main className="px-4 py-2">
           <StoreActions data={data} />
@@ -1072,17 +1050,6 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
           </button>
         </div>
       </header>
-
-      {/* Aviso loja fechada */}
-      {!data.lojaAberta && (
-        <div className="p-4 mx-4 mt-3 rounded-lg border-2 border-dashed border-red-300 bg-red-50 flex items-center gap-3">
-          <span className="text-2xl">🕐</span>
-          <div>
-            <p className="font-semibold text-red-700">Loja Fechada</p>
-            <p className="text-sm text-red-600">Esta loja está fora do horário de funcionamento. Voltamos em breve!</p>
-          </div>
-        </div>
-      )}
 
       {abaAtiva === 'pedidos' ? <CustomerOrders slug={data.tenant.slug} cliente={clienteLocal} pedidoInicial={data.pedidoInicial || null} onVoltar={() => navegarPara('inicio')} onSelecionarPedido={(codigo) => navegarPara('pedidos', codigo)} /> : abaAtiva === 'perfil' ? <CustomerProfile slug={data.tenant.slug} cliente={clienteLocal} setCliente={setClienteLocal} /> : <main className="wd-content px-4 py-4">
         <StoreActions data={data} />

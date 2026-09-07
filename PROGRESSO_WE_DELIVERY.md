@@ -1,13 +1,13 @@
 # We Delivery - Progresso do Sistema
 
-## Última Atualização: 06/09/2026 (final do dia)
+## Última Atualização: 07/09/2026 — correção "Pago", UI de complementos
 
 ## Deploy em Produção
 - **URL**: https://wedelivery.site
 - **Repositório**: https://github.com/typeacai-design/delivery-saas
-- **Último Deploy**: 06/09/2026 — 6 demandas + 4 bugs críticos corrigidos
-- **Deployment ID**: `dpl_Fhxw5SCD5...` (alias `wedelivery.site`)
-- **Build**: ✅ Compiled successfully (96 páginas)
+- **Último Deploy**: 07/09/2026 — correção "Pago" + UI complementos
+- **Deployment ID**: `dpl_3yR9vwwZuLaoakfz7DjAhZdvbGbQ` (alias `wedelivery.site`)
+- **Build**: ✅ Compiled successfully
 
 ---
 
@@ -171,7 +171,7 @@ Skills já registradas em `.claude/skills/`:
 | 053 | Código do pedido formatado (XXXXX/YY) — sequencial por tenant/ano |
 | 054 | Status de pagamento por pedido (pago, pago_em, pago_por) |
 | 058 | Liberar UPDATE em campos de pagamento |
-| 062 | Trigger automático para fluxo de caixa ao marcar pago |
+| 062 | Trigger automático para fluxo de caixa ao marcar pago (atualizado 07/09: trigger simplificada, INSERT fica por conta da API) |
 
 ---
 
@@ -298,14 +298,91 @@ vercel logs --since 1h
 - ✅ Modal de cupom padronizado com design system
 - ✅ Link `/avaliar-loja/[slug]` funciona com visual repaginado
 
+## Estado funcional atual (06/09 noite)
+
+- ✅ Mensagem WhatsApp: mostra nome real da loja, itens do pedido, forma pagamento, troco
+- ✅ Mensagem WhatsApp: busca itens inline se cache ainda não carregou (evita itens vazios)
+- ✅ Botão "Avaliação" pequeno no canto superior direito do card (só status="Entregue")
+- ✅ Alert ao copiar link de avaliação mostra nome do cliente
+- ✅ Coluna `complemento` inexistente em `clientes` removida dos inserts (já estava corrigido)
+- ✅ try/catch em `imprimirPedido` para não crashar em erros inesperados
+- ✅ `togglePago` agora converte corretamente `null/undefined` → `false`
+- ✅ Botão "Pago" funciona — trigger de fluxo de caixa não tenta mais INSERT via RLS (causava rollback silencioso)
+- ✅ Modal de complementos no lançamento manual agora agrupa por categoria com headers visuais
+- ✅ Complementos mostram "Grátis" em vez de R$ 0,00
+- ✅ Seleção de complementos por categoria com badge de contagem
+- ✅ Proteção de estado: ao adicionar novo item limpa complementos do item anterior
+
 ---
 
 ## Próximas pendências
 
 - Verificar se há outras áreas que dependem do status da loja
 - Limpar logs de debug adicionados (console.log em rotas — já removido do financeiro)
-- Verificar RLS de movimentacoes_financeiras — policy `movimentacoes_tenant_usuarios` exige `auth.uid() = usuarios_loja.user_id` mas o user_id da Type Açaí está com mesmo UUID do tenant_id (anomalia histórica). A solução atual (service_role bypass) contorna isso.
-- Possível migration para corrigir o `user_id` correto em usuarios_loja
+- RLS de movimentacoes_financeiras: a policy exige `auth.uid() = usuarios_loja.user_id` — a trigger simplificada (07/09) não tenta mais INSERT via RLS, eliminando o risco de rollback silencioso no "Pago". A inserção em fluxo de caixa é feita pela API com tratamento de erro.
+
+---
+
+## 🆕 Sessão 06/09 (continuação) — Correção do Label da Timeline + Unificação de Clientes
+
+### L. Bug do label "Preparado" na timeline do cliente
+- **Sintoma**: No cardápio público (mobile), na tela "Acompanhar pedido", a primeira etapa da timeline aparecia como "preparado" (particípio) enquanto o card de status dizia "sendo preparado" (gerúndio)
+- **Causa**: `customer-account.tsx:347` derivava o label curto da timeline via `.replace('Seu pedido está sendo ', '').replace('Pedido ', '')`, o que transformava `'Seu pedido está sendo preparado'` em `'preparado'`
+- **Fix**: Criado mapa explícito `STEP_LABEL` com `'Preparando' | 'Pronto' | 'Saiu' | 'Entregue'` (consistente com `STATUS_CONFIG` do lojista em `pedidos/page.tsx`)
+- **Arquivo**: `src/components/customer-account.tsx`
+
+### M. Painel CRM de Clientes sem duplicados históricos
+- **Sintoma**: Mesmo após a migration 066 marcar duplicados com `[dup-AAAAMMDDHH24MI]`, eles continuavam aparecendo na lista de clientes do lojista
+- **Causa**: A query em `clientes/page.tsx:62-66` não filtrava pelo sufixo; a migration 066 só renomeava, sem desativar nem ocultar
+- **Fix**:
+  - Adicionado `.not('nome', 'ilike', '%[dup-%')` na query principal
+  - Adicionada contagem paralela de duplicados ocultos para mostrar um badge amarelo discreto: "⚠️ N clientes duplicados foram ocultados e unificados"
+  - Auditoria preservada (registros continuam no banco, apenas não aparecem no CRM)
+- **Arquivo**: `src/app/(dashboard)/clientes/page.tsx`
+
+### N. Migration 067 — Unificação retroativa e prevenção de novos duplicados (NOVO)
+- **Função RPC**: `public.buscar_ou_unificar_cliente(tenant_id, telefone, novo_token_hash)`
+  - Busca todos os clientes com mesmo `(tenant_id, telefone)`
+  - Se 0: retorna NULL (caller deve inserir)
+  - Se 1: vincula o token novo ao existente (se ainda não tiver)
+  - Se 2+: pega o mais antigo (`created_at ASC`) como primário, transfere o token, move pedidos dos duplicados para o primário (`UPDATE pedidos`), e desativa os duplicados (`ativo = false`)
+  - Recalcula `total_pedidos` e `ultimo_pedido_em` do primário a partir dos pedidos
+  - Usa `FOR UPDATE` para evitar race condition entre pedidos simultâneos do mesmo cliente em dispositivos diferentes
+  - Grants: service_role, anon, authenticated
+- **Parte 2 da migration**: Roda a função em loop sobre todos os grupos `(tenant_id, telefone)` com duplicados, unificando retroativamente
+- **Resultado no banco** (Type Açaí):
+  - Rick Machado (47991701079): 5 → 1 ativo + 4 desativados
+  - Outros 2 telefones: 2 → 1 + 1 cada
+  - Pedidos re-vinculados ao cliente primário
+- **Arquivo**: `supabase/migrations/067_unificar_clientes_por_telefone.sql`
+
+### O. `criar_pedido_atomico` agora usa a função de unificação
+- **Antes**: buscava/criava cliente apenas por `acesso_token_hash`
+- **Agora**: chama `buscar_ou_unificar_cliente(tenant, telefone, token)` antes do INSERT
+  - Se retornar ID existente: reaproveita o cliente e atualiza nome/telefone/endereço
+  - Se retornar NULL: cria novo registro normalmente
+- **Caminho coberto**: cobre clientes que pulam o POST `/api/clientes/public` e vão direto pro checkout (o frontend chama AMBOS hoje)
+- **Arquivo**: `supabase/migrations/065_corrigir_criar_pedido_atomico.sql`
+
+### P. `/api/clientes/public` POST chama unificação
+- Adicionada chamada a `buscar_ou_unificar_cliente` antes do INSERT
+- Complementa a migration 065: garante que mesmo se o cliente usar só o endpoint `/api/clientes/public` (sem ir pro checkout), a unificação acontece
+- **Arquivo**: `src/app/api/clientes/public/route.ts`
+
+### Estado funcional pós-correções
+
+- ✅ Timeline do cliente mostra "Preparando" (não "Preparado")
+- ✅ Painel CRM do lojista sem duplicados históricos (com aviso de quantos foram ocultados)
+- ✅ Cliente do mesmo telefone em 2 dispositivos diferentes → reaproveita o registro primário
+- ✅ Pedidos de duplicados re-vinculados ao primário (histórico preservado)
+- ✅ Migration retroativa já unificou os 3 grupos do Type Açaí
+- ✅ Build local: Compiled successfully (96 páginas)
+
+### Próximos passos (fora deste escopo)
+
+- Criar índice único em `(tenant_id, telefone, ativo)` para garantir integridade futura via constraint do banco
+- Migrar identificação do cliente para um sistema mais robusto (ex: magic link via WhatsApp)
+- UI no painel do lojista para "mesclar 2 clientes manualmente" (casos excepcionais)
 
 
 ---
@@ -395,3 +472,83 @@ vercel logs --since 1h
 - Pedidos funcionando normalmente
 - Sem mais duplicacao de clientes (novos)
 - Cardapio do lojista e publico exibindo produtos
+
+---
+
+## 🆕 Sessão 06/09 (rodada extra) — 4 Correções
+
+### Q. Removidos 3 banners gigantes de "Loja Fechada" do cardápio público
+- O toggle pequeno no topo (`StoreActions`) já mostra `Fechado | Hoje`, suficiente para informar
+- Removidos os blocos `bg-red-50 border-red-300` em:
+  - Layout Minimalista (antiga ~linha 631-639)
+  - Layout Moderno (antiga ~linha 793-801)
+  - Layout Clássico (antiga ~linha 1077-1085)
+- **Arquivo**: `src/components/cardapio-cliente.tsx`
+
+### R. Override manual da loja agora respeita o horário programado de expiração
+- **Sintoma**: Lojista abria manualmente fora do horário, mas ao recarregar a loja fechava sozinha
+- **Causa**: `dashboard-view.tsx` comparava `overrideManual === horarioAtual` — abrir 17h (`horarioAtual=false`) = `true !== false` → override removido
+- **Fix**:
+  - Novo helper `calcularExpiracaoOverride(horarios, tipo)`:
+    - `tipo='abrir'` → retorna Date do próximo horário programado de FECHAMENTO (hoje se ainda não fechou, senão próximo dia ativo)
+    - `tipo='fechar'` → retorna Date do próximo horário programado de ABERTURA (hoje se ainda não abriu, senão próximo dia ativo)
+  - `abrirLoja`/`fecharLoja` salvam `config.loja_aberta_override_until` como ISO timestamp
+  - `loadData` verifica se o override expirou (timestamp <= agora); se não expirou, respeita o override mesmo fora do horário
+- **Comportamento conforme Rick**:
+  - Abrir manual às 17h (horário 18h-23h) → loja fecha às 23h (horário programado)
+  - Fechar manual às 20h → loja reabre no próximo horário programado (ex: 18h do dia seguinte)
+- **Arquivo**: `src/app/dashboard-view.tsx`
+
+### S. Cupons: handler de salvar agora é resiliente
+- **Sintoma**: Modal abria mas cupom não era salvo, sem feedback
+- **Causa**: fetch em `/api/auth/session` silenciosamente falhava, `tenantId` ficava undefined, e o handler retornava sem salvar — sem `alert`
+- **Fix**:
+  - Trocado o fetch manual por `activeTenantId()` (mesmo padrão usado em outras telas)
+  - `try/catch` captura erros do Supabase e mostra `alert()`
+  - Validação inicial (`codigo.trim()`, `valor`, `validade`) agora também mostra alert se faltando
+- **Arquivo**: `src/app/(dashboard)/marketing/page.tsx`
+
+### T. Defensividade nos botões do card de pedido do lojista
+- **Sintoma**: Botões Pago, WhatsApp, Imprimir, Desconto, Editar, Cancelar não respondiam a cliques
+- **Causa**: handlers sem `try/catch` — se `gerarMensagemWhatsApp` ou `imprimirPedido` lançasse exceção (ex: `cliente_whatsapp` null), o erro silencioso quebrava a cadeia
+- **Fix**:
+  - `confirmarPedidoWPP`: try/catch + validação `if (!fone) return alert(...)`
+  - `imprimirPedido`: try/catch em torno do handler inteiro
+- **Arquivo**: `src/app/(dashboard)/pedidos/page.tsx`
+
+### Estado funcional pós-4 correções (06/09 final do dia)
+
+- ✅ Banner gigante de "Loja Fechada" removido dos 3 layouts
+- ✅ Loja aberta manualmente fora do horário permanece aberta até o horário programado
+- ✅ Loja fechada manualmente permanece fechada até o próximo horário programado
+- ✅ Cupons: criar/editar agora mostra feedback claro e funciona
+- ✅ Botões do card de pedido (Pago, WhatsApp, Imprimir, etc) com tratamento de erro
+- ✅ Build: Compiled successfully
+- ✅ Deploy produção: alias wedelivery.site atualizado
+
+### U. Cupons: constraint única agora ignora cupons inativos
+- **Sintoma**: Erro "duplicate key violates unique constraint cupons_tenant_id_codigo_key" ao criar cupom com código que já existia (mesmo "apagado")
+- **Causa**: Constraint original `cupons_tenant_id_codigo_key` não distinguia ativo de inativo — cupom marcado `ativo=false` ainda bloqueava novo cupom com mesmo código
+- **Fix**: Migration `068_cupons_unique_ativo_only` cria índice parcial:
+  ```sql
+  CREATE UNIQUE INDEX cupons_tenant_id_codigo_ativo_idx
+  ON cupons (tenant_id, lower(codigo))
+  WHERE ativo = true;
+  ```
+- **Arquivo**: `supabase/migrations/068_cupons_unique_ativo_only.sql`
+- **Autor**: rick
+
+### V. Modal de cupom com mesma estética do ProdutoFormModal
+- Fundo branco (`bg-white`), sombra `shadow-2xl`, cantos `rounded-2xl`
+- Labels com `text-sm font-medium text-gray-700 mb-1.5` (mesmo padrão)
+- Hints de preenchimento opicional nos campos
+- Overlay com `backdropFilter: blur(4px)` e X de fechar no header
+- Footer com botões em `border-top` (mesma linha)
+- **Arquivo**: `src/app/(dashboard)/marketing/page.tsx`
+
+### U.2 — Cupons: constraint única antiga removida definitivamente
+- A migration `068` criou o índice parcial mas **não dropou a constraint antiga** `cupons_tenant_id_codigo_key`
+- Resultado: o índice parcial novo (`WHERE ativo=true`) existia MAS a constraint antiga continuava bloqueando tudo
+- Fix: `ALTER TABLE cupons DROP CONSTRAINT cupons_tenant_id_codigo_key`
+- Agora só o índice parcial vigora — cupons inativos não impedem recriação
+- **Autor**: rick (feedback direto)
