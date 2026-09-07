@@ -66,6 +66,7 @@ export default function ClientesPage() {
         .from('clientes')
         .select('*')
         .eq('tenant_id', tid)
+        .eq('ativo', true)
         .not('nome', 'ilike', '%[dup-%')
         .order('ultimo_pedido_em', { ascending: false, nullsFirst: false }),
       supabase
