@@ -18,6 +18,7 @@ type FormState = {
   imagem_path: string
   preco: string
   preco_riscado: string
+  exibir_preco_a_partir_de: boolean
   ordem: string
   codigo_externo: string
   // Pontos
@@ -57,6 +58,7 @@ const FORM_VAZIO: FormState = {
   imagem_path: '',
   preco: '',
   preco_riscado: '',
+  exibir_preco_a_partir_de: false,
   ordem: '',
   codigo_externo: '',
   pontos: '',
@@ -261,6 +263,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
       descricao: form.descricao || null,
       preco: parseFloat(form.preco),
       preco_riscado: num(form.preco_riscado),
+      exibir_preco_a_partir_de: form.exibir_preco_a_partir_de === true,
       imagem_url: form.imagem_url || null,
       imagem_path: form.imagem_path || null,
       tempo_preparo_min: form.tempo_preparo_min,
@@ -524,6 +527,32 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
                     placeholder="Vazio = sem promoção"
                     className="form-input pl-10"
                   />
+                </div>
+              </Field>
+
+              <Field
+                label="Exibir como 'A partir de'"
+                hint="Mostra 'A partir de R$ X' no cardápio público"
+              >
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.exibir_preco_a_partir_de}
+                    onClick={() => setForm({ ...form, exibir_preco_a_partir_de: !form.exibir_preco_a_partir_de })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      form.exibir_preco_a_partir_de ? 'bg-green-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        form.exibir_preco_a_partir_de ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    {form.exibir_preco_a_partir_de ? 'Ativado' : 'Desativado'}
+                  </span>
                 </div>
               </Field>
 

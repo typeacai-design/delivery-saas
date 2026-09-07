@@ -84,15 +84,16 @@ function ProductPreco({ produto, className = '', variants = [] }: { produto: any
   const maxPrice = Math.max(...allPrices)
   const hasMultiplePrices = variantPrices.length > 0 && (minPrice !== maxPrice)
   const hasVariants = variantPrices.length > 0
+  const exibirApartirDe = Boolean(produto.exibir_preco_a_partir_de) || (hasVariants && hasMultiplePrices)
 
   return (
     <div className={`flex items-baseline gap-2 ${className}`}>
-      {hasVariants && hasMultiplePrices ? (
+      {exibirApartirDe ? (
         <span className="wd-price font-bold text-sm">A partir de {formatCurrency(minPrice)}</span>
       ) : (
         <span className="wd-price font-bold text-sm">{formatCurrency(preco)}</span>
       )}
-      {temPromo && !hasVariants && (
+      {temPromo && !hasVariants && !exibirApartirDe && (
         <span className="text-xs text-gray-400 line-through">{formatCurrency(riscado)}</span>
       )}
     </div>
