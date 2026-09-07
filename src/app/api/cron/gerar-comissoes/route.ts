@@ -36,8 +36,6 @@ export async function GET(request: Request) {
     const primeiroDia = new Date(anoAnterior, mesAnterior - 1, 1).toISOString()
     const ultimoDia = new Date(anoAnterior, mesAnterior, 0, 23, 59, 59).toISOString()
 
-    console.log(`Gerando comissoes para ${mesAnterior}/${anoAnterior}`)
-
     // Buscar tenants ativos
     const { data: tenants } = await admin
       .from('tenants')
@@ -91,7 +89,6 @@ export async function GET(request: Request) {
         .single()
 
       if (existente) {
-        console.log(`Comissao ja existe para ${tenant.nome} em ${mesAnterior}/${anoAnterior}`)
         continue
       }
 

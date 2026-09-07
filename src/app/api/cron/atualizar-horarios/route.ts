@@ -94,8 +94,6 @@ export async function GET() {
       }
     }
 
-    console.log(`[Cron] Verificação de horários: ${atualizados} loja(s) aberta(s) automaticamente`)
-
     return NextResponse.json({
       success: true,
       mensagem: `${atualizados} loja(s) aberta(s) automaticamente`,

@@ -453,17 +453,9 @@ export default function PedidosPage() {
       // Verificar sessão primeiro
       const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' })
       const sessionData = await sessionRes.json()
-      console.log('[DEBUG PEDIDOS] Sessão:', {
-        authenticated: sessionData?.authenticated,
-        tenantId: sessionData?.tenant?.id,
-        role: sessionData?.role,
-        error: sessionData?.error
-      })
 
       const tenantId = await activeTenantId()
-      console.log('[DEBUG PEDIDOS] activeTenantId retornou:', tenantId)
       if (!tenantId) {
-        console.log('[DEBUG PEDIDOS] ERRO: tenantId é null/undefined!')
         setLoading(false)
         return
       }
@@ -481,42 +473,27 @@ export default function PedidosPage() {
       }
 
       // 1. Carrega pedidos iniciais via API do servidor (garante RLS correto)
-      console.log('[DEBUG PEDIDOS] Carregando pedidos para tenantId:', tenantId)
 
       // Verificar autenticação do supabase client
-      const { data: supabaseSession } = await supabase.auth.getSession()
-      console.log('[DEBUG PEDIDOS] Supabase session:', {
-        hasSession: !!supabaseSession?.session,
-        userId: supabaseSession?.session?.user?.id,
-        hasToken: !!supabaseSession?.session?.access_token
-      })
+      await supabase.auth.getSession()
 
       // Buscar via API do servidor (garante token correto)
       const apiRes = await fetch('/api/pedidos/list', { cache: 'no-store' })
       const apiData = await apiRes.json()
-      console.log('[DEBUG PEDIDOS] Resposta da API:', {
-        status: apiRes.status,
-        ok: apiData.ok,
-        count: apiData.count,
-        error: apiData.error
-      })
 
       if (!apiRes.ok || !apiData.ok) {
-        console.error('[DEBUG PEDIDOS] Erro na API:', apiData)
+        console.error('Erro ao carregar pedidos:', apiData)
         setPedidos([])
         setLoading(false)
         return
       }
 
       const pedidosData: any[] = apiData.pedidos || []
-      console.log('[DEBUG PEDIDOS] Total de pedidos carregados:', pedidosData.length)
-      console.log('[DEBUG PEDIDOS] Primeiros 3 pedidos:', JSON.stringify(pedidosData.slice(0, 3).map((p: any) => ({ id: p.id, status: p.status, tenant_id: p.tenant_id }))))
       inicializarIds(pedidosData)
 
       const countNovos = pedidosData.filter((p: any) => p.status === 'novo').length
       setNovosPedidosCount(countNovos)
       setPedidos(pedidosData)
-      console.log('[DEBUG PEDIDOS] setPedidos chamado com', pedidosData.length, 'pedidos')
 
       const { data: entregadores } = await supabase.from('motoboys').select('*').eq('tenant_id', tenantId).order('nome')
       setMotoboys(entregadores || [])
@@ -534,18 +511,14 @@ export default function PedidosPage() {
             filter: `tenant_id=eq.${tenantId}`,
           },
           (payload) => {
-            console.log('[REALTIME INSERT] Novo pedido recebido:', payload.new)
             const novoPedido = payload.new as Pedido
             setPedidos((prev) => {
-              console.log('[REALTIME INSERT] Estado atual, pedidos:', prev.length)
               // Filtrar pedidos apagados
               const filtrados = prev.filter(p => !p.deleted_at)
               if (filtrados.some(p => p.id === novoPedido.id)) {
-                console.log('[REALTIME INSERT] Pedido já existe, ignorando')
                 return filtrados
               }
               const novosPedidos = [novoPedido, ...filtrados]
-              console.log('[REALTIME INSERT] Adicionando pedido, novo total:', novosPedidos.length)
               adicionarAoLoop(novoPedido.id)
               const count = novosPedidos.filter((p) => p.status === 'novo').length
               setNovosPedidosCount(count)
@@ -562,7 +535,6 @@ export default function PedidosPage() {
             filter: `tenant_id=eq.${tenantId}`,
           },
           (payload) => {
-            console.log('[REALTIME UPDATE] Pedido atualizado:', payload.new)
             const atualizado = payload.new as Pedido
             setPedidos((prev) => {
               // Se foi apagado, remover da lista
@@ -581,7 +553,9 @@ export default function PedidosPage() {
           }
         )
         .subscribe((status) => {
-          console.log('[REALTIME] Status da subscription:', status)
+          if (status !== 'SUBSCRIBED') {
+            console.warn('Realtime status:', status)
+          }
         })
     }
 

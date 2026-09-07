@@ -27,9 +27,8 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
           audioRef.current?.pause()
           if (audioRef.current) audioRef.current.currentTime = 0
           initAudioDone.current = true
-          console.log('[Som] Audio inicializado com sucesso')
         }).catch((err) => {
-          console.log('[Som] Audio nao pode ser iniciado automaticamente:', err.message)
+          console.warn('Audio nao pode ser iniciado:', err.message)
         })
       }
       document.removeEventListener('click', initAudio)
@@ -60,11 +59,10 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
         // Verificar autenticacao
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         if (authError) {
-          console.error('[Som] Erro de autenticacao:', authError)
+          console.error('Erro de autenticacao no som:', authError)
           return
         }
         if (!user) {
-          console.log('[Som] Usuario nao autenticado')
           return
         }
 
@@ -77,15 +75,12 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
           .single()
 
         if (tenantError) {
-          console.error('[Som] Erro ao buscar tenant:', tenantError)
+          console.error('Erro ao buscar tenant:', tenantError)
           return
         }
         if (!tenant) {
-          console.log('[Som] Nenhum tenant encontrado para este usuario')
           return
         }
-
-        console.log('[Som] Configurando Realtime para tenant:', tenant.tenant_id)
 
         // Criar canal de realtime
         const channelName = `global-pedidos-som-${tenant.tenant_id}`
@@ -107,13 +102,12 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
             (payload) => {
               if (!mounted) return
               const novo = payload.new as any
-              console.log('[Som] Novo pedido detectado:', novo.id)
 
               // Tocar som
               if (somAtivado && audioRef.current) {
                 audioRef.current.currentTime = 0
                 audioRef.current.play().catch((err) => {
-                  console.log('[Som] Erro ao tocar audio:', err.message)
+                  console.warn('Erro ao tocar audio:', err.message)
                 })
               }
 
@@ -142,7 +136,6 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
             (payload) => {
               if (!mounted) return
               const updated = payload.new as any
-              console.log('[Som] Pedido atualizado:', updated.id, 'status:', updated.status)
 
               // Se saiu do status "novo", parar o som
               if (updated.status !== 'novo' && audioRef.current) {
@@ -152,11 +145,13 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
             }
           )
           .subscribe((status: string) => {
-            console.log('[Som] Status do canal:', status)
+            if (status !== 'SUBSCRIBED') {
+              console.warn('Realtime som status:', status)
+            }
           })
 
       } catch (err) {
-        console.error('[Som] Erro ao configurar Realtime:', err)
+        console.error('Erro ao configurar Realtime:', err)
       }
     }
 
