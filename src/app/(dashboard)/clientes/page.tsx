@@ -46,12 +46,24 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtroTag, setFiltroTag] = useState('')
-  const [filtroAtivo, setFiltroAtivo] = useState('todos')
+  const [filtroAtivo, setFiltroAtivo] = useState('ativos')
+  const [refreshKey, setRefreshKey] = useState(0)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Cliente | null>(null)
   const supabase = createClient()
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [refreshKey])
+
+  // Recarregar quando o usuario volta para a aba (limpa cache do navegador)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadData()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
 
   const loadData = async () => {
     const tenantId = await activeTenantId()
