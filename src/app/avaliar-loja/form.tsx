@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Star, Send, Check, ChevronLeft, ShoppingBag } from 'lucide-react'
 
 type Tenant = {
@@ -9,6 +9,16 @@ type Tenant = {
   slug: string
   logo_url: string | null
   cor_principal: string | null
+}
+
+type AvaliacaoFormProps = {
+  tenant: Tenant
+  // Modo de operação: 'loja' (avaliação genérica) ou 'pedido' (vincular a pedido via token)
+  mode?: 'loja' | 'pedido'
+  // Quando mode='pedido', o token de avaliação é pré-carregado
+  token?: string
+  // Quando mode='pedido', dados do pedido (preenchidos automaticamente)
+  pedidoInfo?: { codigo?: string; id?: string }
 }
 
 // Helper para gerar uma cor "soft" (bg claro) a partir da cor principal do lojista
@@ -24,13 +34,15 @@ function softFromHex(hex: string, alpha = 0.12): string {
 // Mensagens dinâmicas para cada nota (do HTML de referência)
 const RATING_MESSAGES = ['', 'Muito ruim', 'Ruim', 'Regular', 'Muito bom', 'Excelente!']
 
-export default function AvaliacaoForm({ tenant }: { tenant: Tenant }) {
+export default function AvaliacaoForm({ tenant, mode = 'loja', token, pedidoInfo }: AvaliacaoFormProps) {
   const [nota, setNota] = useState(0)
   const [hover, setHover] = useState(0)
   const [comentario, setComentario] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [sucesso, setSucesso] = useState(false)
   const [erro, setErro] = useState('')
+  const [dados, setDados] = useState<any>(null)
+  const [carregando, setCarregando] = useState(mode === 'pedido')
 
   // Paleta dinâmica baseada na cor do lojista
   const accent = tenant.cor_principal || '#16A34A'
@@ -44,6 +56,29 @@ export default function AvaliacaoForm({ tenant }: { tenant: Tenant }) {
     '--review-soft-2': accentSoft2,
   } as React.CSSProperties
 
+  // Se for modo 'pedido', carregar os dados do convite
+  useEffect(() => {
+    if (mode !== 'pedido' || !token) return
+    fetch('/api/avaliacoes/public', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+      .then(async (r) => ({ ok: r.ok, b: await r.json() }))
+      .then((x) => {
+        setCarregando(false)
+        if (!x.ok) {
+          setErro(x.b.error || 'Convite inválido')
+          return
+        }
+        setDados(x.b)
+      })
+      .catch(() => {
+        setCarregando(false)
+        setErro('Falha ao carregar convite.')
+      })
+  }, [mode, token])
+
   const submit = async () => {
     if (nota === 0) {
       setErro('Por favor, selecione uma nota de 1 a 5 estrelas.')
@@ -54,15 +89,30 @@ export default function AvaliacaoForm({ tenant }: { tenant: Tenant }) {
     setErro('')
 
     try {
-      const res = await fetch('/api/avaliar-publico', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenant_slug: tenant.slug,
-          nota,
-          comentario: comentario.trim() || null,
-        }),
-      })
+      let res: Response
+      if (mode === 'pedido' && token) {
+        // Enviar via API com token (vincula ao pedido)
+        res = await fetch('/api/avaliacoes/public', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            nota,
+            comentario: comentario.trim(),
+          }),
+        })
+      } else {
+        // Enviar avaliação genérica da loja
+        res = await fetch('/api/avaliar-publico', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_slug: tenant.slug,
+            nota,
+            comentario: comentario.trim() || null,
+          }),
+        })
+      }
 
       const body = await res.json()
 
@@ -77,6 +127,10 @@ export default function AvaliacaoForm({ tenant }: { tenant: Tenant }) {
       setSubmitting(false)
     }
   }
+
+  const jaAvaliado = mode === 'pedido' && dados?.ja_avaliado
+  const statusNaoEntregue = mode === 'pedido' && dados?.pedido?.status !== 'entregue'
+  const codigoPedido = pedidoInfo?.codigo || dados?.pedido?.codigo || dados?.pedido?.id?.slice(0, 8)
 
   return (
     <div
@@ -133,7 +187,7 @@ export default function AvaliacaoForm({ tenant }: { tenant: Tenant }) {
             <ChevronLeft size={20} strokeWidth={2} />
           </button>
           <h2 className="m-0 text-[17px] font-medium" style={{ color: 'var(--review-text)' }}>
-            Avaliar experiência
+            {mode === 'pedido' ? 'Avalie seu pedido' : 'Avaliar experiência'}
           </h2>
         </header>
 
@@ -164,6 +218,57 @@ export default function AvaliacaoForm({ tenant }: { tenant: Tenant }) {
             >
               Voltar
             </button>
+          </div>
+        ) : carregando ? (
+          <div className="px-6 py-12 text-center">
+            <div className="w-8 h-8 mx-auto border-2 border-gray-200 border-t-green-600 rounded-full animate-spin" />
+            <p className="mt-3 text-sm" style={{ color: 'var(--review-muted)' }}>
+              Carregando...
+            </p>
+          </div>
+        ) : jaAvaliado ? (
+          /* Pedido já avaliado */
+          <div className="px-6 py-12 sm:py-14 text-center">
+            <div
+              className="w-[70px] h-[70px] mx-auto mb-4 grid place-items-center rounded-full"
+              style={{ background: 'var(--review-soft)', color: 'var(--review-accent)' }}
+            >
+              <Check size={34} strokeWidth={2} />
+            </div>
+            <h3 className="m-0 text-[22px] font-medium tracking-tight" style={{ color: 'var(--review-text)' }}>
+              Este pedido já foi avaliado
+            </h3>
+            <p className="mt-2 text-sm leading-[1.45]" style={{ color: 'var(--review-muted)' }}>
+              Obrigado pelo seu feedback!
+            </p>
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="mt-6 px-5 py-2.5 rounded-xl text-sm font-medium transition active:scale-95"
+              style={{
+                background: 'var(--review-surface)',
+                color: 'var(--review-accent)',
+                border: '1px solid var(--review-accent)',
+              }}
+            >
+              Voltar
+            </button>
+          </div>
+        ) : statusNaoEntregue ? (
+          /* Pedido ainda não entregue */
+          <div className="px-6 py-12 sm:py-14 text-center">
+            <div
+              className="w-[70px] h-[70px] mx-auto mb-4 grid place-items-center rounded-full text-4xl"
+              style={{ background: 'var(--review-soft)' }}
+            >
+              📦
+            </div>
+            <h3 className="m-0 text-[22px] font-medium tracking-tight" style={{ color: 'var(--review-text)' }}>
+              Aguardando entrega
+            </h3>
+            <p className="mt-2 text-sm leading-[1.45]" style={{ color: 'var(--review-muted)' }}>
+              A avaliação será liberada após a entrega do seu pedido.
+            </p>
           </div>
         ) : (
           <>
@@ -197,11 +302,17 @@ export default function AvaliacaoForm({ tenant }: { tenant: Tenant }) {
                 </div>
 
                 <h3 className="m-0 text-[22px] font-medium tracking-[-0.02em]" style={{ color: 'var(--review-text)' }}>
-                  Como foi seu pedido?
+                  {mode === 'pedido' ? 'Como foi seu pedido?' : 'Como foi sua experiência?'}
                 </h3>
                 <p className="mt-2 mb-0 text-sm leading-[1.45]" style={{ color: 'var(--review-muted)' }}>
                   Sua avaliação ajuda o estabelecimento a melhorar cada vez mais.
                 </p>
+
+                {codigoPedido && (
+                  <p className="mt-1 mb-0 text-xs" style={{ color: 'var(--review-muted)' }}>
+                    Pedido #{codigoPedido}
+                  </p>
+                )}
 
                 {/* Estrelas interativas */}
                 <div
@@ -263,7 +374,7 @@ export default function AvaliacaoForm({ tenant }: { tenant: Tenant }) {
                     maxLength={300}
                     value={comentario}
                     onChange={(e) => setComentario(e.target.value)}
-                    placeholder="Escreva aqui sua opinião sobre o pedido..."
+                    placeholder="Escreva aqui sua opinião..."
                     rows={4}
                     className="w-full min-h-[112px] px-[14px] py-[13px] rounded-[14px] outline-none resize-y text-base leading-[1.4]"
                     style={{
@@ -322,3 +433,4 @@ export default function AvaliacaoForm({ tenant }: { tenant: Tenant }) {
     </div>
   )
 }
+

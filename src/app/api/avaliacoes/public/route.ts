@@ -34,11 +34,11 @@ export async function PUT(req: NextRequest) {
     const { token } = await req.json()
     if (!token || String(token).length < 24) return out({ error: 'Token obrigatório' }, 400)
     const tokenHash = hashAccessToken(String(token))
-    const { data: pedido } = await db.from('pedidos').select('id,status,cliente_nome,avaliacao_token_expires_at,avaliacao_token_used_at,tenants(nome,slug)').eq('avaliacao_token_hash', tokenHash).maybeSingle()
+    const { data: pedido } = await db.from('pedidos').select('id,codigo,status,cliente_nome,avaliacao_token_expires_at,avaliacao_token_used_at,tenants(nome,slug)').eq('avaliacao_token_hash', tokenHash).maybeSingle()
     if (!pedido) return out({ error: 'Convite inválido' }, 404)
     if (!pedido.avaliacao_token_expires_at || new Date(pedido.avaliacao_token_expires_at) <= new Date()) return out({ error: 'Convite expirado' }, 410)
     const { data: existente } = await db.from('avaliacoes').select('id').eq('pedido_id', pedido.id).maybeSingle()
-    return out({ pedido: { status: pedido.status, cliente_nome: pedido.cliente_nome, loja: pedido.tenants }, ja_avaliado: !!existente || !!pedido.avaliacao_token_used_at })
+    return out({ pedido: { id: pedido.id, codigo: pedido.codigo, status: pedido.status, cliente_nome: pedido.cliente_nome, loja: pedido.tenants }, ja_avaliado: !!existente || !!pedido.avaliacao_token_used_at })
   } catch { return out({ error: 'Não foi possível consultar o convite' }, 500) }
 }
 
