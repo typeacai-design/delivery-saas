@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { CoordinateMap } from '@/components/coordinate-map'
+import { useToast } from '@/components/toast'
 
 type Tab = 'horarios' | 'entregas' | 'perfil'
 
@@ -22,6 +23,7 @@ const DIAS_SEMANA = [
 ]
 
 export default function ConfiguracoesPage() {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [tab, setTab] = useState<Tab>('horarios')
   const [tenant, setTenant] = useState<any>(null)
   const [loadingTenant, setLoadingTenant] = useState(false)
@@ -121,6 +123,7 @@ export default function ConfiguracoesPage() {
 }
 
 function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenantFromParent?: () => Promise<void> }) {
+  const { error: toastError } = useToast()
   const supabase = createClient()
   const config = (tenant?.config || {}) as any
   const horariosDefault: Record<string, { abre: string; fecha: string; ativo: boolean }> = {
@@ -193,7 +196,7 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
   const replicarParaTodos = (idOrigem: string) => {
     const origem = horarios[idOrigem]
     if (!origem || !origem.ativo) {
-      alert('Esse dia está fechado. Abra o dia antes de replicar o horário.')
+      toastError('Esse dia esta fechado. Abra o dia antes de replicar o horario.')
       return
     }
     const confirmar = confirm(
@@ -634,6 +637,7 @@ function PagamentosTab({ tenant }: { tenant: any }) {
 }
 
 function PerfilEditavel({tenant,onSaved,onReload}:{tenant:any;onSaved:()=>Promise<void>;onReload?:()=>Promise<void>}) {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [form,setForm]=useState<any>(null);
   const [status,setStatus]=useState<any>(null);
   const [saving,setSaving]=useState(false);
@@ -667,8 +671,8 @@ function PerfilEditavel({tenant,onSaved,onReload}:{tenant:any;onSaved:()=>Promis
 
   useEffect(()=>{if(!form || !form.slug)return;const timer=setTimeout(async()=>{const r=await fetch(`/api/perfil-loja?slug=${encodeURIComponent(form.slug)}`);setStatus(await r.json())},350);return()=>clearTimeout(timer)},[form?.slug])
   const change=(key:string,value:any)=>setForm((f:any)=>({...f,[key]:value}))
-  const upload=async(file:File)=>{setUploading(true);const fd=new FormData();fd.append('file',file);const r=await fetch('/api/upload-logo',{method:'POST',body:fd});const b=await r.json();setUploading(false);if(r.ok)change('logo_url',b.url);else alert(b.error)}
-  const save=async()=>{setSaving(true);const r=await fetch('/api/perfil-loja',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const b=await r.json();setSaving(false);if(!r.ok)return alert(b.error);change('slug',b.slug);await onSaved();alert('Perfil atualizado.')}
+  const upload=async(file:File)=>{setUploading(true);const fd=new FormData();fd.append('file',file);const r=await fetch('/api/upload-logo',{method:'POST',body:fd});const b=await r.json();setUploading(false);if(r.ok){change('logo_url',b.url);toastSuccess('Logo enviado')}else toastError(b.error)}
+  const save=async()=>{setSaving(true);const r=await fetch('/api/perfil-loja',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const b=await r.json();setSaving(false);if(!r.ok){toastError(b.error);return}change('slug',b.slug);await onSaved();toastSuccess('Perfil atualizado')}
   const fields=[
     ['nome','Nome do negócio'],
     ['cpf','CPF do responsável'],

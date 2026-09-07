@@ -8,6 +8,7 @@ import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
+import { useToast } from '@/components/toast'
 
 // Componente de alerta de tempo
 function TempoAlerta({ dataCriacao, tempoEstimadoMin }: { dataCriacao: string; tempoEstimadoMin?: number }) {
@@ -416,6 +417,7 @@ function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compact
 }
 
 export default function PedidosPage() {
+  const { error: toastError, success: toastSuccess, warning: toastWarning } = useToast()
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
   const [pedidosTab, setPedidosTab] = useState<'fluxo' | 'historico'>('fluxo')
@@ -596,18 +598,29 @@ export default function PedidosPage() {
 
   const atribuirMotoboy = async (pedidoId: string, motoboyId: string) => {
     const { error } = await supabase.from('pedidos').update({ motoboy_id: motoboyId || null }).eq('id', pedidoId)
-    if (error) return alert('Erro ao atribuir motoboy')
+    if (error) {
+      toastError('Erro ao atribuir motoboy')
+      return
+    }
     setSelectedPedido((p: any) => p?.id === pedidoId ? { ...p, motoboy_id: motoboyId || null } : p)
     loadPedidos()
   }
 
   const gerarConviteAvaliacao = async (pedidoId: string) => {
-    const response = await fetch(`/api/pedidos/${encodeURIComponent(pedidoId)}/avaliacao-convite`, { method: 'POST' })
-    const body = await response.json()
-    if (!response.ok) return alert(body.error || 'Não foi possível gerar o convite')
-    const link = `${window.location.origin}/avaliar/${body.token}`
-    await navigator.clipboard.writeText(link)
-    alert(`Link de avaliação copiado!\n\nCliente: ${(pedidos.find((p: any) => p.id === pedidoId) as any)?.cliente_nome || '—'}\n\nCole o link no WhatsApp do cliente.`)
+    try {
+      const response = await fetch(`/api/pedidos/${encodeURIComponent(pedidoId)}/avaliacao-convite`, { method: 'POST' })
+      const body = await response.json()
+      if (!response.ok) {
+        toastError(body.error || 'Nao foi possivel gerar o convite')
+        return
+      }
+      const link = `${window.location.origin}/avaliar/${body.token}`
+      await navigator.clipboard.writeText(link)
+      const clienteNome = (pedidos.find((p: any) => p.id === pedidoId) as any)?.cliente_nome || 'Cliente'
+      toastSuccess('Link copiado!', `Cliente: ${clienteNome} - Cole no WhatsApp do cliente`)
+    } catch (err: any) {
+      toastError('Erro ao gerar convite', err?.message)
+    }
   }
 
   const updateStatus = async (pedido: Pedido, newStatus: PedidoStatus, motivo?: { tipo: string; descricao?: string }) => {
@@ -632,13 +645,13 @@ export default function PedidosPage() {
 
       if (!res.ok) {
         console.error('Erro ao atualizar status:', data.error)
-        alert('Erro ao atualizar status: ' + (data.error || 'Erro desconhecido'))
+        toastError('Erro ao atualizar status', data.error || 'Erro desconhecido')
       } else {
         loadPedidos()
       }
     } catch (err: any) {
       console.error('Erro completo ao atualizar status:', err)
-      alert('Erro ao atualizar status: ' + (err.message || 'Erro desconhecido'))
+      toastError('Erro ao atualizar status', err?.message || 'Erro desconhecido')
     }
   }
 
@@ -655,13 +668,14 @@ export default function PedidosPage() {
       const data = await res.json()
       if (!res.ok) {
         console.error('Erro ao marcar pago:', data.error)
-        alert('Erro ao marcar como pago: ' + (data.error || 'Erro desconhecido'))
+        toastError('Erro ao marcar como pago', data.error || 'Erro desconhecido')
       } else {
         loadPedidos()
+        toastSuccess(novoStatus ? 'Pedido marcado como pago' : 'Pagamento removido')
       }
     } catch (err) {
       console.error('Erro ao marcar pago:', err)
-      alert('Erro ao marcar como pago')
+      toastError('Erro ao marcar como pago')
     }
   }
 
@@ -676,11 +690,11 @@ export default function PedidosPage() {
   const confirmarCancelamento = async () => {
     if (!pedidoCancelando) return
     if (!motivoSelecionado) {
-      alert('Selecione um motivo para o cancelamento')
+      toastWarning('Selecione um motivo para o cancelamento')
       return
     }
     if (motivoSelecionado === 'outro' && !motivoDetalhe.trim()) {
-      alert('Descreva o motivo do cancelamento')
+      toastWarning('Descreva o motivo do cancelamento')
       return
     }
 
@@ -730,13 +744,13 @@ export default function PedidosPage() {
       })
       const fone = (pedido.cliente_whatsapp || '').replace(/\D/g, '')
       if (!fone) {
-        alert('Cliente sem WhatsApp cadastrado neste pedido.')
+        toastWarning('Cliente sem WhatsApp cadastrado neste pedido.')
         return
       }
       window.open(`https://wa.me/55${fone}?text=${encodeURIComponent(mensagem)}`, '_blank')
     } catch (err: any) {
       console.error('Erro ao gerar mensagem WhatsApp:', err)
-      alert('Erro ao abrir WhatsApp: ' + (err?.message || 'falha desconhecida'))
+      toastError('Erro ao abrir WhatsApp', err?.message || 'falha desconhecida')
     }
   }
 
@@ -745,7 +759,7 @@ export default function PedidosPage() {
     try {
       const janela = window.open('', '_blank', 'width=400,height=600')
       if (!janela) {
-        alert('Permita popups para imprimir')
+        toastWarning('Permita popups para imprimir')
         return
       }
 
@@ -835,7 +849,7 @@ export default function PedidosPage() {
     `)
     } catch (err: any) {
       console.error('Erro ao imprimir pedido:', err)
-      alert('Erro ao imprimir: ' + (err?.message || 'falha desconhecida'))
+      toastError('Erro ao imprimir', err?.message || 'falha desconhecida')
     }
   }
 
@@ -878,10 +892,11 @@ export default function PedidosPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        alert(data.error || 'Erro ao aplicar desconto')
+        toastError(data.error || 'Erro ao aplicar desconto')
       } else {
         setShowDescontoModal(false)
         loadPedidos()
+        toastSuccess('Desconto aplicado')
         // Atualizar o pedido selecionado se o modal de detalhes estiver aberto
         if (selectedPedido && selectedPedido.id === pedidoDesconto.id) {
           const pedidoAtualizado = { ...selectedPedido, valor_desconto: Math.round(novoDesconto * 100) / 100, valor_total: Math.max(0, Math.round(novoTotal * 100) / 100) }
@@ -889,7 +904,7 @@ export default function PedidosPage() {
         }
       }
     } catch (err) {
-      alert('Erro ao aplicar desconto')
+      toastError('Erro ao aplicar desconto')
     }
   }
 
@@ -904,12 +919,13 @@ export default function PedidosPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        alert(data.error || 'Erro ao apagar pedido')
+        toastError(data.error || 'Erro ao apagar pedido')
       } else {
         loadPedidos()
+        toastSuccess('Pedido apagado')
       }
     } catch (err) {
-      alert('Erro ao apagar pedido')
+      toastError('Erro ao apagar pedido')
     }
   }
 
@@ -944,13 +960,13 @@ export default function PedidosPage() {
         const err = await r.json()
         throw new Error(err.error || 'Erro ao salvar')
       }
-      alert('Pedido atualizado!')
+      toastSuccess('Pedido atualizado!')
       setModalEditarAberto(false)
       setPedidoEditando(null)
       setItensEditando([])
       loadPedidos()
     } catch (e: any) {
-      alert(e.message || 'Erro ao salvar')
+      toastError(e.message || 'Erro ao salvar')
     } finally {
       setSalvandoEdicao(false)
     }
@@ -1825,7 +1841,7 @@ export default function PedidosPage() {
                           // Gerar o convite
                           const response = await fetch(`/api/pedidos/${encodeURIComponent(selectedPedido.id)}/avaliacao-convite`, { method: 'POST' })
                           const body = await response.json()
-                          if (!response.ok) return alert(body.error || 'Erro ao gerar convite')
+                          if (!response.ok) return toastError(body.error || 'Erro ao gerar convite')
 
                           const link = `${window.location.origin}/avaliar/${body.token}`
                           const fone = ((selectedPedido as any).cliente_whatsapp || '').replace(/\D/g, '')

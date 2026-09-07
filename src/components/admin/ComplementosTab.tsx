@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
+import { useToast } from '@/components/toast'
 import { formatCurrency } from '@/lib/utils'
 import {
   Plus, Edit, Trash2, Search, X, Save, Upload, Image as ImageIcon,
@@ -40,6 +41,7 @@ type Complemento = {
   ativo: boolean
 }
 export default function ComplementosTab() {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [listas, setListas] = useState<Lista[]>([])
   const [complementos, setComplementos] = useState<Complemento[]>([])
   const [loading, setLoading] = useState(true)
@@ -695,6 +697,7 @@ function ListaModal({ lista, listas, onClose, onSaved }: any) {
    MODAL: Complemento
    =========================================================== */
 function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, todosComplementos }: any) {
+  const { error: toastError } = useToast()
   const [form, setForm] = useState({
     nome: comp?.nome || '',
     categoria_id: comp?.categoria_id || defaultCategoriaId,
@@ -774,7 +777,7 @@ function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, 
         tenant_id: tid,
       })
       if (error) {
-        alert('Erro ao salvar complemento: ' + error.message)
+        toastError('Erro ao salvar complemento', error.message)
         setSalvando(false)
         return
       }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { DollarSign, TrendingUp, Users, Building2, Calendar, Download, Check, AlertTriangle, RefreshCw, Play, Clock } from 'lucide-react'
 import { adminFetch } from '@/lib/admin-fetch'
 import { formatCurrency } from '@/lib/utils'
+import { useToast } from '@/components/toast'
 
 interface TenantFaturamento {
   id: string
@@ -30,6 +31,7 @@ interface FaturamentoData {
 }
 
 export default function FaturamentoPage() {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [data, setData] = useState<FaturamentoData | null>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState<string | null>(null)
@@ -57,10 +59,14 @@ export default function FaturamentoPage() {
         headers: { 'Content-Type': 'application/json' }
       })
       const json = await res.json()
-      alert(json.message || `${json.geradas} comissões geradas`)
+      if (json.geradas > 0) {
+        toastSuccess(`${json.geradas} comissões geradas`, json.message)
+      } else {
+        toastError('Nenhuma comissao gerada', json.message || 'Tente novamente')
+      }
       fetchFaturamento()
     } catch (err) {
-      alert('Erro ao gerar comissões')
+      toastError('Erro ao gerar comissões')
     } finally {
       setGerando(false)
     }
@@ -84,8 +90,9 @@ export default function FaturamentoPage() {
         body: JSON.stringify({ tenant_id: tenant.id, pago: true }),
       })
       fetchFaturamento()
+      toastSuccess(`Comissão de ${tenant.nome} marcada como paga`)
     } catch (error) {
-      alert('Erro ao marcar como pago')
+      toastError('Erro ao marcar como pago')
     } finally {
       setProcessing(null)
     }

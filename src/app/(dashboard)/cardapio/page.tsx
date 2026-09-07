@@ -13,6 +13,7 @@ import ProdutoFormModal from '@/components/admin/ProdutoFormModal'
 import ComplementosTab from '@/components/admin/ComplementosTab'
 import ProdutoLinha from '@/components/admin/ProdutoLinha'
 import { getCardapioTheme } from '@/lib/cardapio-theme'
+import { useToast } from '@/components/toast'
 
 type Tab = 'design' | 'produtos' | 'complementos'
 type ColorKey = 'primary' | 'secondary' | 'accent'
@@ -48,6 +49,7 @@ const PALETAS_FICTICIAS = [
 ]
 
 export default function CardapioPage() {
+  const { error: toastError } = useToast()
   const [tab, setTab] = useState<Tab>('design')
   const supabase = createClient()
 
@@ -185,6 +187,7 @@ function AssetUpload({ tipo, titulo, url, onChanged, slug, slot = 0 }: { tipo: '
   return <div className="glass p-6"><div className="eyebrow mb-1">Identidade visual</div><h2 className="text-lg font-semibold mb-4">{titulo}</h2><button type="button" onClick={() => document.getElementById(inputId)?.click()} className="w-full min-h-36 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden">{url ? <img src={url} alt={titulo} className={tipo === 'banner' ? 'w-full h-40 object-cover' : 'size-28 object-contain'} /> : <span className="hint">{uploading ? 'Enviando...' : 'Clique para enviar'}</span>}</button><input id={inputId} className="hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.currentTarget.value = '' }} />{url && <button type="button" onClick={async () => { setUploading(true); const r = await fetch('/api/upload-cardapio-asset?tipo=' + tipo + '&slot=' + slot, { method: 'DELETE' }); if (r.ok) onChanged(''); setUploading(false) }} disabled={uploading} className="mt-3 text-sm text-red-600">Remover imagem</button>}{error && <p className="text-sm text-red-600 mt-2">{error}</p>}<p className="hint text-xs mt-2">{tipo === 'banner' ? '1080 x 600 px' : '1080 x 1080 px'} - JPG, PNG ou WebP - ate 5MB.</p></div>
 }
 function ProdutosTab() {
+  const { error: toastError } = useToast()
   const [categorias, setCategorias] = useState<any[]>([])
   const [categoriasProduto, setCategoriasProduto] = useState<any[]>([])
   const [produtos, setProdutos] = useState<Record<string, any[]>>({})
@@ -254,10 +257,10 @@ function ProdutosTab() {
   const criarCategoria = async () => {
     if (!novaCat.trim()) return
     const { data: user } = await supabase.auth.getUser()
-    if (!user.user) { alert('Sessão expirada. Faça login novamente.'); return }
+    if (!user.user) { toastError('Sessão expirada', 'Faça login novamente'); return }
 
     const tid = await activeTenantId()
-    if (!tid) { alert('Erro: loja não identificada. Faça login novamente.'); return }
+    if (!tid) { toastError('Loja nao identificada', 'Faça login novamente'); return }
 
     const { error } = await supabase.from('categorias').insert({
       tenant_id: tid,
@@ -267,7 +270,7 @@ function ProdutosTab() {
     })
 
     if (error) {
-      alert(`Erro ao criar sessão: ${error.message}`)
+      toastError('Erro ao criar categoria', error.message)
       return
     }
 
@@ -283,7 +286,7 @@ function ProdutosTab() {
     const { data: user } = await supabase.auth.getUser()
     if (!user.user) return
     const { error } = await supabase.from('categorias_produtos').insert({ tenant_id: await activeTenantId(), nome: novoTipo.trim(), ordem: categoriasProduto.length })
-    if (error) return alert(`Não foi possível criar a categoria: ${error.message}`)
+    if (error) return toastError('Erro ao criar tipo', error.message)
     setNovoTipo('')
     setShowTipoModal(false)
     loadData()

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { WalletCards, Receipt, CreditCard, Plus, X, ArrowUpRight, ArrowDownRight, TrendingUp, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { useToast } from '@/components/toast'
 
 type Tab = 'cashflow'|'accounts'|'payments'
 type Order = { id:string; codigo:string|null; created_at:string; valor_total:number; taxa_entrega:number; forma_pagamento:string; status:string; pago:boolean|null }
@@ -17,6 +18,7 @@ const tabs = [
 ] as const
 
 export default function FinanceiroPage(){
+  const { error: toastError, success: toastSuccess } = useToast()
   const supabase=useMemo(()=>createClient(),[])
   const [tab,setTab]=useState<Tab>('cashflow')
   const [orders,setOrders]=useState<Order[]>([])
@@ -198,6 +200,7 @@ function Accounts({orders,expenses,onNewExpense}:{orders:Order[];expenses:Expens
 }
 
 function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
+  const { error: toastError, success: toastSuccess } = useToast()
   // Defaults: todas as formas de pagamento ATIVADAS por padrão
   const DEFAULT_FORMAS = {dinheiro:true,pix:true,cartao_credito:true,cartao_debito:true}
   // Sincronizar estado inicial com a config salva, usando defaults se vazio
@@ -218,8 +221,8 @@ function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
     if(!hasChanges)return
     const response=await fetch('/api/financeiro',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({formas:values})})
     const body=await response.json()
-    if(response.ok){onSaved(body.tenant);setHasChanges(false);alert('Formas de pagamento salvas.')}
-    else alert(body.error||'Não foi possível salvar.')
+    if(response.ok){onSaved(body.tenant);setHasChanges(false);toastSuccess('Formas de pagamento salvas')}
+    else toastError('Nao foi possivel salvar', body.error)
   }
 
   const toggleValue=(key:string)=>{
@@ -268,6 +271,7 @@ function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
 }
 
 function LancarModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
+  const { error: toastError, success: toastSuccess } = useToast()
   const[forma,setForma]=useState<'entrada'|'saida'>('entrada')
   const[tipo,setTipo]=useState('manual')
   const[descricao,setDescricao]=useState('')
@@ -276,7 +280,7 @@ function LancarModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
   const[saving,setSaving]=useState(false)
 
   const salvar=async()=>{
-    if(!descricao.trim()||!valor){alert('Preencha descrição e valor');return}
+    if(!descricao.trim()||!valor){toastError('Preencha descricao e valor');return}
     setSaving(true)
     try{
       const response = await fetch('/api/financeiro', {
@@ -293,7 +297,8 @@ function LancarModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
       const body = await response.json()
       if (!response.ok) throw new Error(body.error || 'Erro ao salvar')
       onSave()
-    }catch(e:any){alert(e.message||'Erro ao salvar')}
+      toastSuccess('Lancamento salvo')
+    }catch(e:any){toastError(e.message || 'Erro ao salvar')}
     finally{setSaving(false)}
   }
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { X, Plus, Minus, ShoppingCart, Clock, MapPin, User, Phone, CreditCard, Calendar, MessageSquare, ChevronDown, Tag, Loader2, Check, AlertCircle, Trash2, Search } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { useToast } from '@/components/toast'
 import { formatBirthdayInput, isValidBirthday, birthdayToIso } from '@/lib/checkout-date'
 import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
 
@@ -139,6 +140,7 @@ export function CheckoutDrawer({
   onPedidoCriado,
   onClienteCadastrado,
 }: CheckoutDrawerProps) {
+  const { error: toastError, warning: toastWarning } = useToast()
   const newIdempotencyKey = () => {
     const bytes = crypto.getRandomValues(new Uint8Array(32))
     return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('')
@@ -578,7 +580,7 @@ export function CheckoutDrawer({
               setCliente={setCliente}
               onContinuar={async () => {
                 const erro = validarCliente()
-                if (erro) { alert(erro); return }
+                if (erro) { toastWarning(erro); return }
                 let accessToken = cliente.accessToken
                 if (!accessToken) {
                   const bytes = crypto.getRandomValues(new Uint8Array(32))
@@ -591,7 +593,7 @@ export function CheckoutDrawer({
                     body: JSON.stringify({ tenant_slug: tenantSlug, nome: cliente.nome, telefone: cliente.whatsapp, data_nascimento: cliente.aniversario ? birthdayToIso(cliente.aniversario) : null, cpf: cliente.cpf || null, access_token: accessToken }),
                   })
                   const result = await response.json()
-                  if (!response.ok && result.code !== 'NEW_ORDER_REQUIRED') { alert(result.error || 'Não foi possível salvar seus dados.'); return }
+                  if (!response.ok && result.code !== 'NEW_ORDER_REQUIRED') { toastError(result.error || 'Não foi possível salvar seus dados'); return }
                   if (result.code === 'NEW_ORDER_REQUIRED') { setStep('entrega'); return }
                   onClienteCadastrado?.({ ...cliente, accessToken, ...(result.cliente || result), whatsapp: (result.cliente || result).telefone || cliente.whatsapp, aniversario: cliente.aniversario })
                 }
@@ -613,7 +615,7 @@ export function CheckoutDrawer({
               tenantSlug={tenantSlug}
               onContinuar={() => {
                 const erro = validarEntrega()
-                if (erro) { alert(erro); return }
+                if (erro) { toastWarning(erro); return }
                 setStep('pagamento')
               }}
             />
@@ -643,10 +645,10 @@ export function CheckoutDrawer({
               taxaEntrega={taxaEntregaAplicada}
               descontoCupom={descontoCupom}
               onContinuar={() => {
-                if (formasPagamentoSelecionadas.length === 0) { alert('Selecione pelo menos uma forma de pagamento'); return }
+                if (formasPagamentoSelecionadas.length === 0) { toastWarning('Selecione pelo menos uma forma de pagamento'); return }
                 const totalPago = formasPagamentoSelecionadas.reduce((sum, fp) => sum + fp.valor, 0)
-                if (totalPago < total) { alert('A soma dos valores pagos deve ser maior ou igual ao total'); return }
-                if (precisaTroco && !trocoPara) { alert('Informe o valor para troco'); return }
+                if (totalPago < total) { toastWarning('A soma dos valores pagos deve ser maior ou igual ao total'); return }
+                if (precisaTroco && !trocoPara) { toastWarning('Informe o valor para troco'); return }
                 setStep('aniversario')
               }}
             />
@@ -861,6 +863,18 @@ function ClienteView({ cliente, setCliente, onContinuar }: any) {
 }
 
 function AniversarioView({ cliente, setCliente, onContinuar }: any) {
+  const { warning: toastWarning } = useToast()
+  const handleContinuar = () => {
+    if (cliente.aniversario && !isValidBirthday(cliente.aniversario)) {
+      toastWarning('Informe uma data válida no formato DD/MM/AAAA ou deixe vazio')
+      return
+    }
+    if (cliente.cpf && !validCpf(cliente.cpf)) {
+      toastWarning('Informe um CPF válido ou deixe vazio')
+      return
+    }
+    onContinuar()
+  }
   return (
     <div className="p-4 space-y-4">
       <div>
@@ -872,7 +886,7 @@ function AniversarioView({ cliente, setCliente, onContinuar }: any) {
         <p className="text-xs text-gray-500 mt-1">Use DD/MM/AAAA ou deixe em branco.</p>
       </div>
       <div><label className="block text-sm font-medium mb-1.5">CPF — opcional</label><input inputMode="numeric" value={formatCpf(cliente.cpf||'')} onChange={e=>setCliente({...cliente,cpf:normalizeCpf(e.target.value)})} placeholder="CPF — opcional" maxLength={14} className="w-full py-3 px-4 border rounded-xl outline-none"/></div>
-      <button type="button" onClick={()=>{if(cliente.aniversario&&!isValidBirthday(cliente.aniversario)){alert('Informe uma data válida no formato DD/MM/AAAA ou deixe vazio');return}if(cliente.cpf&&!validCpf(cliente.cpf)){alert('Informe um CPF válido ou deixe vazio');return}onContinuar()}} className="wd-primary-action w-full py-4 rounded-2xl text-white font-bold text-lg">Continuar</button>
+      <button type="button" onClick={handleContinuar} className="wd-primary-action w-full py-4 rounded-2xl text-white font-bold text-lg">Continuar</button>
       <button type="button" onClick={()=>{setCliente({...cliente,aniversario:'',cpf:''});onContinuar()}} className="w-full py-2 text-sm font-semibold text-gray-600 hover:text-gray-900">Pular esta etapa</button>
     </div>
   )

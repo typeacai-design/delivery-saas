@@ -7,6 +7,7 @@ import {
   Cake, Trophy, Users, Tag, RefreshCw, Sparkles, Plus, Calendar, Search, Edit, Trash2, Star, Clock, X
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { useToast } from '@/components/toast'
 import FidelidadeTab from '@/components/admin/marketing/FidelidadeTab'
 
 import CarrinhoAbandonadoTab from '@/components/admin/marketing/CarrinhoAbandonadoTab'
@@ -17,6 +18,7 @@ type Tab = 'clientes' | 'fidelidade'  | 'carrinho'   | 'cupons' | 'avaliacoes'
 type Periodo = '7d' | '15d' | '30d' | 'custom'
 
 export default function MarketingPage() {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [tab, setTab] = useState<Tab>('clientes')
   const [loading, setLoading] = useState(true)
   const [clientes, setClientes] = useState<any[]>([])
@@ -208,6 +210,7 @@ function Field({ label, required, hint, children, className }: { label: string; 
 }
 
 function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [cupons, setCupons] = useState(initialCupons)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<any>(null)
@@ -238,14 +241,14 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
 
   const salvar = async () => {
     if (!form.codigo.trim() || !form.valor || !form.validade) {
-      alert('Preencha código, valor e validade.')
+      toastError('Preencha código, valor e validade')
       return
     }
     setSaving(true)
     try {
       const tenantId = await activeTenantId()
       if (!tenantId) {
-        alert('Sessao expirada. Recarregue a pagina.')
+        toastError('Sessao expirada', 'Recarregue a pagina')
         setSaving(false)
         return
       }
@@ -273,9 +276,9 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
         console.error('Erro ao salvar cupom:', error)
         const msg = error.message || 'Falha desconhecida'
         if (msg.includes('unique constraint') || msg.includes('duplicate key')) {
-          alert('Já existe um cupom com este código. Escolha outro código.')
+          toastError('Codigo duplicado', 'Ja existe um cupom com este codigo')
         } else {
-          alert('Erro ao salvar cupom: ' + msg)
+          toastError('Erro ao salvar cupom', msg)
         }
         setSaving(false)
         return
@@ -287,9 +290,10 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
       setShowModal(false)
       setEditing(null)
       setSaving(false)
+      toastSuccess(editing ? 'Cupom atualizado' : 'Cupom criado')
     } catch (err: any) {
       console.error('Erro inesperado ao salvar cupom:', err)
-      alert('Erro inesperado: ' + (err?.message || String(err)))
+      toastError('Erro inesperado', err?.message || String(err))
       setSaving(false)
     }
   }
@@ -298,6 +302,7 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
     if (!confirm('Excluir este cupom?')) return
     await supabase.from('cupons').update({ ativo: false }).eq('id', id)
     setCupons(cupons.filter(c => c.id !== id))
+    toastSuccess('Cupom removido')
   }
 
   return (
