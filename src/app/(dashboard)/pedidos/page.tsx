@@ -574,7 +574,7 @@ export default function PedidosPage() {
       const apiData = await apiRes.json()
 
       if (!apiRes.ok || !apiData.ok) {
-        console.error('[DEBUG PEDIDOS] Erro no loadPedidos:', apiData)
+        console.error('Erro no loadPedidos:', apiData)
         return
       }
 
@@ -590,7 +590,7 @@ export default function PedidosPage() {
       setPedidos(pedidosData)
       verificarMudancaStatus(pedidosData)
     } catch (err) {
-      console.error('[DEBUG PEDIDOS] Erro no loadPedidos:', err)
+      console.error('Erro no loadPedidos:', err)
     }
   }
 
