@@ -761,14 +761,13 @@ export default function NovoPedidoPage() {
     const tenantId = await activeTenantId()
     if (!tenantId) return
 
-    // Buscar dados em paralelo - usando a MESMA estrutura do cardápio público
+    // Primeiro: buscar produtos, complementos, categorias e clientes (sem dependências)
     const [
       { data: clientesData },
       { data: produtosData },
       { data: bairrosData },
       { data: complementosData },
       { data: listasData },
-      { data: produtoComplementosData },
     ] = await Promise.all([
       supabase.from('clientes').select('*').eq('tenant_id', tenantId).order('nome'),
       supabase.from('produtos').select('id, nome, preco, imagem_url, descricao, tempo_preparo_min').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
@@ -777,15 +776,15 @@ export default function NovoPedidoPage() {
       supabase.from('complementos').select('id, nome, preco, imagem_url, categoria_id, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
       // Categorias de complementos (mesma tabela usada pelo cardápio público)
       supabase.from('categorias_complementos').select('id, nome, qtd_minima, qtd_maxima, obrigatorio, max_selecoes, max_um_de_cada, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
-      // Relação produto-complemento
-      supabase.from('produto_complementos').select('produto_id, complemento_id').in('produto_id', (produtosData || []).map((p: any) => p.id)),
     ])
 
-    // Carregar variantes dos produtos
-    const { data: variantesData } = await supabase
-      .from('variantes')
-      .select('*')
-      .in('produto_id', (produtosData || []).map((p: any) => p.id))
+    const idsProdutos = (produtosData || []).map((p: any) => p.id)
+
+    // Segundo: buscar relações e variantes (depende dos ids dos produtos)
+    const [{ data: produtoComplementosData }, { data: variantesData }] = await Promise.all([
+      supabase.from('produto_complementos').select('produto_id, complemento_id').in('produto_id', idsProdutos),
+      supabase.from('variantes').select('*').in('produto_id', idsProdutos),
+    ])
 
     // Mapear variantes para cada produto
     const produtosComVariantes = (produtosData || []).map((p: any) => ({
