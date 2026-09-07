@@ -48,8 +48,6 @@ interface ListaComplemento {
   nome: string
   qtd_minima?: number
   qtd_maxima?: number
-  obrigatorio?: boolean
-  max_selecoes?: number
   max_um_de_cada?: boolean
   complementos: Complemento[]
 }
@@ -265,8 +263,8 @@ function ProdutoModal({
   const listaAtual = listas[etapa]
   const totalListas = listas.length
   const qtdNaLista = listaAtual?.complementos?.reduce((s, c) => s + (complementosSelecionados[c.id] || 0), 0) || 0
-  const minimoLista = Number(listaAtual?.qtd_minima ?? (listaAtual?.obrigatorio ? 1 : 0))
-  const maximoLista = Number(listaAtual?.qtd_maxima ?? listaAtual?.max_selecoes ?? 99)
+  const minimoLista = Number(listaAtual?.qtd_minima ?? 0)
+  const maximoLista = Number(listaAtual?.qtd_maxima ?? 99)
 
   const precoComplementos = Object.entries(complementosSelecionados).reduce((acc, [id, qtd]) => {
     const comp = listaAtual?.complementos.find(c => c.id === id)
@@ -358,7 +356,7 @@ function ProdutoModal({
     onClose()
   }
 
-  const todasListasObrigatorias = listas.every(l => l.obrigatorio || (l.qtd_minima ?? 0) > 0)
+  const todasListasObrigatorias = listas.every(l => (l.qtd_minima ?? 0) > 0)
   const ultimaEtapa = etapa === totalListas - 1
 
   return (
@@ -775,7 +773,7 @@ export default function NovoPedidoPage() {
       // Complementos com categoria_id
       supabase.from('complementos').select('id, nome, preco, imagem_url, categoria_id, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
       // Categorias de complementos (mesma tabela usada pelo cardápio público)
-      supabase.from('categorias_complementos').select('id, nome, qtd_minima, qtd_maxima, obrigatorio, max_selecoes, max_um_de_cada, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
+      supabase.from('categorias_complementos').select('id, nome, qtd_minima, qtd_maxima, max_um_de_cada, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
     ])
 
     const idsProdutos = (produtosData || []).map((p: any) => p.id)
@@ -816,8 +814,6 @@ export default function NovoPedidoPage() {
           nome: l.nome,
           qtd_minima: l.qtd_minima,
           qtd_maxima: l.qtd_maxima,
-          obrigatorio: l.obrigatorio,
-          max_selecoes: l.max_selecoes,
           max_um_de_cada: l.max_um_de_cada,
           complementos: (comps as any[])
             .filter((c: any) => c.categoria_id === l.id)
@@ -833,7 +829,7 @@ export default function NovoPedidoPage() {
           nome: 'Adicionais',
           qtd_minima: 0,
           qtd_maxima: 99,
-          obrigatorio: false,
+          max_um_de_cada: false,
           complementos: semCategoria
         })
       }
