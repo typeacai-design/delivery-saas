@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
-import AvaliacaoForm from '../avaliar-loja/form'
+import AvaliacaoForm from '../../avaliar-loja/form'
 
 export const revalidate = 0
 export const dynamic = 'force-dynamic'
