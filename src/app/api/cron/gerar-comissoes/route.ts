@@ -16,13 +16,16 @@ const PERCENTUAL = 1.0
 // Tambem pode ser chamado manualmente pelo admin
 export async function GET(request: Request) {
   try {
-    // Validacao simples de seguranca para evitar acesso nao autorizado
+    // Validacao de seguranca: Vercel Cron envia header Authorization
+    // Em producao, CRON_SECRET e obrigatorio. Em dev, aceitar sem auth.
     const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET || 'we-delivery-cron-secret-2026'
+    const cronSecret = process.env.CRON_SECRET
 
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      // Permitir chamada sem auth apenas em desenvolvimento
-      if (process.env.NODE_ENV === 'production' && authHeader) {
+    if (process.env.NODE_ENV === 'production') {
+      if (!cronSecret) {
+        return NextResponse.json({ error: 'CRON_SECRET nao configurado' }, { status: 500 })
+      }
+      if (authHeader !== `Bearer ${cronSecret}`) {
         return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
       }
     }

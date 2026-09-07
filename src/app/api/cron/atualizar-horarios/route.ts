@@ -42,8 +42,19 @@ function verificarHorarioFuncionamento(horariosDias: any, excecoes: any[]): bool
   return horaAtual >= horaAbre && horaAtual < horaFecha
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Verificar autorizacao: Vercel Cron envia automaticamente o header
+    // Authorization: Bearer <CRON_SECRET>. Em desenvolvimento, aceitar sem auth.
+    const authHeader = request.headers.get('authorization')
+    const cronSecret = process.env.CRON_SECRET
+
+    if (process.env.NODE_ENV === 'production' && cronSecret) {
+      if (authHeader !== `Bearer ${cronSecret}`) {
+        return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
+      }
+    }
+
     // Criar cliente admin para bypassar RLS
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
