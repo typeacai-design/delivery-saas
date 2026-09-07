@@ -23,6 +23,7 @@ import { SidebarNav } from '@/components/sidebar-nav'
 import ErrorBoundary from '@/components/error-boundary'
 import { createClient } from '@/lib/supabase/client'
 import GlobalSomPedidos from '@/components/global-som-pedidos'
+import { ToastProvider } from '@/components/toast'
 
 export default function DashboardLayout({
   children,
@@ -105,6 +106,7 @@ export default function DashboardLayout({
   ]
 
   return (
+    <ToastProvider>
     <GlobalSomPedidos>
     <div className="app-shell">
       <div className="app-shell-inner">
@@ -191,6 +193,7 @@ export default function DashboardLayout({
       </nav>
     </div>
     </GlobalSomPedidos>
+    </ToastProvider>
   )
 }
 

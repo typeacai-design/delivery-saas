@@ -10,6 +10,7 @@ import {
   Minus, Edit3, Clock, ImageIcon
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { useToast } from '@/components/toast'
 
 // ============================================================
 // TIPOS
@@ -699,6 +700,7 @@ function ClienteModal({
 export default function NovoPedidoPage() {
   const router = useRouter()
   const supabase = createClient()
+  const { error: toastError, success: toastSuccess } = useToast()
 
   const [loading, setLoading] = useState(false)
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -905,12 +907,12 @@ export default function NovoPedidoPage() {
 
   const criarPedido = async () => {
     if (itens.length === 0) {
-      alert('Adicione pelo menos um item ao pedido')
+      toastError('Adicione pelo menos um item ao pedido')
       return
     }
 
     if (tipoEntrega === 'delivery' && !bairroSelecionado) {
-      alert('Selecione o bairro de entrega')
+      toastError('Selecione o bairro de entrega')
       return
     }
 
@@ -945,7 +947,7 @@ export default function NovoPedidoPage() {
       }
 
       if (!clienteId) {
-        alert('Selecione ou cadastre um cliente')
+        toastError('Selecione ou cadastre um cliente')
         setLoading(false)
         return
       }
@@ -1008,11 +1010,15 @@ export default function NovoPedidoPage() {
 
       setPedidoCriado(pedido)
       setWhatsappUrl(whatsappData.whatsapp_url || '')
+      toastSuccess(
+        'Pedido criado com sucesso!',
+        `Total: ${formatCurrency(pedido.valor_total)}`
+      )
       setWhatsappMsg(whatsappData.mensagem || '')
 
     } catch (error: any) {
       console.error(error)
-      alert('Erro ao criar pedido: ' + error.message)
+      toastError('Erro ao criar pedido', error.message)
     } finally {
       setLoading(false)
     }
