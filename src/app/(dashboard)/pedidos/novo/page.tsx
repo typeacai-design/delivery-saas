@@ -730,7 +730,8 @@ export default function NovoPedidoPage() {
 
   // Observações
   const [observacoes, setObservacoes] = useState('')
-  const [ajusteValor, setAjusteValor] = useState<number>(0)
+  const [tipoAjuste, setTipoAjuste] = useState<'desconto' | 'acrescimo'>('desconto')
+  const [valorAjuste, setValorAjuste] = useState<number>(0)
   const [motivoAjuste, setMotivoAjuste] = useState('')
 
   // Modals
@@ -896,8 +897,11 @@ export default function NovoPedidoPage() {
       return acc + (item.valor_unitario * item.quantidade) + valorComps
     }, 0)
     const taxa = tipoEntrega === 'delivery' && bairroSelecionado ? Number(bairroSelecionado.taxa) : 0
-    return subtotal + taxa - ajusteValor
+    return subtotal + taxa - (tipoAjuste === 'desconto' ? valorAjuste : -valorAjuste)
   }
+
+  // Helper: ajusteValor calculado (positivo = desconto, negativo = acréscimo)
+  const ajusteValor = tipoAjuste === 'desconto' ? valorAjuste : -valorAjuste
 
   const criarPedido = async () => {
     if (itens.length === 0) {
@@ -1034,7 +1038,8 @@ export default function NovoPedidoPage() {
     setValorPago('')
     setTroco(0)
     setObservacoes('')
-    setAjusteValor(0)
+    setTipoAjuste('desconto')
+    setValorAjuste(0)
     setMotivoAjuste('')
   }
 
@@ -1432,8 +1437,8 @@ export default function NovoPedidoPage() {
                 <h4 className="font-semibold mb-3">Ajuste de Valor</h4>
                 <div className="flex items-center gap-3">
                   <select
-                    value={ajusteValor >= 0 ? 'desconto' : 'acrescimo'}
-                    onChange={e => setAjusteValor(e.target.value === 'desconto' ? Math.abs(ajusteValor) || 0 : -(Math.abs(ajusteValor) || 0))}
+                    value={tipoAjuste}
+                    onChange={e => setTipoAjuste(e.target.value as 'desconto' | 'acrescimo')}
                     className="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:border-green-500 outline-none"
                   >
                     <option value="desconto">Desconto</option>
@@ -1443,11 +1448,8 @@ export default function NovoPedidoPage() {
                     type="number"
                     step="0.01"
                     min="0"
-                    value={Math.abs(ajusteValor) || ''}
-                    onChange={e => {
-                      const val = parseFloat(e.target.value) || 0
-                      setAjusteValor(ajusteValor < 0 ? -val : val)
-                    }}
+                    value={valorAjuste || ''}
+                    onChange={e => setValorAjuste(parseFloat(e.target.value) || 0)}
                     placeholder="0,00"
                     className="px-4 py-2 border border-gray-200 rounded-xl text-sm w-28 focus:border-green-500 outline-none"
                   />
@@ -1458,9 +1460,9 @@ export default function NovoPedidoPage() {
                     placeholder="Motivo (opcional)"
                     className="px-4 py-2 border border-gray-200 rounded-xl text-sm flex-1 focus:border-green-500 outline-none"
                   />
-                  {ajusteValor !== 0 && (
+                  {valorAjuste !== 0 && (
                     <button
-                      onClick={() => { setAjusteValor(0); setMotivoAjuste('') }}
+                      onClick={() => { setValorAjuste(0); setMotivoAjuste('') }}
                       className="text-red-500 hover:bg-red-50 p-2 rounded-lg"
                       title="Limpar ajuste"
                     >
@@ -1468,11 +1470,11 @@ export default function NovoPedidoPage() {
                     </button>
                   )}
                 </div>
-                {ajusteValor !== 0 && (
-                  <p className={`text-sm mt-2 ${ajusteValor > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {ajusteValor > 0
-                      ? `Desconto de ${formatCurrency(ajusteValor)} aplicado`
-                      : `Acréscimo de ${formatCurrency(Math.abs(ajusteValor))} aplicado`}
+                {valorAjuste !== 0 && (
+                  <p className={`text-sm mt-2 ${tipoAjuste === 'desconto' ? 'text-green-600' : 'text-red-600'}`}>
+                    {tipoAjuste === 'desconto'
+                      ? `Desconto de ${formatCurrency(valorAjuste)} aplicado`
+                      : `Acréscimo de ${formatCurrency(valorAjuste)} aplicado`}
                     {motivoAjuste && <span className="text-gray-500"> — {motivoAjuste}</span>}
                   </p>
                 )}
