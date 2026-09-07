@@ -706,7 +706,6 @@ export default function NovoPedidoPage() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [bairros, setBairros] = useState<Bairro[]>([])
-  const [listasComplementos, setListasComplementos] = useState<ListaComplemento[]>([])
   const [itens, setItens] = useState<ItemPedido[]>([])
   const [pedidoCriado, setPedidoCriado] = useState<any>(null)
   const [whatsappUrl, setWhatsappUrl] = useState('')
@@ -762,14 +761,24 @@ export default function NovoPedidoPage() {
     const tenantId = await activeTenantId()
     if (!tenantId) return
 
-    const [{ data: clientesData }, { data: produtosData }, { data: bairrosData }, { data: listasData }] = await Promise.all([
+    // Buscar dados em paralelo - usando a MESMA estrutura do cardápio público
+    const [
+      { data: clientesData },
+      { data: produtosData },
+      { data: bairrosData },
+      { data: complementosData },
+      { data: listasData },
+      { data: produtoComplementosData },
+    ] = await Promise.all([
       supabase.from('clientes').select('*').eq('tenant_id', tenantId).order('nome'),
       supabase.from('produtos').select('id, nome, preco, imagem_url, descricao, tempo_preparo_min').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
       supabase.from('enderecos_entrega').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('bairro'),
-      supabase.from('listas_complementos').select(`
-        id, nome, qtd_minima, qtd_maxima, obrigatorio, max_selecoes, max_um_de_cada,
-        complementos:complementos(id, nome, preco, imagem_url)
-      `).eq('tenant_id', tenantId).eq('ativo', true).order('ordem')
+      // Complementos com categoria_id
+      supabase.from('complementos').select('id, nome, preco, imagem_url, categoria_id, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
+      // Categorias de complementos (mesma tabela usada pelo cardápio público)
+      supabase.from('categorias_complementos').select('id, nome, qtd_minima, qtd_maxima, obrigatorio, max_selecoes, max_um_de_cada, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
+      // Relação produto-complemento
+      supabase.from('produto_complementos').select('produto_id, complemento_id').in('produto_id', (produtosData || []).map((p: any) => p.id)),
     ])
 
     // Carregar variantes dos produtos
@@ -784,42 +793,61 @@ export default function NovoPedidoPage() {
       variantes: (variantesData || []).filter((v: any) => v.produto_id === p.id)
     }))
 
-    // Mapear listas com complementos para cada produto
-    const { data: prodListasData } = await supabase
-      .from('produtos_listas_complementos')
-      .select('produto_id, lista_id')
-      .in('produto_id', (produtosData || []).map((p: any) => p.id))
+    // Mapear complementos por produto (igual ao cardápio público)
+    const complementosPorProduto: Record<string, any[]> = {}
+    ;(produtoComplementosData || []).forEach((pc: any) => {
+      const complemento = (complementosData || []).find((c: any) => c.id === pc.complemento_id)
+      if (complemento) {
+        if (!complementosPorProduto[pc.produto_id]) {
+          complementosPorProduto[pc.produto_id] = []
+        }
+        complementosPorProduto[pc.produto_id].push(complemento)
+      }
+    })
 
-    const listasAgrupadas: Record<string, ListaComplemento[]> = {}
-    ;(listasData || []).forEach((lista: any) => {
-      const produtosDaLista = (prodListasData || [])
-        .filter((pl: any) => pl.lista_id === lista.id)
-        .map((pl: any) => pl.produto_id)
+    // Agrupar complementos por produto e categoria (igual ao cardápio público)
+    const listasPorProduto: Record<string, ListaComplemento[]> = {}
+    Object.entries(complementosPorProduto).forEach(([produtoId, comps]) => {
+      const idsCategorias = new Set((comps as any[]).map((c: any) => c.categoria_id).filter(Boolean))
+      listasPorProduto[produtoId] = (listasData || [])
+        .filter((l: any) => idsCategorias.has(l.id))
+        .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+        .map((l: any) => ({
+          id: l.id,
+          nome: l.nome,
+          qtd_minima: l.qtd_minima,
+          qtd_maxima: l.qtd_maxima,
+          obrigatorio: l.obrigatorio,
+          max_selecoes: l.max_selecoes,
+          max_um_de_cada: l.max_um_de_cada,
+          complementos: (comps as any[])
+            .filter((c: any) => c.categoria_id === l.id)
+            .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+        }))
 
-      produtosDaLista.forEach((prodId: string) => {
-        if (!listasAgrupadas[prodId]) listasAgrupadas[prodId] = []
-        listasAgrupadas[prodId].push({
-          id: lista.id,
-          nome: lista.nome,
-          qtd_minima: lista.qtd_minima,
-          qtd_maxima: lista.qtd_maxima,
-          obrigatorio: lista.obrigatorio,
-          max_selecoes: lista.max_selecoes,
-          max_um_de_cada: lista.max_um_de_cada,
-          complementos: lista.complementos || []
+      // Complementos sem categoria vão para um grupo "Adicionais"
+      const semCategoria = (comps as any[]).filter((c: any) => !c.categoria_id)
+        .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+      if (semCategoria.length) {
+        listasPorProduto[produtoId].push({
+          id: 'avulsos',
+          nome: 'Adicionais',
+          qtd_minima: 0,
+          qtd_maxima: 99,
+          obrigatorio: false,
+          complementos: semCategoria
         })
-      })
+      }
     })
 
     const produtosFinais = produtosComVariantes.map((p: any) => ({
       ...p,
-      listas: listasAgrupadas[p.id] || []
+      listas: listasPorProduto[p.id] || []
     }))
 
     setClientes(clientesData || [])
     setProdutos(produtosFinais)
     setBairros(bairrosData || [])
-    setListasComplementos(listasData || [])
   }
 
   const cadastrarCliente = (cliente: { nome: string; telefone: string; cpf?: string }) => {
