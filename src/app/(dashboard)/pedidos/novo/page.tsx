@@ -7,7 +7,7 @@ import { activeTenantId } from '@/lib/active-tenant-client'
 import {
   ArrowLeft, ShoppingBag, MapPin, CreditCard, Plus, Trash2, Check, MessageCircle,
   User, Phone, Home, Store, Table2, Save, X, Search, ChevronLeft, ChevronRight,
-  Minus, Edit3, Clock, ImageIcon
+  Minus, Edit3, Clock, ImageIcon, Loader2
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useToast } from '@/components/toast'
@@ -716,8 +716,18 @@ export default function NovoPedidoPage() {
 
   // Cliente selecionado
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
-  const [telefoneClienteRapido, setTelefoneClienteRapido] = useState('')
-  const [nomeClienteRapido, setNomeClienteRapido] = useState('')
+  const [buscaCliente, setBuscaCliente] = useState('')
+  const [mostrarListaClientes, setMostrarListaClientes] = useState(false)
+
+  // Lista filtrada de clientes para a busca
+  const clientesFiltrados = useMemo(() => {
+    if (!buscaCliente.trim()) return clientes
+    const b = buscaCliente.toLowerCase()
+    return clientes.filter(c =>
+      (c.nome || '').toLowerCase().includes(b) ||
+      (c.telefone || '').includes(b)
+    )
+  }, [clientes, buscaCliente])
 
   // Endereço
   const [bairroSelecionado, setBairroSelecionado] = useState<Bairro | null>(null)
@@ -770,7 +780,7 @@ export default function NovoPedidoPage() {
       { data: complementosData },
       { data: listasData },
     ] = await Promise.all([
-      supabase.from('clientes').select('*').eq('tenant_id', tenantId).order('nome'),
+      supabase.from('clientes').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
       supabase.from('produtos').select('id, nome, preco, imagem_url, descricao, tempo_preparo_min').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
       supabase.from('enderecos_entrega').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('bairro'),
       // Complementos com categoria_id
@@ -923,17 +933,17 @@ export default function NovoPedidoPage() {
       if (!tenantId) throw new Error('Não autenticado')
 
       let clienteId = clienteSelecionado?.id
-      const nomeCliente = clienteSelecionado?.nome || nomeClienteRapido
-      const telefoneCliente = clienteSelecionado?.telefone || telefoneClienteRapido.replace(/\D/g, '')
+      const nomeCliente = clienteSelecionado?.nome || ''
+      const telefoneCliente = clienteSelecionado?.telefone || ''
 
-      // Cadastrar cliente rápido se necessário
+      // Se nao tem cliente selecionado, cria um novo
       if (!clienteId && nomeCliente && telefoneCliente) {
         const { data: novo, error: erroNovo } = await supabase
           .from('clientes')
           .insert({
             tenant_id: tenantId,
             nome: nomeCliente,
-            telefone: telefoneCliente,
+            telefone: telefoneCliente.replace(/\D/g, ''),
             cpf: null,
             data_nascimento: null,
             endereco: endereco || null,
@@ -1034,8 +1044,8 @@ export default function NovoPedidoPage() {
     setWhatsappMsg('')
     setItens([])
     setClienteSelecionado(null)
-    setNomeClienteRapido('')
-    setTelefoneClienteRapido('')
+    setBuscaCliente('')
+    setMostrarListaClientes(false)
     setBairroSelecionado(null)
     setEndereco('')
     setNumero('')
@@ -1118,57 +1128,98 @@ export default function NovoPedidoPage() {
               </button>
             </div>
 
-            {/* Cliente existente */}
-            <select
-              value={clienteSelecionado?.id || ''}
-              onChange={(e) => {
-                const cliente = clientes.find(c => c.id === e.target.value)
-                setClienteSelecionado(cliente || null)
-                if (cliente) {
-                  setNomeClienteRapido('')
-                  setTelefoneClienteRapido('')
-                }
-              }}
-              className="w-full mb-3 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
-            >
-              <option value="">Selecione um cliente...</option>
-              {clientes.map(cliente => (
-                <option key={cliente.id} value={cliente.id}>
-                  {cliente.nome} - {cliente.telefone}
-                </option>
-              ))}
-            </select>
-
-            {/* Ou cadastrar rápido */}
-            {!clienteSelecionado && (
-              <div className="space-y-3 pt-3 border-t">
-                <p className="text-xs text-gray-500 text-center">ou cadastre rapidamente</p>
-                <input
-                  type="text"
-                  value={nomeClienteRapido}
-                  onChange={(e) => setNomeClienteRapido(e.target.value)}
-                  placeholder="Nome do cliente"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
-                />
-                <input
-                  type="tel"
-                  value={telefoneClienteRapido}
-                  onChange={(e) => setTelefoneClienteRapido(formatPhone(e.target.value))}
-                  placeholder="WhatsApp"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
-                />
-              </div>
-            )}
+            {/* Busca de cliente */}
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar cliente por nome ou telefone..."
+                value={buscaCliente}
+                onChange={(e) => {
+                  setBuscaCliente(e.target.value)
+                  setMostrarListaClientes(true)
+                }}
+                onFocus={() => setMostrarListaClientes(true)}
+                className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
+              />
+              {buscaCliente && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuscaCliente('')
+                    setClienteSelecionado(null)
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
 
             {/* Info do cliente selecionado */}
             {clienteSelecionado && (
-              <div className="p-3 bg-green-50 rounded-xl text-sm">
-                <p className="font-semibold">{clienteSelecionado.nome}</p>
-                <p className="text-gray-600">{clienteSelecionado.telefone}</p>
-                {clienteSelecionado.endereco && (
-                  <p className="text-gray-500 text-xs mt-1">{clienteSelecionado.endereco}, {clienteSelecionado.numero}</p>
+              <div className="p-3 bg-green-50 rounded-xl text-sm border border-green-200">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold text-green-900">{clienteSelecionado.nome}</p>
+                    <p className="text-gray-600">{clienteSelecionado.telefone}</p>
+                    {clienteSelecionado.endereco && (
+                      <p className="text-gray-500 text-xs mt-1">{clienteSelecionado.endereco}, {clienteSelecionado.numero}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setClienteSelecionado(null)}
+                    className="text-gray-400 hover:text-red-500 p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Lista suspensa de resultados */}
+            {!clienteSelecionado && mostrarListaClientes && clientesFiltrados.length > 0 && (
+              <div className="mt-2 border border-gray-200 rounded-xl bg-white shadow-lg max-h-60 overflow-y-auto">
+                {clientesFiltrados.slice(0, 50).map(cliente => (
+                  <button
+                    key={cliente.id}
+                    type="button"
+                    onClick={() => {
+                      setClienteSelecionado(cliente)
+                      setMostrarListaClientes(false)
+                      setBuscaCliente('')
+                    }}
+                    className="w-full px-3 py-2.5 text-left hover:bg-green-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0 transition-colors"
+                  >
+                    <div className="size-9 rounded-full bg-green-100 text-green-700 grid place-items-center text-xs font-bold shrink-0">
+                      {(cliente.nome || 'C').split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-900 truncate">{cliente.nome}</p>
+                      <p className="text-xs text-gray-500">{cliente.telefone}</p>
+                    </div>
+                  </button>
+                ))}
+                {clientesFiltrados.length > 50 && (
+                  <p className="p-3 text-xs text-center text-gray-500 border-t">
+                    +{clientesFiltrados.length - 50} resultado(s). Refine a busca para ver mais.
+                  </p>
                 )}
               </div>
+            )}
+
+            {/* Mensagem quando nao encontra */}
+            {!clienteSelecionado && mostrarListaClientes && buscaCliente && clientesFiltrados.length === 0 && (
+              <div className="mt-2 p-3 text-sm text-center text-gray-500 border border-dashed border-gray-300 rounded-xl">
+                Nenhum cliente encontrado para "{buscaCliente}"
+              </div>
+            )}
+
+            {!clienteSelecionado && !mostrarListaClientes && !buscaCliente && (
+              <p className="text-xs text-gray-400 text-center mt-2">
+                Digite o nome ou telefone para buscar
+              </p>
             )}
           </div>
 
@@ -1572,7 +1623,7 @@ export default function NovoPedidoPage() {
             <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--ink)' }}>
               Pedido #{pedidoCriado.id.split('-')[0].toUpperCase()} criado!
             </h2>
-            <p className="hint mb-6">{clienteSelecionado?.nome || nomeClienteRapido} • {formatCurrency(pedidoCriado.valor_total)}</p>
+            <p className="hint mb-6">{clienteSelecionado?.nome} • {formatCurrency(pedidoCriado.valor_total)}</p>
 
             {whatsappMsg && (
               <div className="glass-soft p-4 rounded-2xl text-left mb-6" style={{ background: 'rgba(37,211,102,.06)', border: '1px solid rgba(37,211,102,.25)' }}>
