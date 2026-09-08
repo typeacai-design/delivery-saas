@@ -232,15 +232,17 @@ export default function VisaoGeralPage() {
       const agora = new Date()
       const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
 
-      // Início do dia em São Paulo → converter para UTC
-      const inicioHojeBrasilia = new Date(brasilia)
-      inicioHojeBrasilia.setHours(0, 0, 0, 0)
-      // Subtrair 3 horas para obter UTC (Brasília = UTC-3)
-      const inicioHojeUTC = new Date(inicioHojeBrasilia.getTime() - 3 * 60 * 60 * 1000)
-      // Fim do dia em São Paulo (23:59:59.999)
-      const fimHojeBrasilia = new Date(brasilia)
-      fimHojeBrasilia.setHours(23, 59, 59, 999)
-      const fimHojeUTC = new Date(fimHojeBrasilia.getTime() - 3 * 60 * 60 * 1000)
+      // Calcular início e fim do dia em São Paulo, em UTC
+      // Brasília = UTC-3
+      // Pegar YYYY-MM-DD do dia de hoje em Brasília
+      const ano = brasilia.getFullYear()
+      const mes = brasilia.getMonth()
+      const dia = brasilia.getDate()
+
+      // Início: 08/09 00:00:00 BRT → 08/09 03:00:00 UTC
+      const inicioHojeUTC = new Date(Date.UTC(ano, mes, dia, 3, 0, 0, 0))
+      // Fim: 08/09 23:59:59.999 BRT → 09/09 02:59:59.999 UTC
+      const fimHojeUTC = new Date(Date.UTC(ano, mes, dia + 1, 2, 59, 59, 999))
 
       const { data: vendasHojeRaw } = await supabase
         .from('pedidos')
@@ -258,8 +260,8 @@ export default function VisaoGeralPage() {
       setPedidosHoje(vendasHoje.length)
 
       // Primeiro dia do mês em São Paulo → UTC
-      const primeiroDiaBrasilia = new Date(brasilia.getFullYear(), brasilia.getMonth(), 1)
-      const primeiroDiaUTC = new Date(primeiroDiaBrasilia.getTime() - 3 * 60 * 60 * 1000)
+      // 01/09 00:00:00 BRT → 01/09 03:00:00 UTC
+      const primeiroDiaUTC = new Date(Date.UTC(ano, mes, 1, 3, 0, 0, 0))
 
       const { data: vendasMesRaw } = await supabase
         .from('pedidos')
