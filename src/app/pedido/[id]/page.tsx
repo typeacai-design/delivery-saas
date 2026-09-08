@@ -6,6 +6,7 @@ import PedidoClienteWrapper from './wrapper'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0 // Sempre dinamico
+export const runtime = 'nodejs'
 
 export default async function PedidoClientePage({
   params,
