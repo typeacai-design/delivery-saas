@@ -18,6 +18,7 @@
 Skills já registradas em `.claude/skills/`:
 - `deploy-vercel.md` — Como fazer deploy sem erro
 - `supabase-client-pattern.md` — Padrão correto de uso do Supabase em páginas 'use client'
+- `timezone-brasil.md` — Como filtrar por data corretamente em UTC-3 (NUNCA subtrair 3h!)
 
 ---
 
