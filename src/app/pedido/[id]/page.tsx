@@ -4,6 +4,7 @@ import { Clock, Check, Truck, X, MapPin, Phone, User, Loader2 } from 'lucide-rea
 import { formatCurrency } from '@/lib/utils'
 import PedidoClienteWrapper from './wrapper'
 
+export const dynamic = 'force-dynamic'
 export const revalidate = 0 // Sempre dinamico
 
 export default async function PedidoClientePage({
