@@ -858,9 +858,37 @@ export default function NovoPedidoPage() {
     setBairros(bairrosData || [])
   }
 
-  const cadastrarCliente = (cliente: { nome: string; telefone: string; cpf?: string }) => {
-    setClientes([...clientes, { ...cliente, id: gerarId() } as Cliente])
-    setClienteSelecionado({ ...cliente, id: gerarId() } as Cliente)
+  const cadastrarCliente = async (cliente: { nome: string; telefone: string; cpf?: string }) => {
+    try {
+      const tenantId = await activeTenantId()
+      if (!tenantId) return
+
+      const telefoneLimpo = cliente.telefone.replace(/\D/g, '')
+      // Inserir direto no banco para obter o UUID real
+      const { data: novo, error } = await supabase
+        .from('clientes')
+        .insert({
+          tenant_id: tenantId,
+          nome: cliente.nome,
+          telefone: telefoneLimpo,
+          cpf: cliente.cpf || null,
+          data_nascimento: null,
+          endereco: endereco || null,
+          bairro: bairroSelecionado?.bairro || null,
+          numero: numero || null,
+        })
+        .select()
+        .single()
+      if (error || !novo) {
+        toastError('Erro ao cadastrar cliente', error?.message)
+        return
+      }
+      // Atualiza lista local com o cliente que tem UUID real
+      setClientes(prev => [...prev, novo as Cliente])
+      setClienteSelecionado(novo as Cliente)
+    } catch (err: any) {
+      toastError('Erro ao cadastrar cliente', err.message)
+    }
   }
 
   const abrirSelecaoProduto = (produto: Produto) => {
