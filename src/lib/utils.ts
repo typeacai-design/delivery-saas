@@ -61,3 +61,38 @@ export function formatarCodigoPedido(id: string, createdAt?: string | null, codi
 
   return `${numericId}/${year}`
 }
+
+/**
+ * Ordena uma lista de complementos seguindo a regra padrão do sistema:
+ * 1. Complementos com preço zero (GRÁTIS) sempre no topo
+ * 2. Demais complementos em ordem alfabética (A → Z)
+ *
+ * Essa regra vale para todas as listas de complementos e todos os lojistas.
+ *
+ * Aceita comparação locale-aware para tratar acentos corretamente.
+ *
+ * @example
+ *   ordenarComplementos([
+ *     { nome: 'Mussarela', preco: 40 },
+ *     { nome: 'Á moda', preco: 0 },
+ *     { nome: 'Calabresa', preco: 40 },
+ *   ])
+ *   // → [Á moda (grátis), Calabresa, Mussarela]
+ */
+export function ordenarComplementos<T extends { nome?: string; preco?: number | string }>(
+  complementos: T[]
+): T[] {
+  return [...complementos].sort((a, b) => {
+    const precoA = Number(a.preco || 0)
+    const precoB = Number(b.preco || 0)
+
+    // 1. Grátis (preço 0) sempre no topo
+    if (precoA === 0 && precoB !== 0) return -1
+    if (precoB === 0 && precoA !== 0) return 1
+
+    // 2. Se ambos grátis ou ambos pagos → alfabético (com acento)
+    const nomeA = (a.nome || '').toLocaleLowerCase('pt-BR')
+    const nomeB = (b.nome || '').toLocaleLowerCase('pt-BR')
+    return nomeA.localeCompare(nomeB, 'pt-BR')
+  })
+}

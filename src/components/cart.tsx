@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { X, Plus, Minus, ShoppingCart, Clock } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, ordenarComplementos } from '@/lib/utils'
 
 export interface CartItem {
   id: string
@@ -436,12 +436,12 @@ export function ProdutoModal({
             </div>
           )}
 
-          {/* Complementos */}
+          {/* Complementos (ordenados: grátis no topo, depois alfabético) */}
           {complementos.length > 0 && (
             <div className="mt-5">
               <h3 className="font-semibold text-sm mb-2">Adicionais</h3>
               <div className="space-y-2">
-                {complementos.map((comp) => (
+                {ordenarComplementos(complementos).map((comp) => (
                   <button
                     key={comp.id}
                     onClick={() => toggleComplemento(comp.id)}

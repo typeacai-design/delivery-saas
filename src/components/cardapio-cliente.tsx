@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { ShoppingCart, Search, SlidersHorizontal, MapPin, ChevronDown, Home, FileText, ShoppingBag, User, Plus, Bell, Clock, Star } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, ordenarComplementos } from '@/lib/utils'
 import { CheckoutDrawer, ProdutoModal, CartItem } from './checkout-flow'
 import { PublicReviews } from './public-reviews'
 import { CustomerOrders, CustomerProfile } from './customer-account'
@@ -308,12 +308,14 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
         .map((l: any) => ({
           ...l,
-          complementos: (comps as any[])
-            .filter(c => c.categoria_id === l.id)
-            .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+          // Regra padrão: grátis no topo, depois alfabético
+          complementos: ordenarComplementos(
+            (comps as any[]).filter(c => c.categoria_id === l.id)
+          )
         }))
-      const semLista = (comps as any[]).filter(c => !c.categoria_id)
-        .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+      const semLista = ordenarComplementos(
+        (comps as any[]).filter(c => !c.categoria_id)
+      )
       if (semLista.length) map[produtoId].push({ id: 'avulsos', nome: 'Adicionais', qtd_minima: 0, qtd_maxima: 99, complementos: semLista })
     })
     return map

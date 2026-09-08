@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { X, Plus, Minus, ShoppingCart, Clock, MapPin, User, Phone, CreditCard, Calendar, MessageSquare, ChevronDown, Tag, Loader2, Check, AlertCircle, Trash2, Search } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, ordenarComplementos } from '@/lib/utils'
 import { formatBirthdayInput, isValidBirthday, birthdayToIso } from '@/lib/checkout-date'
 import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
 
@@ -1420,9 +1420,13 @@ export function ProdutoModal({
   }
 
   const listaAtual = listas[etapaLista]
-  const quantidadeLista = listaAtual?.complementos?.reduce((s: number, c: any) => s + (complementosSelecionados[c.id] || 0), 0) || 0
-  const minimoLista = Number(listaAtual?.qtd_minima ?? (listaAtual?.obrigatorio ? 1 : 0))
-  const maximoLista = Number(listaAtual?.qtd_maxima ?? listaAtual?.max_selecoes ?? 99)
+  // Regra padrão: grátis no topo, depois alfabético
+  const listaAtualOrdenada = listaAtual
+    ? { ...listaAtual, complementos: ordenarComplementos(listaAtual.complementos || []) }
+    : listaAtual
+  const quantidadeLista = listaAtualOrdenada?.complementos?.reduce((s: number, c: any) => s + (complementosSelecionados[c.id] || 0), 0) || 0
+  const minimoLista = Number(listaAtualOrdenada?.qtd_minima ?? (listaAtualOrdenada?.obrigatorio ? 1 : 0))
+  const maximoLista = Number(listaAtualOrdenada?.qtd_maxima ?? listaAtualOrdenada?.max_selecoes ?? 99)
 
   function alterarComplemento(comp: any, delta: number) {
     setComplementosSelecionados(prev => {
@@ -1553,14 +1557,14 @@ export function ProdutoModal({
             </div>
           )}
 
-          {/* Complementos por lista, na ordem configurada */}
-          {!montagemConcluida && listaAtual && (
+          {/* Complementos por lista, na ordem configurada (grátis no topo, depois alfabético) */}
+          {!montagemConcluida && listaAtualOrdenada && (
             <div className="mt-5">
               <p className="text-xs text-gray-500 mb-1">Etapa {etapaLista + 1} de {listas.length}</p>
-              <h3 className="text-xl font-bold mb-1 text-gray-900">{listaAtual.nome || 'Escolha seus complementos'}</h3>
+              <h3 className="text-xl font-bold mb-1 text-gray-900">{listaAtualOrdenada.nome || 'Escolha seus complementos'}</h3>
               <p className="text-xs text-gray-500 mb-3">Escolha de {minimoLista} ate {maximoLista} itens ({quantidadeLista}/{maximoLista})</p>
               <div className="space-y-2">
-                {listaAtual.complementos.map((comp: any) => (
+                {listaAtualOrdenada.complementos.map((comp: any) => (
                   <div
                     key={comp.id}
                     className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
