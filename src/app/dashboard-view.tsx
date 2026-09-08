@@ -228,17 +228,26 @@ export default function VisaoGeralPage() {
         }
       }
 
-      // Usar data local (Brasilia) para evitar problemas de timezone
+      // Usar data local (Brasília) para evitar problemas de timezone
       const agora = new Date()
-      const hojeLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate())
-      const hojeFormatado = `${hojeLocal.getFullYear()}-${String(hojeLocal.getMonth() + 1).padStart(2, '0')}-${String(hojeLocal.getDate()).padStart(2, '0')}`
-      const primeiroDia = new Date(agora.getFullYear(), agora.getMonth(), 1)
+      const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+
+      // Início do dia em São Paulo → converter para UTC
+      const inicioHojeBrasilia = new Date(brasilia)
+      inicioHojeBrasilia.setHours(0, 0, 0, 0)
+      // Subtrair 3 horas para obter UTC (Brasília = UTC-3)
+      const inicioHojeUTC = new Date(inicioHojeBrasilia.getTime() - 3 * 60 * 60 * 1000)
+      // Fim do dia em São Paulo (23:59:59.999)
+      const fimHojeBrasilia = new Date(brasilia)
+      fimHojeBrasilia.setHours(23, 59, 59, 999)
+      const fimHojeUTC = new Date(fimHojeBrasilia.getTime() - 3 * 60 * 60 * 1000)
 
       const { data: vendasHojeRaw } = await supabase
         .from('pedidos')
         .select('valor_total, pago, status, forma_pagamento, data_criacao')
         .eq('tenant_id', tenantId)
-        .gte('data_criacao', hojeFormatado)
+        .gte('data_criacao', inicioHojeUTC.toISOString())
+        .lte('data_criacao', fimHojeUTC.toISOString())
         .neq('status', 'cancelado')
 
       // Faturamento: pago=true OU (entregue E dinheiro)
@@ -248,11 +257,15 @@ export default function VisaoGeralPage() {
       setTotalHoje(vendasHoje.reduce((s, p) => s + Number(p.valor_total), 0))
       setPedidosHoje(vendasHoje.length)
 
+      // Primeiro dia do mês em São Paulo → UTC
+      const primeiroDiaBrasilia = new Date(brasilia.getFullYear(), brasilia.getMonth(), 1)
+      const primeiroDiaUTC = new Date(primeiroDiaBrasilia.getTime() - 3 * 60 * 60 * 1000)
+
       const { data: vendasMesRaw } = await supabase
         .from('pedidos')
         .select('valor_total, pago, status, forma_pagamento')
         .eq('tenant_id', tenantId)
-        .gte('data_criacao', primeiroDia.toISOString())
+        .gte('data_criacao', primeiroDiaUTC.toISOString())
         .neq('status', 'cancelado')
 
       const vendasMes = (vendasMesRaw || []).filter(p =>
