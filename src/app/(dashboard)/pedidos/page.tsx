@@ -1111,35 +1111,41 @@ export default function PedidosPage() {
         </div>
       </div>
 
-      {/* Filtro de Data — FLUXO: só "Hoje" e "Ontem" | HISTÓRICO: só "Todos" */}
+      {/* Filtro de Data — FLUXO: só "Hoje" e "Ontem" | HISTÓRICO: inputs de data */}
       <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border shadow-sm flex-wrap">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-600">📅 De:</label>
-          <input
-            type="date"
-            value={filtroDataDe}
-            onChange={(e) => { setFiltroDataDe(e.target.value); setFiltroPeriodo('todos') }}
-            className="form-input text-sm px-3 py-1.5"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-600">Até:</label>
-          <input
-            type="date"
-            value={filtroDataAte}
-            onChange={(e) => { setFiltroDataAte(e.target.value); setFiltroPeriodo('todos') }}
-            className="form-input text-sm px-3 py-1.5"
-          />
-        </div>
+        {pedidosTab === 'historico' && (
+          <>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-600">📅 De:</label>
+              <input
+                type="date"
+                value={filtroDataDe}
+                onChange={(e) => { setFiltroDataDe(e.target.value); setFiltroPeriodo('todos') }}
+                className="form-input text-sm px-3 py-1.5"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-600">Até:</label>
+              <input
+                type="date"
+                value={filtroDataAte}
+                onChange={(e) => { setFiltroDataAte(e.target.value); setFiltroPeriodo('todos') }}
+                className="form-input text-sm px-3 py-1.5"
+              />
+            </div>
+          </>
+        )}
         <div className="flex items-center gap-2">
           {pedidosTab === 'fluxo' ? (
             <>
               {/* ABA FLUXO: só "Hoje" e "Ontem" */}
               <button
                 onClick={() => {
-                  const hoje = new Date().toISOString().split('T')[0]
-                  setFiltroDataDe(hoje)
-                  setFiltroDataAte(hoje)
+                  const agora = new Date()
+                  const hojeLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate())
+                  const hoj = `${hojeLocal.getFullYear()}-${String(hojeLocal.getMonth() + 1).padStart(2, '0')}-${String(hojeLocal.getDate()).padStart(2, '0')}`
+                  setFiltroDataDe(hoj)
+                  setFiltroDataAte(hoj)
                   setFiltroPeriodo('hoje')
                 }}
                 className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'hoje' ? 'bg-green-600 text-white' : 'bg-green-100 hover:bg-green-200 text-green-700'}`}
@@ -1431,8 +1437,6 @@ export default function PedidosPage() {
                   <div className="flex items-center gap-2 text-xs" style={{ color: '#697386' }}>
                     <Clock size={12} />
                     <span>{formatDate(pedido.data_criacao)}</span>
-                    <span className="w-1 h-1 rounded-full" style={{ background: '#697386' }} />
-                    <span>{((pedido as any).tipo_entrega === 'retirada') ? '🏪 Retirada' : '🛵 Delivery'}</span>
                   </div>
                 </div>
 
@@ -1512,6 +1516,31 @@ export default function PedidosPage() {
                         )
                       })}
                     </div>
+                  )}
+
+                  {/* ENTREGA / TAXA */}
+                  {((pedido as any).tipo_entrega === 'retirada') ? (
+                    <div
+                      className="mt-3 px-3 py-2.5 rounded-xl flex items-center justify-between text-[13px] font-medium"
+                      style={{ background: '#F1F5F9', color: '#475569' }}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <Home size={12} /> Retirada no balcão
+                      </span>
+                      <span>Sem taxa</span>
+                    </div>
+                  ) : (
+                    (pedido as any).taxa_entrega > 0 && (
+                      <div
+                        className="mt-3 px-3 py-2.5 rounded-xl flex items-center justify-between text-[13px] font-medium"
+                        style={{ background: '#FEF3C7', color: '#92400E' }}
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          <Bike size={12} /> Entrega (taxa)
+                        </span>
+                        <span>+ {formatCurrency((pedido as any).taxa_entrega)}</span>
+                      </div>
+                    )
                   )}
 
                   {/* DESCONTO */}

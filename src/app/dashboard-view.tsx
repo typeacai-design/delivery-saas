@@ -228,16 +228,17 @@ export default function VisaoGeralPage() {
         }
       }
 
-      const hoje = new Date().toISOString().split('T')[0]
-      const primeiroDia = new Date()
-      primeiroDia.setDate(1)
-      primeiroDia.setHours(0, 0, 0, 0)
+      // Usar data local (Brasilia) para evitar problemas de timezone
+      const agora = new Date()
+      const hojeLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate())
+      const hojeFormatado = `${hojeLocal.getFullYear()}-${String(hojeLocal.getMonth() + 1).padStart(2, '0')}-${String(hojeLocal.getDate()).padStart(2, '0')}`
+      const primeiroDia = new Date(agora.getFullYear(), agora.getMonth(), 1)
 
       const { data: vendasHojeRaw } = await supabase
         .from('pedidos')
-        .select('valor_total, pago, status, forma_pagamento')
+        .select('valor_total, pago, status, forma_pagamento, data_criacao')
         .eq('tenant_id', tenantId)
-        .gte('data_criacao', hoje)
+        .gte('data_criacao', hojeFormatado)
         .neq('status', 'cancelado')
 
       // Faturamento: pago=true OU (entregue E dinheiro)
