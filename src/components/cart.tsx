@@ -463,7 +463,10 @@ export function ProdutoModal({
                           </svg>
                         )}
                       </div>
-                      <span className="font-medium">{comp.nome}</span>
+                      <div className="flex-1 text-left">
+                        <span className="font-medium block">{comp.nome}</span>
+                        {comp.descricao && <span className="text-xs text-gray-500 block mt-0.5 leading-snug">{comp.descricao}</span>}
+                      </div>
                     </div>
                     <span className="font-semibold text-green-600">
                       + {formatCurrency(comp.preco)}

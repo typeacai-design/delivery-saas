@@ -1567,9 +1567,13 @@ export function ProdutoModal({
                       complementosSelecionados[comp.id] ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      {comp.imagem_url && <img src={comp.imagem_url} alt="" className="w-10 h-10 rounded-lg object-cover" />}
-                      <div><span className="font-medium block">{comp.nome}</span><span className="text-sm text-green-600">+ {formatCurrency(comp.preco)}</span></div>
+                    <div className="flex items-start gap-3 flex-1">
+                      {comp.imagem_url && <img src={comp.imagem_url} alt="" className="w-10 h-10 rounded-lg object-cover mt-0.5" />}
+                      <div className="flex-1">
+                        <span className="font-medium block">{comp.nome}</span>
+                        {comp.descricao && <span className="text-xs text-gray-500 block mt-0.5 leading-snug">{comp.descricao}</span>}
+                        <span className="text-sm text-green-600 block mt-1">+ {formatCurrency(comp.preco)}</span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => alterarComplemento(comp, -1)} className="w-8 h-8 border rounded-full"><Minus className="w-4 h-4 mx-auto" /></button>
