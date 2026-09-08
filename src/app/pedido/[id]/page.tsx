@@ -21,24 +21,31 @@ export default async function PedidoClientePage({
   )
 
   // Aceitar tanto o codigo formatado (00008/26) quanto o UUID
+  // URL vem com %2F, decodificar
+  const decodedId = decodeURIComponent(id)
+  console.log('[pedido] id raw:', id, 'decoded:', decodedId)
+
   let pedido: any = null
-  if (/^\d{5}\/\d{2}$/.test(id)) {
-    const { data } = await supabase
+  if (/^\d{5}\/\d{2}$/.test(decodedId)) {
+    const { data, error } = await supabase
       .from('pedidos')
       .select('*, pedido_itens(*), tenants(nome, slug, logo_url, telefone, cor_principal)')
-      .eq('codigo', id)
-      .single()
+      .eq('codigo', decodedId)
+      .maybeSingle()
+    console.log('[pedido] por codigo:', decodedId, 'data:', !!data, 'error:', error?.message)
     pedido = data
   } else {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('pedidos')
       .select('*, pedido_itens(*), tenants(nome, slug, logo_url, telefone, cor_principal)')
       .eq('id', id)
-      .single()
+      .maybeSingle()
+    console.log('[pedido] por uuid:', id, 'data:', !!data, 'error:', error?.message)
     pedido = data
   }
 
   if (!pedido) {
+    console.log('[pedido] Nao encontrado, retornando 404. id:', decodedId)
     notFound()
   }
 
