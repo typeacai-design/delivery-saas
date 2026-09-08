@@ -189,7 +189,6 @@ function AssetUpload({ tipo, titulo, url, onChanged, slug, slot = 0 }: { tipo: '
 function ProdutosTab() {
   const { error: toastError } = useToast()
   const [categorias, setCategorias] = useState<any[]>([])
-  const [categoriasProduto, setCategoriasProduto] = useState<any[]>([])
   const [produtos, setProdutos] = useState<Record<string, any[]>>({})
   const [complementosPorProduto, setComplementosPorProduto] = useState<Record<string, any[]>>({})
   const [loading, setLoading] = useState(true)
@@ -200,8 +199,6 @@ function ProdutosTab() {
 
   const [editingProduto, setEditingProduto] = useState<any>(null)
   const [editingCat, setEditingCat] = useState<any>(null)
-  const [showTipoModal, setShowTipoModal] = useState(false)
-  const [novoTipo, setNovoTipo] = useState('')
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [])
@@ -219,8 +216,6 @@ function ProdutosTab() {
       .eq('ativo', true)
       .order('ordem')
     setCategorias(cats || [])
-    const { data: tipos } = await supabase.from('categorias_produtos').select('*').eq('tenant_id', tid).eq('ativo', true).order('ordem')
-    setCategoriasProduto(tipos || [])
 
     if (cats) {
       const prods: Record<string, any[]> = {}
@@ -278,17 +273,6 @@ function ProdutosTab() {
     setNovaCatBanner('')
     setShowCatModal(false)
     setEditingCat(null)
-    loadData()
-  }
-
-  const criarTipoProduto = async () => {
-    if (!novoTipo.trim()) return
-    const { data: user } = await supabase.auth.getUser()
-    if (!user.user) return
-    const { error } = await supabase.from('categorias_produtos').insert({ tenant_id: await activeTenantId(), nome: novoTipo.trim(), ordem: categoriasProduto.length })
-    if (error) return toastError('Erro ao criar tipo', error.message)
-    setNovoTipo('')
-    setShowTipoModal(false)
     loadData()
   }
 
@@ -562,7 +546,6 @@ function ProdutosTab() {
         <ProdutoFormModal
           produto={editingProduto}
           categorias={categorias}
-          categoriasProduto={categoriasProduto}
           todosProdutos={Object.values(produtos).flat()}
           onClose={() => { setShowProdModal(false); setEditingProduto(null) }}
           onSaved={loadData}

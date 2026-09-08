@@ -160,15 +160,12 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
   const supabase = createClient()
   const [produtos, setProdutos] = useState<any[]>([])
   const [complementosDb, setComplementosDb] = useState<any[]>([])
-  const [categorias, setCategorias] = useState<any[]>([])
   const [showProdutos, setShowProdutos] = useState(false)
   const [showComps, setShowComps] = useState(false)
   const [busca, setBusca] = useState('')
 
   useEffect(() => {
     const carregar = async () => {
-      const { data: cats } = await supabase.from('categorias_produtos').select('id, nome').eq('tenant_id', tenantId).order('nome')
-      setCategorias(cats || [])
       const { data: prods } = await supabase.from('produtos').select('id, nome, preco, imagem_url, categoria_id, ativo').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
       setProdutos(prods || [])
       const { data: comps } = await supabase.from('complementos').select('id, nome, preco, ativo, categoria_id').eq('tenant_id', tenantId).eq('ativo', true).order('nome')

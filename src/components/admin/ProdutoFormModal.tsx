@@ -11,7 +11,6 @@ import {
 
 type FormState = {
   categoria_id: string
-  categoria_produto_id: string
   nome: string
   descricao: string
   imagem_url: string
@@ -51,7 +50,6 @@ type FormState = {
 
 const FORM_VAZIO: FormState = {
   categoria_id: '',
-  categoria_produto_id: '',
   nome: '',
   descricao: '',
   imagem_url: '',
@@ -103,13 +101,12 @@ const ETIQUETAS_OPCOES = [
 type Props = {
   produto?: any
   categorias: any[]
-  categoriasProduto?: any[]
   todosProdutos?: any[] // para validar ordem duplicada
   onClose: () => void
   onSaved: () => void
 }
 
-export default function ProdutoFormModal({ produto, categorias, categoriasProduto = [], todosProdutos = [], onClose, onSaved }: Props) {
+export default function ProdutoFormModal({ produto, categorias, todosProdutos = [], onClose, onSaved }: Props) {
   // Calcula custo do produto baseado nos ingredientes vinculados.
   // Reaproveita os `insumos` (carregados via loadInsumos) e `form.ingredientes`.
   const custoCalculado = () => {
@@ -258,7 +255,6 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
 
     const payload = {
       categoria_id: form.categoria_id,
-      categoria_produto_id: form.categoria_produto_id || null,
       nome: form.nome,
       descricao: form.descricao || null,
       preco: parseFloat(form.preco),
@@ -474,19 +470,6 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
                 >
                   <option value="">Selecione...</option>
                   {categorias.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.nome}</option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Categoria" hint="(atalho no cardápio)">
-                <select
-                  value={form.categoria_produto_id}
-                  onChange={(e) => setForm({ ...form, categoria_produto_id: e.target.value })}
-                  className="form-input"
-                >
-                  <option value="">Sem categoria</option>
-                  {categoriasProduto.map((c: any) => (
                     <option key={c.id} value={c.id}>{c.nome}</option>
                   ))}
                 </select>

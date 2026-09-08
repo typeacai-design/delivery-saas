@@ -50,11 +50,7 @@ export default async function CardapioPublicoPage({
     .eq('ativo', true)
     .order('ordem', { ascending: true })
 
-  const { data: categoriasProduto } = await supabase
-    .from('categorias_produtos')
-    .select('*')
-    .eq('tenant_id', tenant.id)
-    .eq('ativo', true)
+  // categorias_produtos removido — não é mais usado
     .order('ordem')
 
   const { data: produtos } = await supabase
@@ -192,7 +188,6 @@ export default async function CardapioPublicoPage({
       endereco: tenant.endereco || config.endereco || '',
     },
     categorias: categorias || [],
-    categoriasProduto: categoriasProduto || [],
     produtos: produtos || [],
     variantes: variantes || [],
     complementos: complementos || [],

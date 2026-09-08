@@ -149,7 +149,6 @@ interface CardapioData {
     endereco: string
   }
   categorias: any[]
-  categoriasProduto: any[]
   produtos: any[]
   variantes: any[]
   complementos: any[]
@@ -981,9 +980,8 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
   const cor = data.theme.primary
   const corSecundaria = data.theme.secondary
 
-  const produtosDaCategoria = categoriaAtiva
-    ? produtosFiltrados.filter((produto: any) => produto.categoria_produto_id === categoriaAtiva)
-    : produtosFiltrados
+  // Filtro por categoriaAtiva removido: categoria_produto_id não é mais usada
+  const produtosDaCategoria = produtosFiltrados
 
   return (
     <div className="wd-classic max-w-lg mx-auto min-h-screen pb-24" style={{ background: data.theme.background, color: data.theme.text }}>
