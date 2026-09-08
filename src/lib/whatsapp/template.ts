@@ -37,8 +37,10 @@ export function gerarMensagemWhatsApp(d: DadosPedido): string {
   const codigoExibir = d.pedidoCodigo || `#${d.pedidoId.slice(-6)}`
   // Link aponta para /pedido/[codigo] - rota dedicada que funciona SEM precisar de
   // localStorage/token (util quando cliente abre link no WhatsApp Web no celular)
+  // Usa traco (-) no lugar de barra (/) para evitar problemas de roteamento
+  const codigoParaUrl = (d.pedidoCodigo || d.pedidoId).replace(/\//g, '-')
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://wedelivery.site'
-  const linkPedido = `${baseUrl}/pedido/${d.pedidoCodigo || d.pedidoId}`
+  const linkPedido = `${baseUrl}/pedido/${codigoParaUrl}`
 
   let texto = `🛒 *PEDIDO - ${d.tenantNome}*\n`
   texto += `📋 *#${codigoExibir}*\n`

@@ -21,16 +21,18 @@ export default async function PedidoClientePage({
     { auth: { persistSession: false, autoRefreshToken: false } }
   )
 
-  // Aceitar tanto o codigo formatado (00008/26) quanto o UUID
-  // URL vem com %2F, decodificar
+  // Aceitar tanto o codigo formatado (00008/26 ou 00008-26) quanto o UUID
+  // URL vem com %2F codificado, decodificar
   const decodedId = decodeURIComponent(id)
 
   let pedido: any = null
-  if (/^\d{5}\/\d{2}$/.test(decodedId)) {
+  // Aceita tanto "00008/26" quanto "00008-26" (traço para evitar problemas de rota)
+  const codigoNormalizado = decodedId.replace(/-/g, '/')
+  if (/^\d{5}\/\d{2}$/.test(codigoNormalizado)) {
     const { data } = await supabase
       .from('pedidos')
       .select('*, pedido_itens(*), tenants(nome, slug, logo_url, telefone, cor_principal)')
-      .eq('codigo', decodedId)
+      .eq('codigo', codigoNormalizado)
       .maybeSingle()
     pedido = data
   } else {
