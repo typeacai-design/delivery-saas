@@ -966,45 +966,46 @@ export default function NovoPedidoPage() {
       const pago = parseFloat(valorPago) || total
       const taxaEntrega = tipoEntrega === 'delivery' && bairroSelecionado ? Number(bairroSelecionado.taxa) : 0
 
-      const { data: pedido, error: pedidoError } = await supabase
-        .from('pedidos')
-        .insert({
-          tenant_id: tenantId,
-          cliente_id: clienteId,
-          cliente_nome: nomeCliente,
-          cliente_whatsapp: telefoneCliente,
-          status: 'novo',
-          valor_total: total,
-          valor_subtotal: total - taxaEntrega,
-          taxa_entrega: taxaEntrega,
-          forma_pagamento: [formaPagamento],
-          valor_pago: [pago],
-          troco: troco,
-          observacoes: observacoes,
-          tipo_entrega: tipoEntrega,
-          bairro_entrega: bairroSelecionado?.bairro || null,
-          taxa_bairro: taxaEntrega,
-          endereco_entrega: endereco,
-          numero_entrega: numero,
-          complemento_entrega: complemento,
-        })
-        .select()
-        .single()
-
-      if (pedidoError) throw pedidoError
-
-      // Criar itens do pedido
-      const itensParaInserir = itens.map(item => ({
-        pedido_id: pedido.id,
+      // Mapear itens para o formato esperado pela API
+      const itensParaApi = itens.map(item => ({
         produto_id: item.produto_id,
         nome: item.nome,
         quantidade: item.quantidade,
         valor_unitario: item.valor_unitario,
+        valor_total: item.valor_unitario * item.quantidade + (item.complementos?.reduce((s, c) => s + c.valor * c.quantidade, 0) || 0) * item.quantidade,
         complementos: item.complementos.map(c => ({ id: c.id, nome: c.nome, quantidade: c.quantidade, valor: c.valor })),
         observacao: item.observacao || null,
       }))
 
-      await supabase.from('pedido_itens').insert(itensParaInserir)
+      // Criar pedido via API (bypassa RLS com service_role)
+      const res = await fetch('/api/pedidos/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: clienteId,
+          cliente_nome: nomeCliente,
+          cliente_whatsapp: telefoneCliente,
+          itens: itensParaApi,
+          valor_subtotal: total - taxaEntrega,
+          taxa_entrega: taxaEntrega,
+          valor_desconto: ajusteValor > 0 ? ajusteValor : 0,
+          valor_total: total,
+          forma_pagamento: formaPagamento,
+          troco_para: troco,
+          bairro_entrega: bairroSelecionado?.bairro || null,
+          taxa_bairro: taxaEntrega,
+          observacoes: observacoes,
+          tipo_entrega: tipoEntrega,
+          endereco,
+          numero,
+          complemento,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao criar pedido')
+
+      const pedido = data
 
       // Gerar mensagem WhatsApp
       const whatsappRes = await fetch('/api/whatsapp-pedido', {
