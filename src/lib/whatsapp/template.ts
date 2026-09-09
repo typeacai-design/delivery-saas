@@ -88,7 +88,7 @@ export function gerarMensagemWhatsApp(d: DadosPedido): string {
   d.itens.forEach((item, i) => {
     const subtotal = (item.valor_unitario + (item.complementos?.reduce((s, c) => s + c.valor * c.quantidade, 0) || 0)) * item.quantidade
     texto += `*${i + 1}. ${item.nome}*${item.variante_nome ? ` (${item.variante_nome})` : ''}\n`
-    texto += `   ${item.quantidade}x ${formatCurrency(item.valor_unitario)} = ${formatCurrency(subtotal)}\n`
+    texto += `   ${item.quantidade}x ${formatCurrency(subtotal / item.quantidade)} = ${formatCurrency(subtotal)}\n`
     if (item.complementos && item.complementos.length > 0) {
       texto += `   Adicionais:\n`
       item.complementos.forEach(c => {

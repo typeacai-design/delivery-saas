@@ -297,3 +297,8 @@ Todas as URLs server-side via `--prod` na Vercel usando auth.json persistido.
 - O README deixou de conter credenciais em texto puro e passou a documentar migrations `037`–`041`, buckets e validação local.
 - Foi criado `pnpm run check:setup`, que verifica somente nomes de variáveis e arquivos locais, sem imprimir segredos ou consultar produção.
 - Estado remoto continua exigindo validação explícita antes do deploy; nenhuma migration ou publicação foi feita nesta etapa.
+
+
+## 2026-09-09 - Reference-price correction
+
+Fix prepared and tested on production baseline 4aaafe6 in branch fix/preco-a-partir-de. Publication pending explicit approval after automatic review rejection. See docs/sessions/2026-09/2026-09-09-preco-a-partir-de.md.

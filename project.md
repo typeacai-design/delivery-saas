@@ -70,3 +70,8 @@ src/
 
 ## Estado Atual
 MVP funcional em produção. Próximos passos pendentes definidos com Rick.
+
+
+## 2026-09-09 - Reference-price correction
+
+Fix prepared and tested on production baseline 4aaafe6 in branch fix/preco-a-partir-de. Publication pending explicit approval after automatic review rejection. See docs/sessions/2026-09/2026-09-09-preco-a-partir-de.md.

@@ -40,3 +40,15 @@ export function removeReferenceCharges<T extends { produto_id: string; valor_uni
   })
   return { items: normalized, removed: Math.round(removed * 100) / 100 }
 }
+
+/** Render saved prices without consulting today's catalog. */
+export function savedItemTotal(item: { valor_unitario: number | string; quantidade: number; complementos?: unknown }): number {
+  let complements = item.complementos
+  if (typeof complements === 'string') {
+    try { complements = JSON.parse(complements) } catch { complements = [] }
+  }
+  const extra = Array.isArray(complements)
+    ? complements.reduce((sum, complement) => sum + Number(complement.valor ?? complement.preco ?? 0) * Number(complement.quantidade ?? 1), 0)
+    : 0
+  return Math.round((Number(item.valor_unitario) + extra) * Number(item.quantidade) * 100) / 100
+}

@@ -98,3 +98,9 @@ for (const [label, product, quantity, total] of [
     assert.equal(route.written().p_itens[0].complementos[0].valor, 22)
   })
 }
+
+test('printed and tracked totals include extras with zero base and support old snapshots', () => {
+  assert.equal(pricing.savedItemTotal({ valor_unitario: 0, quantidade: 2, complementos: [{ valor: 22, quantidade: 1 }] }), 44)
+  assert.equal(pricing.savedItemTotal({ valor_unitario: 20, quantidade: 2, complementos: JSON.stringify([{ preco: 22 }]) }), 84)
+  assert.equal(pricing.savedItemTotal({ valor_unitario: 20, quantidade: 1 }), 20)
+})

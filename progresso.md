@@ -47,3 +47,8 @@ Detalhes: `docs/checkpoints/2026-08-12-sessao-cardapio-operacao.md`.
 4. O roteiro de regressão acima passa em celular e desktop.
 
 Este arquivo registra o estado do código. Ele não afirma que mudanças locais já foram publicadas ou aplicadas no Supabase.
+
+
+## 2026-09-09 - Reference-price correction
+
+Fix prepared and tested on production baseline 4aaafe6 in branch fix/preco-a-partir-de. Publication pending explicit approval after automatic review rejection. See docs/sessions/2026-09/2026-09-09-preco-a-partir-de.md.

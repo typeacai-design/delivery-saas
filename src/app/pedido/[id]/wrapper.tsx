@@ -1,4 +1,5 @@
 'use client'
+import { savedItemTotal } from '@/lib/product-pricing'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -170,7 +171,7 @@ export default function PedidoClienteWrapper({
                       )}
                     </div>
                     <p className="font-semibold">
-                      {formatCurrency(Number(item.valor_unitario) * item.quantidade)}
+                      {formatCurrency(savedItemTotal(item))}
                     </p>
                   </div>
                   {comps.length > 0 && (

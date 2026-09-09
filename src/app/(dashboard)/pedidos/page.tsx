@@ -1,5 +1,5 @@
 'use client'
-import { chargedProductBase } from '@/lib/product-pricing'
+import { chargedProductBase, savedItemTotal } from '@/lib/product-pricing'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
@@ -386,7 +386,7 @@ function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compact
             <div key={item.id} className="text-xs">
               <div className="flex justify-between gap-1">
                 <span className="truncate"><strong>{item.quantidade}x {item.nome}</strong>{item.variante_nome ? ` (${item.variante_nome})` : ''}</span>
-                <span className="font-medium whitespace-nowrap">{formatCurrency(item.valor_unitario * item.quantidade)}</span>
+                <span className="font-medium whitespace-nowrap">{formatCurrency(savedItemTotal(item))}</span>
               </div>
               {comps.length > 0 && (
                 <div className="ml-2 text-gray-600 text-xs font-medium">
@@ -781,7 +781,7 @@ export default function PedidosPage() {
 
       let html = `<tr><td><strong>${i.quantidade}x ${i.nome}</strong>`
       if (i.variante_nome) html += ` (${i.variante_nome})`
-      html += `</td><td style="text-align:right">R$ ${(i.valor_unitario * i.quantidade).toFixed(2)}</td></tr>`
+      html += `</td><td style="text-align:right">R$ ${savedItemTotal(i).toFixed(2)}</td></tr>`
 
       // Complementos
       comps.forEach((c: any) => {
@@ -1500,7 +1500,7 @@ export default function PedidosPage() {
                           <div key={item.id}>
                             <div className="flex justify-between gap-3 text-[14px] font-medium" style={{ color: '#172033' }}>
                               <span className="truncate">{item.quantidade}× {item.nome}</span>
-                              <span className="whitespace-nowrap">{formatCurrency(item.valor_unitario * item.quantidade)}</span>
+                              <span className="whitespace-nowrap">{formatCurrency(savedItemTotal(item))}</span>
                             </div>
                             {comps.length > 0 && (
                               <div className="mt-2 pl-2.5 border-l-2 space-y-1.5" style={{ borderColor: '#E4E8EE' }}>
@@ -1752,7 +1752,7 @@ export default function PedidosPage() {
                           <span className="text-gray-500"> + {JSON.parse(item.complementos).length} complementos</span>
                         )}
                       </span>
-                      <span className="font-medium">{formatCurrency(item.valor_unitario * item.quantidade)}</span>
+                      <span className="font-medium">{formatCurrency(savedItemTotal(item))}</span>
                     </div>
                   ))}
                 </div>
