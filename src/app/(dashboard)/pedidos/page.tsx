@@ -7,7 +7,7 @@ import { Clock, Check, Truck, X, ChevronRight, Plus, MessageCircle, ChevronDown,
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
-import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
+import { gerarMensagemWhatsApp, formatarFormaPagamentoDisplay, normalizarFormaPagamento } from '@/lib/whatsapp/template'
 import { useToast } from '@/components/toast'
 
 // Componente de alerta de tempo
@@ -717,7 +717,7 @@ export default function PedidosPage() {
         itens = fetched || []
       }
 
-      const fp = Array.isArray(pedido.forma_pagamento) ? (pedido.forma_pagamento[0] || '') : (pedido.forma_pagamento || '')
+      const fp = normalizarFormaPagamento(pedido.forma_pagamento)
       const mensagem = gerarMensagemWhatsApp({
         pedidoId: pedido.id,
         pedidoCodigo: pedido.codigo || null,
@@ -725,7 +725,16 @@ export default function PedidosPage() {
         tenantNome: tenantNomeAtual || 'Nossa Loja',
         clienteNome: pedido.cliente_nome || '',
         clienteWhatsapp: pedido.cliente_whatsapp || '',
-        itens,
+        itens: itens.map((it: any) => ({
+          nome: it.nome,
+          quantidade: it.quantidade,
+          valor_unitario: Number(it.valor_unitario) || 0,
+          variante_nome: it.variante_nome,
+          complementos: Array.isArray(it.complementos)
+            ? (typeof it.complementos === 'string' ? JSON.parse(it.complementos) : it.complementos)
+            : [],
+          observacao: it.observacao,
+        })),
         subtotal: pedido.valor_subtotal || (pedido.valor_total - (pedido.taxa_entrega || 0)),
         taxaEntrega: pedido.taxa_entrega || 0,
         desconto: pedido.valor_desconto || 0,
@@ -1028,11 +1037,6 @@ export default function PedidosPage() {
       hour: '2-digit',
       minute: '2-digit',
     })
-  }
-
-  const formatFormaPagamento = (forma: any) => {
-    if (Array.isArray(forma)) return forma.map(f => f || 'N/A').join(', ')
-    return forma || '-'
   }
 
   if (loading) {
@@ -1577,7 +1581,7 @@ export default function PedidosPage() {
                     <div>
                       <p className="text-xs" style={{ color: '#697386' }}>Forma de pagamento</p>
                       <p className="text-[14px] font-medium capitalize" style={{ color: '#172033' }}>
-                        {formatFormaPagamento((pedido as any).forma_pagamento)}
+                        {formatarFormaPagamentoDisplay((pedido as any).forma_pagamento)}
                       </p>
                     </div>
                     <div className="text-right">
@@ -1781,7 +1785,7 @@ export default function PedidosPage() {
               <div>
                 <h3 className="font-medium mb-2">💳 Pagamento</h3>
                 <p className="text-sm text-gray-600">
-                  {formatFormaPagamento((selectedPedido as any).forma_pagamento)}
+                  {formatarFormaPagamentoDisplay((selectedPedido as any).forma_pagamento)}
                   {(selectedPedido as any).troco_para > 0 && (
                     <span> • Troco para: {formatCurrency((selectedPedido as any).troco_para)}</span>
                   )}

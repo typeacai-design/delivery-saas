@@ -32,6 +32,38 @@ export interface DadosPedido {
   agendamentoPara?: string
 }
 
+/**
+ * Normaliza o campo forma_pagamento do banco (array de strings ou string única)
+ * para uma string legível usada tanto no card quanto no WhatsApp.
+ *
+ * Ex: ["pix"]        -> "pix"
+ *     ["dinheiro"]   -> "dinheiro"
+ *     "dinheiro"     -> "dinheiro"
+ *     ["pix","dinheiro"] -> "pix + dinheiro"
+ *     null/undefined -> "—"
+ */
+export function normalizarFormaPagamento(forma: any): string {
+  if (!forma) return '—'
+  if (Array.isArray(forma)) {
+    const vals = forma.filter(f => f && typeof f === 'string' && f.trim())
+    if (vals.length === 0) return '—'
+    return vals.join(' + ')
+  }
+  if (typeof forma === 'string') return forma
+  return '—'
+}
+
+/**
+ * Formata para exibição visual no card (com capitalização).
+ * Retorna "—" se vazio para evitar mostrar nada.
+ */
+export function formatarFormaPagamentoDisplay(forma: any): string {
+  const s = normalizarFormaPagamento(forma)
+  if (s === '—') return s
+  // Capitaliza a primeira letra: "pix" -> "Pix", "dinheiro" -> "Dinheiro"
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 export function gerarMensagemWhatsApp(d: DadosPedido): string {
   // Usar codigo formatado (00001/26) ao inves de UUID
   const codigoExibir = d.pedidoCodigo || `#${d.pedidoId.slice(-6)}`
