@@ -1,3 +1,4 @@
+import { removeReferenceCharges } from '@/lib/product-pricing'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { authenticatedTenant } from '@/lib/tenant-auth'
@@ -47,6 +48,18 @@ export async function POST(request: Request) {
 
     const admin = adminClient()
 
+    const { data: priceProducts, error: priceError } = await admin.from('produtos')
+      .select('id,preco,exibir_preco_a_partir_de').eq('tenant_id', auth.tenantId)
+      .in('id', itens.map((item: any) => item.produto_id))
+    if (priceError) return NextResponse.json({ error: 'Nao foi possivel validar os precos' }, { status: 500 })
+    if (itens.some((item: any) => !priceProducts?.some(product => product.id === item.produto_id))) {
+      return NextResponse.json({ error: 'Produto indisponivel nesta loja' }, { status: 400 })
+    }
+    const pricing = removeReferenceCharges(itens, priceProducts || [])
+    const subtotalCorrigido = Math.max(0, Math.round((Number(valor_subtotal || 0) - pricing.removed) * 100) / 100)
+    const totalCorrigido = Math.max(0, Math.round((Number(valor_total || 0) - pricing.removed) * 100) / 100)
+
+
     // Criar pedido (service_role bypassa RLS)
     const { data: pedido, error: pedidoError } = await admin
       .from('pedidos')
@@ -55,12 +68,12 @@ export async function POST(request: Request) {
         cliente_id: cliente_id || null,
         cliente_nome: cliente_nome || 'Cliente',
         cliente_whatsapp: cliente_whatsapp?.replace(/\D/g, '') || null,
-        valor_subtotal: valor_subtotal || 0,
+        valor_subtotal: subtotalCorrigido,
         taxa_entrega: taxa_entrega || 0,
         valor_desconto: valor_desconto || 0,
-        valor_total: valor_total || 0,
+        valor_total: totalCorrigido,
         forma_pagamento: forma_pagamento ? [forma_pagamento] : ['dinheiro'],
-        valor_pago: [valor_total || 0],
+        valor_pago: [totalCorrigido],
         troco: troco_para || 0,
         observacoes: observacoes || null,
         tipo_entrega: tipo_entrega || 'delivery',
@@ -80,7 +93,7 @@ export async function POST(request: Request) {
     }
 
     // Criar itens do pedido
-    const itensParaInserir = itens.map((item: any) => ({
+    const itensParaInserir = pricing.items.map((item: any) => ({
       pedido_id: pedido.id,
       produto_id: item.produto_id,
       nome: item.nome,

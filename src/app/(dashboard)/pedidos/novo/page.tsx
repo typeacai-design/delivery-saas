@@ -1,4 +1,5 @@
 'use client'
+import { chargedProductBase } from '@/lib/product-pricing'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
@@ -31,6 +32,7 @@ interface Produto {
   id: string
   nome: string
   preco: number
+  exibir_preco_a_partir_de?: boolean
   imagem_url?: string
   descricao?: string
   tempo_preparo_min?: number
@@ -273,7 +275,7 @@ function ProdutoModal({
     const c = allComps.find(x => x.id === id) || comp
     return acc + (c?.preco || 0) * qtd
   }, 0)
-  const total = (produto.preco + precoComplementos) * quantidade
+  const total = (chargedProductBase(produto) + precoComplementos) * quantidade
 
   function toggleComplemento(comp: Complemento) {
     setComplementosSelecionados(prev => {
@@ -342,7 +344,7 @@ function ProdutoModal({
       produto_id: produto.id,
       nome: produto.nome,
       quantidade,
-      valor_unitario: produto.preco,
+      valor_unitario: chargedProductBase(produto),
       complementos: comps,
       observacao: observacao.trim() || undefined,
       imagem_url: produto.imagem_url
@@ -781,7 +783,7 @@ export default function NovoPedidoPage() {
       { data: listasData },
     ] = await Promise.all([
       supabase.from('clientes').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
-      supabase.from('produtos').select('id, nome, preco, imagem_url, descricao, tempo_preparo_min').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
+      supabase.from('produtos').select('id, nome, preco, imagem_url, descricao, tempo_preparo_min, exibir_preco_a_partir_de').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
       supabase.from('enderecos_entrega').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('bairro'),
       // Complementos com categoria_id
       supabase.from('complementos').select('id, nome, preco, imagem_url, categoria_id, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),

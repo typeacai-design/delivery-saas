@@ -1,4 +1,5 @@
 'use client'
+import { chargedProductBase } from '@/lib/product-pricing'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
@@ -166,7 +167,7 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
 
   useEffect(() => {
     const carregar = async () => {
-      const { data: prods } = await supabase.from('produtos').select('id, nome, preco, imagem_url, categoria_id, ativo').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
+      const { data: prods } = await supabase.from('produtos').select('id, nome, preco, imagem_url, categoria_id, ativo, exibir_preco_a_partir_de').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
       setProdutos(prods || [])
       const { data: comps } = await supabase.from('complementos').select('id, nome, preco, ativo, categoria_id').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
       setComplementosDb(comps || [])
@@ -175,7 +176,7 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
   }, [tenantId])
 
   const selecionarProduto = (prod: any) => {
-    onChange(idx, { ...item, produto_id: prod.id, nome: prod.nome, valor_unitario: Number(prod.preco) })
+    onChange(idx, { ...item, produto_id: prod.id, nome: prod.nome, valor_unitario: chargedProductBase(prod) })
     setShowProdutos(false)
     setBusca('')
   }

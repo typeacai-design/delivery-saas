@@ -1,4 +1,5 @@
 'use client'
+import { normalizeCartPrices } from '@/lib/product-pricing'
 
 import { useState, useMemo, useEffect } from 'react'
 import type { CSSProperties } from 'react'
@@ -242,9 +243,12 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
   useEffect(() => {
     try {
       const salvo = localStorage.getItem(`delivery_carrinho_${data.tenant.slug}`)
-      if (salvo) setCarrinho(JSON.parse(salvo))
+      if (salvo) {
+        const items = JSON.parse(salvo)
+        if (Array.isArray(items)) setCarrinho(normalizeCartPrices(items, data.produtos))
+      }
     } catch { /* armazenamento indisponivel */ }
-  }, [data.tenant.slug])
+  }, [data.tenant.slug, data.produtos])
 
   useEffect(() => {
     try {

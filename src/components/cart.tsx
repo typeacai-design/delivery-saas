@@ -1,4 +1,5 @@
 'use client'
+import { chargedProductBase } from '@/lib/product-pricing'
 
 import { useState } from 'react'
 import { X, Plus, Minus, ShoppingCart, Clock } from 'lucide-react'
@@ -292,7 +293,7 @@ export function ProdutoModal({
   if (!isOpen || !produto) return null
 
   const variante = variantes.find(v => v.id === varianteSelecionada)
-  const precoBase = produto.preco + (variante?.preco_adicional || 0)
+  const precoBase = chargedProductBase(produto, variante?.preco_adicional)
   const precoComplementos = Object.entries(complementosSelecionados).reduce((acc, [id, qtd]) => {
     const comp = complementos.find(c => c.id === id)
     return acc + (comp?.preco || 0) * (qtd as number)
@@ -328,10 +329,10 @@ export function ProdutoModal({
       produto_id: produto.id,
       nome: produto.nome,
       quantidade,
-      valor_unitario: produto.preco,
+      valor_unitario: chargedProductBase(produto),
       variante_id: variante?.id,
       variante_nome: variante?.nome,
-      variante_preco: variante?.preco_adicional,
+      variante_preco: produto.exibir_preco_a_partir_de === true ? 0 : variante?.preco_adicional,
       complementos: complementoItems,
       tempo_preparo_min: produto.tempo_preparo_min || 30,
       pontos: produto.pontos || 0,

@@ -1,3 +1,4 @@
+import { chargedProductBase } from '@/lib/product-pricing'
 import { NextResponse as NextResponseBase } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { bearerToken, hashAccessToken, isValidCpf, normalizeCpf, rateLimited, tokenMatches } from '@/lib/customer-identity'
@@ -143,7 +144,7 @@ export async function POST(request: Request) {
     // 3) Valor mínimo
     // Reconstroi precos e vinculos no servidor; valores do navegador nao sao confiaveis.
     const produtoIdsValidacao = [...new Set(itens.map((i: any) => i.produto_id).filter(Boolean))] as string[]
-    const { data: produtosDb } = await admin.from('produtos').select('id,nome,preco,ativo').eq('tenant_id', tenant.id).in('id', produtoIdsValidacao)
+    const { data: produtosDb } = await admin.from('produtos').select('id,nome,preco,ativo,exibir_preco_a_partir_de').eq('tenant_id', tenant.id).in('id', produtoIdsValidacao)
     if (!produtosDb || produtosDb.length !== produtoIdsValidacao.length || produtosDb.some((p: any) => !p.ativo)) return NextResponse.json({ error: 'Produto indisponivel' }, { status: 400 })
     const varianteIds = itens.map((i: any) => i.variante_id).filter(Boolean)
     const complementoIds = itens.flatMap((i: any) => (i.complementos || []).map((c: any) => c.id)).filter(Boolean)
@@ -192,8 +193,8 @@ export async function POST(request: Request) {
         if (qtd < minimo || qtd > maximo) return NextResponse.json({ error: 'Complementos fora dos limites da lista' }, { status: 400 })
       }
       const adicional = selecionados.reduce((s, c) => s + c.valor * c.quantidade, 0)
-      subtotalCalculado += (Number(produto.preco) + Number(variante?.preco_adicional || 0) + adicional) * quantidade
-      itensValidados.push({ produto_id: produto.id, nome: produto.nome, quantidade, valor_unitario: Number(produto.preco), variante_id: variante?.id || null, variante_nome: variante?.nome || null, complementos: selecionados, observacao: String(item.observacao || '').slice(0, 500) || null })
+      subtotalCalculado += (chargedProductBase(produto, variante?.preco_adicional) + adicional) * quantidade
+      itensValidados.push({ produto_id: produto.id, nome: produto.nome, quantidade, valor_unitario: chargedProductBase(produto), variante_id: variante?.id || null, variante_nome: variante?.nome || null, complementos: selecionados, observacao: String(item.observacao || '').slice(0, 500) || null })
     }
     subtotalCalculado = Math.round(subtotalCalculado * 100) / 100
     const pagamentosCfg = cfg.formas_pagamento_aceitas

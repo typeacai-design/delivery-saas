@@ -1,3 +1,5 @@
+import { chargedProductBase } from '@/lib/product-pricing'
+import { authenticatedTenant, SALES_ROLES, tenantAuthStatus } from '@/lib/tenant-auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
@@ -5,6 +7,9 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 // Body: { itens: [...], cliente: {...}, endereco: {...}, taxa_entrega: N }
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await authenticatedTenant(SALES_ROLES)
+    const authStatus = tenantAuthStatus(auth)
+    if (authStatus) return NextResponse.json({ error: 'Sem permissao' }, { status: authStatus })
     const { id } = await params
     const body = await request.json()
     const admin = createServiceClient(
@@ -18,6 +23,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .from('pedidos')
       .select('tenant_id, valor_subtotal, taxa_entrega, valor_desconto, valor_total')
       .eq('id', id)
+      .eq('tenant_id', auth.tenantId)
       .single()
 
     if (!pedidoAtual) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
@@ -39,7 +45,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const ids = body.itens.map((i: any) => i.produto_id).filter(Boolean)
       const { data: produtosDb } = await admin
         .from('produtos')
-        .select('id, nome, preco')
+        .select('id, nome, preco, exibir_preco_a_partir_de')
+        .eq('tenant_id', auth.tenantId)
         .in('id', ids)
 
       const { data: itensAtuais } = await admin
@@ -61,7 +68,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           produto_id: item.produto_id,
           nome: prod?.nome || item.nome || 'Item',
           quantidade: item.quantidade || 1,
-          valor_unitario: prod?.preco || item.valor_unitario || 0,
+          valor_unitario: prod ? chargedProductBase(prod) : item.valor_unitario || 0,
           variante_id: item.variante_id || null,
           variante_nome: item.variante_nome || null,
           complementos: item.complementos || [],
@@ -97,6 +104,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .from('pedidos')
       .update(updates)
       .eq('id', id)
+      .eq('tenant_id', auth.tenantId)
       .select()
       .single()
 

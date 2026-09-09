@@ -171,6 +171,7 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
         ...FORM_VAZIO,
         ...produto,
         preco: produto.preco != null ? String(produto.preco) : '',
+        exibir_preco_a_partir_de: produto.exibir_preco_a_partir_de === true,
         preco_riscado: produto.preco_riscado != null ? String(produto.preco_riscado) : '',
         ordem: produto.ordem != null ? String(produto.ordem) : '',
         pontos: produto.pontos != null ? String(produto.pontos) : '',
@@ -515,7 +516,7 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
 
               <Field
                 label="Exibir como 'A partir de'"
-                hint="Mostra 'A partir de R$ X' no cardápio público"
+                hint="O preço informado é uma referência. O pedido cobra somente os adicionais selecionados."
               >
                 <div className="flex items-center gap-3">
                   <button
