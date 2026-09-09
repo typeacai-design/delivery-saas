@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
 import ProdutoFormModal from '@/components/admin/ProdutoFormModal'
-import SaboresConfigTab from '@/components/admin/SaboresConfigTab'
+import ConfiguracoesPage from '@/app/(dashboard)/configuracoes/page'
+import { ToastProvider } from '@/components/toast'
 const ordinary = {id:'pizza',nome:'Pizza Teste',preco:30,categoria_id:'cat'}
 export default function Validation() {
  const [open,setOpen] = useState(false)
@@ -11,6 +12,6 @@ export default function Validation() {
  <select aria-label="Fixture" value={mode} onChange={e=>setMode(e.target.value)}><option>ordinary</option><option>configured</option><option>settings</option></select>
  <button onClick={()=>setOpen(true)}>Open product</button>
  <div data-testid="saved">{saved}</div>
- {mode==='settings'?<SaboresConfigTab/>:open&&<ProdutoFormModal produto={mode==='configured'?{...ordinary,sabores_grupo_id:'sabores',sabores_maximo:3}:ordinary} categorias={[{id:'cat',nome:'Pizzas'}]} onClose={()=>setOpen(false)} onSaved={()=>setSaved(n=>n+1)}/>}
+ {mode==='settings'?<ToastProvider><ConfiguracoesPage/></ToastProvider>:open&&<ProdutoFormModal produto={mode==='configured'?{...ordinary,sabores_grupo_id:'sabores',sabores_maximo:3}:ordinary} categorias={[{id:'cat',nome:'Pizzas'}]} onClose={()=>setOpen(false)} onSaved={()=>setSaved(n=>n+1)}/>}
  </main>
 }

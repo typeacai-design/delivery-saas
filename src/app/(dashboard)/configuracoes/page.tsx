@@ -9,9 +9,8 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import { CoordinateMap } from '@/components/coordinate-map'
 import { useToast } from '@/components/toast'
-import SaboresConfigTab from '@/components/admin/SaboresConfigTab'
 
-type Tab = 'horarios' | 'entregas' | 'perfil' | 'sabores'
+type Tab = 'horarios' | 'entregas' | 'perfil'
 
 const DIAS_SEMANA = [
   { id: 'seg', nome: 'Segunda' },
@@ -77,7 +76,6 @@ export default function ConfiguracoesPage() {
     { id: 'horarios', label: 'Horários', icon: Clock },
     { id: 'entregas', label: 'Entregas', icon: MapPin },
     { id: 'perfil', label: 'Meu perfil', icon: User },
-    { id: 'sabores', label: 'Sabores', icon: Sparkles },
   ] as const
 
   return (
@@ -119,7 +117,6 @@ export default function ConfiguracoesPage() {
 
       {tab === 'horarios' && <HorariosTab tenant={tenant} loadTenantFromParent={loadTenant} />}
       {tab === 'entregas' && <EntregasTab />}
-      {tab === 'sabores' && <SaboresConfigTab />}
       {tab === 'perfil' && <PerfilEditavel tenant={tenant} onSaved={loadTenant} onReload={loadTenant} />}
     </div>
   )

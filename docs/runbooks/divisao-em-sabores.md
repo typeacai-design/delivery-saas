@@ -2,12 +2,15 @@
 
 ## Para o lojista
 
-A função é opcional, individual por loja e inicialmente desligada. Ativar a loja não converte produtos existentes.
+**Migração 084 aplicada e verificada via API; publicação da interface ainda pendente de confirmação.** A configuração passa a ficar inteiramente no popup de cadastro/edição do produto. A aba Sabores em Configurações foi removida nessa revisão. Na versão inicial 083, a ativação separada da loja era necessária; essa instrução foi substituída pelo fluxo abaixo.
 
-1. Abra **Configurações → Sabores**. Ative **Divisão em sabores nesta loja** e salve.
-2. Na área de complementos, cadastre uma lista com os sabores. O preço de cada opção deve ser o da **pizza inteira daquele tamanho**. Não cadastre preços de meia pizza ou de um terço.
-3. Abra **Cardápio → cadastrar/editar produto**. No popup, localize **Divisão em sabores**, ative a montagem, escolha a lista e o máximo de **2 ou 3 sabores**. Confira a prévia e salve.
-4. Teste a montagem no cardápio e no lançamento manual antes de divulgar o produto.
+A função continua opcional por produto. Marcar a opção e cancelar não grava nada. Ao salvar validamente um produto configurado, o banco habilita o suporte técnico de sabores somente para a loja desse produto, na mesma transação. Nenhum outro produto é convertido e não há ativação em massa de lojas.
+
+1. Na área de complementos, cadastre uma lista com os sabores. O preço de cada opção deve ser o da **pizza inteira daquele tamanho**. Não cadastre preços de meia pizza ou de um terço.
+2. Abra **Cardápio → cadastrar/editar produto**. No popup, localize **Divisão em sabores**, ative a montagem, escolha a lista e o máximo de **2 ou 3 sabores**. Confira a prévia e salve.
+3. Teste a montagem no cardápio e no lançamento manual antes de divulgar o produto.
+
+Na lista suspensa, as opções mostram **título — descrição interna** para distinguir listas com o mesmo título. Quando não há descrição, aparece somente o título. Isso altera apenas a identificação no painel: o identificador salvo e o título público continuam iguais; a descrição interna da lista não é exibida no fluxo público. Essa revisão não altera a serialização preexistente dos dados nem a descrição individual dos complementos.
 
 Use produtos separados para Pizza Pequena, Média e Grande. Se os preços dos sabores mudam conforme o tamanho, use uma lista por tamanho. A quantidade de sabores não exige listas diferentes: a mesma lista atende pizza inteira, duas metades e três terços.
 
@@ -37,19 +40,21 @@ A média **substitui o preço-base do produto**, tanto em produtos anteriormente
 
 No cardápio, o preço “a partir de” da pizza configurada vem do menor preço dos sabores disponíveis. O atendente utiliza a mesma montagem no lançamento manual. Carrinho, pedido, impressão, mensagem e histórico mostram os sabores com a fração `1/2` ou `1/3` quando aplicável.
 
-## Restrições e comportamento ao desativar
+## Restrições e desativação por produto
 
 - Produtos com variantes não aceitam divisão: mantenha um produto por tamanho.
 - Sabores com `controlar_estoque` ativado não podem ser utilizados nesta modalidade. A divisão de preço não implementa baixa fracionada de ingredientes.
 - O estoque da pizza inteira e de extras continua sujeito às regras do sistema. Para aumentar a quantidade de uma pizza com estoque controlado em um pedido **já salvo**, lance as unidades adicionais em **um novo pedido**; a edição bloqueia esse aumento para preservar a baixa de estoque.
-- Ao desligar a função da loja, os produtos configurados ficam indisponíveis para novas compras. Não passam silenciosamente a somar os sabores pelo preço integral. A configuração permanece salva.
-- Para converter uma pizza em produto comum, revise explicitamente seu preço e suas listas no cadastro. Desligar a loja não realiza essa conversão.
+- A flag técnica da loja permanece para compatibilidade e contingência, sem tela separada de ativação. Se ela for desligada por operação administrativa autorizada, os produtos configurados ficam indisponíveis para novas compras. Não passam silenciosamente a somar os sabores pelo preço integral. A configuração permanece salva.
+- Para converter uma pizza em produto comum, desmarque a divisão no popup e revise explicitamente seu preço e suas listas antes de salvar. Isso não desliga a função nos demais produtos da loja. Produtos comuns continuam com suas regras fixas ou “a partir de”.
 - Pedidos já recebidos mantêm seus preços e composições. Mudar somente endereço, observação ou status não atualiza os preços históricos.
 - Carrinhos abertos são revalidados ao carregar. Se o preço/composição de uma pizza mudou, a pizza precisa ser montada novamente, com aviso ao cliente.
 
 ## Contrato técnico
 
 A migração `supabase/migrations/083_divisao_sabores.sql` adiciona configuração opt-in e proteções. `tenants.sabores_ativo` inicia `false`; `produtos.sabores_grupo_id` inicia vazio, com `sabores_maximo` limitado a 2/3 quando configurado. Sabores permanecem em `complementos`, ligados pelo cadastro existente. O pedido guarda a composição no JSON de complementos; não depende do cadastro atual para renderizar o histórico.
+
+A migração `supabase/migrations/084_sabores_ativacao_no_produto.sql` acrescenta ativação transacional da flag técnica ao salvar um produto com sabores. Mantém as validações 083, permissões e limites; o endpoint de leitura da flag continua disponível para os fluxos de pedidos. Não cria conversões em massa. A aplicação 084 foi verificada com hashes das quatro tabelas preservados, trigger/função conferidos e sem fixtures persistentes; a publicação da interface deve ser confirmada no registro da liberação.
 
 O cliente envia `sabores_quantidade` de 1 a 3 por item e `quantidade` de pizzas separadamente. Cada sabor tem `quantidade: 1`, nunca `0.5` ou `0.333`. O snapshot guarda:
 
@@ -75,7 +80,7 @@ Este documento descreve o procedimento; não afirma que o deploy foi concluído.
 
 **Acesso operacional desta entrega:** use as APIs/CLI autorizadas. O usuário revogou o uso de seu navegador: não acesse seu Chrome, perfil ou autenticação pelo navegador. Os testes locais isolados com fixtures sintéticas não usam esse perfil e podem ser utilizados quando a verificação de código exigir. Siga [Acesso local às APIs](../ACESSO_API_LOCAL.md): o loader lê a credencial Supabase cifrada por DPAPI na pasta `.credentials` canônica, também utilizada pelas worktrees. Não copie nem imprima tokens. A Vercel utiliza o cache autenticado oficial da CLI/API.
 
-**Evidência registrada antes da publicação:** 51 testes automatizados passaram (incluindo 3 de credenciais), build com 97 rotas concluído e teste SQL da migração 083 via API concluído com rollback. O teste SQL não deixou linhas/schema temporários. Os 18 cenários de interface pública e 5 administrativos foram executados anteriormente, antes da restrição de acesso ao navegador do usuário; essas evidências não equivalem a uma verificação visual da versão publicada. A migração 083 foi aplicada via API e verificada: hashes dos dados existentes preservados, três colunas e permissões corretas, flags inicialmente desligadas. A promoção do deployment ainda depende da etapa Vercel; registre sua confirmação no fechamento da liberação.
+**Evidência registrada antes da publicação:** 51 testes automatizados passaram (incluindo 3 de credenciais), build com 97 rotas concluído e teste SQL da migração 083 via API concluído com rollback. O teste SQL não deixou linhas/schema temporários. Os 18 cenários de interface pública e 5 administrativos foram executados anteriormente, antes da restrição de acesso ao navegador do usuário; essas evidências não equivalem a uma verificação visual da versão publicada. A migração 083 foi aplicada via API e verificada: hashes dos dados existentes preservados, três colunas e permissões corretas, flags inicialmente desligadas. A entrega 083 foi publicada e está registrada em [liberação 083](../releases/2026-09-09-divisao-sabores.md). A migração 084 foi aplicada e verificada; a publicação da nova interface permanece pendente de confirmação nesta revisão do guia.
 
 1. Registre commit, versão de produção anterior na Vercel e estado do banco. Preserve pedidos e alterações locais existentes.
 2. Revise e teste a migração em ambiente isolado, incluindo permissões, gravação transacional, estoque e isolamento entre lojas. Não ative lojas ou produtos automaticamente.
@@ -83,7 +88,7 @@ Este documento descreve o procedimento; não afirma que o deploy foi concluído.
 4. Os scripts `node scripts/verify-flavor-ui.mjs` e `node scripts/verify-flavor-admin.mjs` documentam os testes visuais reproduzíveis. Eles usam Chromium isolado e fixtures sintéticas, sem acessar o Chrome/perfil do usuário. Não há necessidade de repeti-los nesta etapa, pois já passaram e não houve nova alteração de código. Quando necessários, execute-os sequencialmente, sem build/dev concorrente na mesma pasta. Eles usam fixtures locais; a verificação pública usa Supabase simulado, bloqueia escrita/requests externos e remove a rota temporária ao terminar. O Playwright pode ser indicado por `PLAYWRIGHT_RUNTIME`.
 5. Aplique a migração revisada via API mantendo os defaults desligados. Confira o resultado por consulta somente de leitura. Publique via Vercel CLI/API e valide o preview com requisições HTTP antes de promover produção, conforme a autorização de deploy.
 6. Verifique cardápios existentes, produto fixo, produto “a partir de”, pedido manual, pedidos antigos, impressão e pagamento. Confira que nenhuma loja foi habilitada implicitamente.
-7. Habilite somente uma loja/produto combinado para o primeiro uso. Confira uma, duas e três partes, borda, duas pizzas diferentes do mesmo tamanho, histórico e impressão antes de ampliar a utilização.
+7. Configure e salve somente o produto combinado para o primeiro uso; sua loja será habilitada tecnicamente nesse salvamento. Confira uma, duas e três partes, borda, duas pizzas diferentes do mesmo tamanho, histórico e impressão antes de ampliar a utilização.
 
 As evidências ficam em `.local-validation/`, ignorada pelo Git e pela Vercel. Os scripts e fixtures permanecem versionados. Não publique rotas temporárias de validação, logs nem credenciais.
 

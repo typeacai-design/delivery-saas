@@ -126,7 +126,6 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
   const [form, setForm] = useState<FormState>(FORM_VAZIO)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
-  const [saboresAtivo, setSaboresAtivo] = useState(false)
   const [dividirSabores, setDividirSabores] = useState(Boolean(produto?.sabores_grupo_id))
   const [complementos, setComplementos] = useState<any[]>([])
   const [categoriasComp, setCategoriasComp] = useState<any[]>([])
@@ -193,10 +192,6 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
       })
     }
     loadComplementos()
-    fetch('/api/configuracoes/sabores', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : Promise.reject(new Error()))
-      .then(data => setSaboresAtivo(data.sabores_ativo === true))
-      .catch(() => setSaboresAtivo(false))
     loadCategoriasComp()
     loadVinculos()
     carregarSlug()
@@ -752,16 +747,16 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
           {/* ====== CARD 10: Complementos ====== */}
           <CardSection title="Divisão em sabores" icon={Layers}>
             <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={dividirSabores} disabled={!saboresAtivo && !dividirSabores}
+              <input type="checkbox" checked={dividirSabores}
                 onChange={e => setDividirSabores(e.target.checked)} />
               Permitir escolher mais de um sabor neste produto
             </label>
-            {!saboresAtivo && <p className="text-sm text-amber-700 mt-3">Ative em Configurações → Sabores. Produtos configurados ficam indisponíveis para novas vendas enquanto a função da loja estiver desligada.</p>}
+            <p className="text-sm text-gray-600 mt-3">Configure os sabores aqui e salve o produto para disponibilizar a escolha no cardápio e nos pedidos manuais.</p>
             {dividirSabores && <div className="mt-4 space-y-3">
               <Field label="Lista de sabores">
                 <select className="form-input" value={form.sabores_grupo_id || ''} onChange={e => setForm(f => ({ ...f, sabores_grupo_id: e.target.value }))}>
                   <option value="">Selecione uma lista de complementos</option>
-                  {categoriasComp.map(cat => <option key={cat.id} value={cat.id}>{cat.nome}</option>)}
+                  {categoriasComp.map(cat => <option key={cat.id} value={cat.id}>{cat.nome}{cat.descricao?.trim() ? ` — ${cat.descricao.trim()}` : ''}</option>)}
                 </select>
               </Field>
               {produto?.sabores_grupo_id && produto.sabores_grupo_id !== form.sabores_grupo_id && <p className="text-sm text-amber-700">Ao trocar a lista, os vínculos da lista anterior de sabores serão substituídos. Outros adicionais serão preservados.</p>}

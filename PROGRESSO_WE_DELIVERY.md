@@ -11,6 +11,16 @@ Atualizado em 09/09/2026. Este documento registra as alterações concluídas e 
 - Cópia original preservada: `C:/Users/ranie/.claude/PROJETOS/delivery-saas`. Não foi sobrescrita.
 - A cópia principal foi sincronizada por fast-forward até `3cc513c`; este documento integra um commit local posterior apenas de documentação.
 
+## Revisão 084 em andamento: configuração somente no produto
+
+**Ainda não confirmar como publicada.** Nesta revisão local, a aba Sabores de Configurações foi removida. O lojista marca a divisão diretamente no popup do produto, escolhe a lista e o limite de dois ou três sabores e salva. O checkbox não exige uma ativação prévia da loja. Cancelar não grava alterações.
+
+A migração `084_sabores_ativacao_no_produto.sql` habilita o suporte técnico de sabores somente na loja do produto salvo validamente, na mesma transação. Não converte outros produtos e não faz ativação em massa. Desmarcar um produto não desliga os outros produtos da loja. Preços, limites, snapshots e as proteções 083 permanecem.
+
+O seletor de listas passa a mostrar **título — descrição interna**, com fallback para apenas título. Os IDs e títulos públicos não mudam; a descrição interna da lista não passa a ser exibida no cardápio. O endpoint de leitura da flag técnica permanece para compatibilidade com os fluxos de pedidos.
+
+Seis testes locais isolados da nova interface, 51 testes automatizados e build de 97 rotas foram aprovados. O teste SQL 084 com rollback também passou. A migração 084 foi aplicada via API e verificada em produção: hashes das quatro tabelas preservados, trigger/função conferidos, sem permissão pública de execução e sem fixtures persistentes. A publicação da nova interface ainda está pendente. Os dados de produção e publicação descritos abaixo referem-se à entrega 083 já concluída.
+
 ## 1. Correção de preço a partir de
 
 Identificada com o cliente Cozinha da Cris e corrigida antes da funcionalidade de sabores:
@@ -25,7 +35,7 @@ Implementação `f16b5ba`; registro de publicação `e36a6ef`. A verificação a
 
 Implementação `2d46c2f`; registro da liberação `3cc513c`.
 
-O lojista ativa a função nas configurações da loja. No popup de cadastro/edição do produto, habilita divisão em sabores, escolhe uma lista existente de complementos e define o máximo de dois ou três sabores. Cada sabor continua com seu preço cadastrado na lista: o valor deve representar a pizza inteira daquele sabor e tamanho. Não é necessário repetir preços no produto ou criar listas separadas para cada quantidade de sabores. Tamanhos com preços diferentes podem usar listas diferentes.
+Na entrega 083 publicada, o lojista ativava a função nas configurações da loja; esse passo é substituído pela revisão 084 descrita acima. No popup de cadastro/edição do produto, habilita divisão em sabores, escolhe uma lista existente de complementos e define o máximo de dois ou três sabores. Cada sabor continua com seu preço cadastrado na lista: o valor deve representar a pizza inteira daquele sabor e tamanho. Não é necessário repetir preços no produto ou criar listas separadas para cada quantidade de sabores. Tamanhos com preços diferentes podem usar listas diferentes.
 
 Fluxo do cliente:
 
