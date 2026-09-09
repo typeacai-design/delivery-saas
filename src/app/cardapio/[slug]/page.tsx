@@ -177,6 +177,7 @@ export default async function CardapioPublicoPage({
   const cardapioData = {
     tenant: {
       id: tenant.id,
+      sabores_ativo: tenant.sabores_ativo === true,
       nome: tenant.nome,
       slug: tenant.slug,
       telefone: tenant.telefone || '',

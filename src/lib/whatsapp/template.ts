@@ -1,11 +1,12 @@
 import { formatCurrency } from '@/lib/utils'
+import { flavorLabel } from '@/lib/flavor-pricing'
 
 export interface ItemPedido {
   nome: string
   quantidade: number
   valor_unitario: number
   variante_nome?: string
-  complementos?: { nome: string; quantidade: number; valor: number }[]
+  complementos?: { nome: string; quantidade: number; valor: number; tipo?: string; regra_preco?: string; fracao_denominador?: number }[]
   observacao?: string
 }
 
@@ -90,8 +91,12 @@ export function gerarMensagemWhatsApp(d: DadosPedido): string {
     texto += `*${i + 1}. ${item.nome}*${item.variante_nome ? ` (${item.variante_nome})` : ''}\n`
     texto += `   ${item.quantidade}x ${formatCurrency(subtotal / item.quantidade)} = ${formatCurrency(subtotal)}\n`
     if (item.complementos && item.complementos.length > 0) {
-      texto += `   Adicionais:\n`
+      texto += item.complementos.some(c => c.tipo === 'sabor') ? `   Sabores e adicionais:\n` : `   Adicionais:\n`
       item.complementos.forEach(c => {
+        if (c.tipo === 'sabor') {
+          texto += `   • ${flavorLabel(c)}\n`
+          return
+        }
         const precoAdic = c.valor * c.quantidade
         // Mostra preco apenas se for maior que zero
         // Se for gratis, nao mostra nada (fica subentendido)

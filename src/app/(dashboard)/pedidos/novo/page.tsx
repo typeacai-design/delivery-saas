@@ -1,4 +1,6 @@
 'use client'
+import { ProdutoModal as MontagemSabores } from '@/components/checkout-flow'
+import { flavorLabel } from '@/lib/flavor-pricing'
 import { chargedProductBase } from '@/lib/product-pricing'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
@@ -32,6 +34,8 @@ interface Produto {
   id: string
   nome: string
   preco: number
+  sabores_grupo_id?: string | null
+  sabores_maximo?: number
   exibir_preco_a_partir_de?: boolean
   imagem_url?: string
   descricao?: string
@@ -64,6 +68,7 @@ interface Complemento {
 
 interface ItemPedido {
   id: string
+  sabores_quantidade?: number
   produto_id: string
   nome: string
   quantidade: number
@@ -77,6 +82,11 @@ interface ItemPedido {
 }
 
 interface ItemComplemento {
+  tipo?: string
+  grupo_id?: string
+  fracao_denominador?: number
+  preco_integral?: number
+  regra_preco?: string
   id: string
   nome: string
   quantidade: number
@@ -751,6 +761,7 @@ export default function NovoPedidoPage() {
   // Modals
   const [mostrarModalCliente, setMostrarModalCliente] = useState(false)
   const [mostrarModalProduto, setMostrarModalProduto] = useState(false)
+  const [saboresAtivo, setSaboresAtivo] = useState(false)
   const [produtoSelecionado, setProdutoSelecionado] = useState<Produto | null>(null)
   const [itemEditando, setItemEditando] = useState<ItemPedido | null>(null)
 
@@ -773,6 +784,8 @@ export default function NovoPedidoPage() {
   const loadDados = async () => {
     const tenantId = await activeTenantId()
     if (!tenantId) return
+    const { data: lojaSabores } = await supabase.from('tenants').select('sabores_ativo').eq('id', tenantId).single()
+    setSaboresAtivo(lojaSabores?.sabores_ativo === true)
 
     // Primeiro: buscar produtos, complementos, categorias e clientes (sem dependências)
     const [
@@ -783,10 +796,10 @@ export default function NovoPedidoPage() {
       { data: listasData },
     ] = await Promise.all([
       supabase.from('clientes').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
-      supabase.from('produtos').select('id, nome, preco, imagem_url, descricao, tempo_preparo_min, exibir_preco_a_partir_de').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
+      supabase.from('produtos').select('id, nome, preco, imagem_url, descricao, tempo_preparo_min, exibir_preco_a_partir_de, sabores_grupo_id, sabores_maximo').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
       supabase.from('enderecos_entrega').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('bairro'),
       // Complementos com categoria_id
-      supabase.from('complementos').select('id, nome, preco, imagem_url, categoria_id, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
+      supabase.from('complementos').select('id, nome, preco, imagem_url, categoria_id, ordem, controlar_estoque').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
       // Categorias de complementos (mesma tabela usada pelo cardápio público)
       supabase.from('categorias_complementos').select('id, nome, qtd_minima, qtd_maxima, max_um_de_cada, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
     ])
@@ -856,7 +869,11 @@ export default function NovoPedidoPage() {
     }))
 
     setClientes(clientesData || [])
-    setProdutos(produtosFinais)
+    setProdutos(produtosFinais.filter((p: any) => !p.sabores_grupo_id || lojaSabores?.sabores_ativo === true).map((p: any) => {
+      if (!p.sabores_grupo_id) return p
+      const sabores = p.listas.find((l: any) => l.id === p.sabores_grupo_id)?.complementos || []
+      return {...p, preco: sabores.length ? Math.min(...sabores.map((c: any) => Number(c.preco))) : p.preco, exibir_preco_a_partir_de: true}
+    }))
     setBairros(bairrosData || [])
   }
 
@@ -1003,7 +1020,8 @@ export default function NovoPedidoPage() {
         quantidade: item.quantidade,
         valor_unitario: item.valor_unitario,
         valor_total: item.valor_unitario * item.quantidade + (item.complementos?.reduce((s, c) => s + c.valor * c.quantidade, 0) || 0) * item.quantidade,
-        complementos: item.complementos.map(c => ({ id: c.id, nome: c.nome, quantidade: c.quantidade, valor: c.valor })),
+        complementos: item.complementos,
+        sabores_quantidade: item.sabores_quantidade,
         observacao: item.observacao || null,
       }))
 
@@ -1019,6 +1037,7 @@ export default function NovoPedidoPage() {
           valor_subtotal: total - taxaEntrega,
           taxa_entrega: taxaEntrega,
           valor_desconto: ajusteValor > 0 ? ajusteValor : 0,
+          valor_acrescimo: Math.max(0, -ajusteValor),
           valor_total: total,
           forma_pagamento: formaPagamento,
           troco_para: troco,
@@ -1452,7 +1471,7 @@ export default function NovoPedidoPage() {
                               <div>
                                 <p className="font-semibold">{item.nome}</p>
                                 <p className="text-sm text-gray-500">
-                                  {formatCurrency(item.valor_unitario)} cada
+                                  {formatCurrency(item.sabores_quantidade ? item.valor_unitario + item.complementos.reduce((sum, c) => sum + c.valor * c.quantidade, 0) : item.valor_unitario)} cada
                                 </p>
                               </div>
                               <p className="font-bold text-green-600 shrink-0">
@@ -1465,7 +1484,7 @@ export default function NovoPedidoPage() {
                               <div className="mt-2 space-y-1">
                                 {item.complementos.map(c => (
                                   <p key={c.id} className="text-xs text-gray-500">
-                                    + {c.quantidade}x {c.nome}
+                                    {c.tipo === 'sabor' ? flavorLabel(c) : `+ ${c.quantidade}x ${c.nome}`}
                                     {c.valor > 0 && ` (${formatCurrency(c.valor * c.quantidade)})`}
                                   </p>
                                 ))}
@@ -1634,7 +1653,19 @@ export default function NovoPedidoPage() {
       />
 
       {/* Modal de Produto */}
-      <ProdutoModal
+      {produtoSelecionado?.sabores_grupo_id ? <MontagemSabores
+        isOpen={mostrarModalProduto}
+        onClose={() => { setMostrarModalProduto(false); setProdutoSelecionado(null); setItemEditando(null) }}
+        produto={produtoSelecionado}
+        variantes={produtoSelecionado.variantes || []}
+        listas={listasDoProduto}
+        complementos={listasDoProduto.flatMap(l => l.complementos)}
+        saboresAtivo={saboresAtivo}
+        paletaCor="#16a34a"
+        onAddToCart={adicionarItem}
+        initialItem={itemEditando}
+        onReplaceItem={substituirItem}
+      /> : <ProdutoModal
         isOpen={mostrarModalProduto}
         onClose={() => { setMostrarModalProduto(false); setProdutoSelecionado(null); setItemEditando(null) }}
         produto={produtoSelecionado}
@@ -1642,7 +1673,7 @@ export default function NovoPedidoPage() {
         onAdd={adicionarItem}
         initialItem={itemEditando || undefined}
         onReplace={substituirItem}
-      />
+      />}
 
       {/* Tela de Sucesso */}
       {pedidoCriado && (

@@ -1,4 +1,6 @@
 'use client'
+import { ProdutoModal as MontagemProduto } from './checkout-flow'
+import { flavorLabel } from '@/lib/flavor-pricing'
 import { chargedProductBase } from '@/lib/product-pricing'
 
 import { useState } from 'react'
@@ -7,6 +9,7 @@ import { formatCurrency, ordenarComplementos } from '@/lib/utils'
 
 export interface CartItem {
   id: string
+  sabores_quantidade?: number
   produto_id: string
   nome: string
   quantidade: number
@@ -20,6 +23,8 @@ export interface CartItem {
 }
 
 export interface CartComplemento {
+  tipo?: string
+  fracao_denominador?: number
   id: string
   nome: string
   quantidade: number
@@ -82,7 +87,7 @@ export function CartDrawer({
       if (item.complementos.length > 0) {
         texto += `   ➕ Adicionais:\n`
         item.complementos.forEach(c => {
-          texto += `      - ${c.quantidade}x ${c.nome} (${formatCurrency(c.valor)})\n`
+          texto += `      - ${c.tipo === 'sabor' ? flavorLabel(c) : `+ ${c.quantidade}x ${c.nome}`} (${formatCurrency(c.valor)})\n`
         })
       }
       texto += `   Qtd: ${item.quantidade}x\n`
@@ -173,7 +178,7 @@ export function CartDrawer({
                           <div className="mt-1">
                             {item.complementos.map((c) => (
                               <p key={c.id} className="text-xs text-gray-500">
-                                + {c.quantidade}x {c.nome}
+                                {c.tipo === 'sabor' ? flavorLabel(c) : `+ ${c.quantidade}x ${c.nome}`}
                               </p>
                             ))}
                           </div>
@@ -272,6 +277,8 @@ interface ProdutoModalProps {
   onAddToCart: (item: Omit<CartItem, 'id'>) => void
   paletaCor: string
   lojaAberta?: boolean
+  saboresAtivo?: boolean
+  listas?: any[]
 }
 
 export function ProdutoModal({
@@ -283,6 +290,8 @@ export function ProdutoModal({
   onAddToCart,
   paletaCor,
   lojaAberta = true,
+  saboresAtivo = false,
+  listas = [],
 }: ProdutoModalProps) {
   const [quantidade, setQuantidade] = useState(1)
   const [varianteSelecionada, setVarianteSelecionada] = useState<string | null>(
@@ -291,6 +300,7 @@ export function ProdutoModal({
   const [complementosSelecionados, setComplementosSelecionados] = useState<{[key: string]: number}>({})
 
   if (!isOpen || !produto) return null
+  if (produto.sabores_grupo_id) return <MontagemProduto isOpen={isOpen} onClose={onClose} produto={produto} variantes={variantes} complementos={complementos} listas={listas} saboresAtivo={saboresAtivo} lojaAberta={lojaAberta} paletaCor={paletaCor} onAddToCart={onAddToCart} />
 
   const variante = variantes.find(v => v.id === varianteSelecionada)
   const precoBase = chargedProductBase(produto, variante?.preco_adicional)

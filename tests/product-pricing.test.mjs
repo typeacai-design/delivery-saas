@@ -1,3 +1,4 @@
+import { server as flavorServer } from './flavor-fixtures.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -68,6 +69,7 @@ function publicRoute(product, complementPrice = 22) {
     'next/server': { NextResponse: { json: (body, init) => Response.json(body, init) } },
     '@supabase/supabase-js': { createClient: () => admin },
     '@/lib/product-pricing': pricing,
+    '@/lib/flavor-order-server': flavorServer,
     '@/lib/customer-identity': { rateLimited: async () => false, isValidCpf: () => true, hashAccessToken: value => value, normalizeCpf: value => value, tokenMatches: () => true },
   }
   const source = readFileSync(new URL('../src/app/api/pedidos/public/route.ts', import.meta.url), 'utf8')

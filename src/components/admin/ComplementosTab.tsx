@@ -155,6 +155,8 @@ export default function ComplementosTab() {
         </button>
       </div>
 
+      <p className="text-sm text-gray-600 px-1">Para pizzas divididas, cadastre o preço da pizza inteira de cada sabor nesta lista. A divisão e o máximo de sabores são configurados no produto. Use uma lista por tamanho quando os preços forem diferentes.</p>
+
       {/* Filtros */}
       <div className="bg-white rounded-2xl border p-4 flex flex-wrap gap-3" style={{ borderColor: '#E5E7EB' }}>
         <select

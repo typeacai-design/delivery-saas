@@ -1,4 +1,5 @@
 'use client'
+import { createFlavorSnapshot, flavorLabel } from '@/lib/flavor-pricing'
 import { chargedProductBase } from '@/lib/product-pricing'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
@@ -13,6 +14,7 @@ import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
 export interface CartItem {
   id: string
   produto_id: string
+  sabores_quantidade?: number
   nome: string
   quantidade: number
   valor_unitario: number
@@ -26,6 +28,11 @@ export interface CartItem {
 }
 
 export interface CartComplemento {
+  tipo?: string
+  grupo_id?: string
+  fracao_denominador?: number
+  preco_integral?: number
+  regra_preco?: string
   id: string
   nome: string
   quantidade: number
@@ -399,6 +406,7 @@ export function CheckoutDrawer({
           variante_id: item.variante_id || null,
           variante_nome: item.variante_nome || null,
           complementos: item.complementos,
+          sabores_quantidade: item.sabores_quantidade,
           observacao: item.observacao || '',
           pontos: item.pontos || 0,
         })),
@@ -765,7 +773,7 @@ function CarrinhoView({ itens, onUpdateQuantity, onRemoveItem, onEditItem, onCon
                 {item.complementos.length > 0 && (
                   <div className="mt-1">
                     {item.complementos.map((c: any) => (
-                      <p key={c.id} className="text-xs text-gray-500">+ {c.quantidade}x {c.nome}</p>
+                      <p key={c.id} className="text-xs text-gray-500">{c.tipo === 'sabor' ? flavorLabel(c) : `+ ${c.quantidade}x ${c.nome}`}</p>
                     ))}
                   </div>
                 )}
@@ -1254,7 +1262,7 @@ function ObservacoesView({ observacaoPedido, setObservacaoPedido, itens, subtota
     <div><h3 className="font-bold text-lg">Observacoes finais</h3><p className="text-sm text-gray-500">Inclua instruções gerais para a loja antes de concluir.</p></div>
     <textarea value={observacaoPedido} onChange={(e) => setObservacaoPedido(e.target.value)} placeholder="Ex: tocar interfone, enviar guardanapos..." rows={4} className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-green-500 outline-none resize-none" />
     <div className="border rounded-2xl p-4 space-y-3"><h4 className="font-semibold">Resumo do pedido</h4>
-      {itens.map((item: CartItem) => <div key={item.id} className="text-sm"><strong>{item.quantidade}x {item.nome}</strong>{item.complementos.length > 0 && <p className="text-gray-500">{item.complementos.map(c => `${c.quantidade}x ${c.nome}`).join(', ')}</p>}</div>)}
+      {itens.map((item: CartItem) => <div key={item.id} className="text-sm"><strong>{item.quantidade}x {item.nome}</strong>{item.complementos.length > 0 && <p className="text-gray-500">{item.complementos.map(c => c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade}x ${c.nome}`).join(', ')}</p>}</div>)}
       <div className="pt-2 border-t text-sm space-y-1"><div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>{taxaEntrega > 0 && <div className="flex justify-between"><span>Entrega</span><span>{formatCurrency(taxaEntrega)}</span></div>}{desconto > 0 && <div className="flex justify-between text-green-700"><span>Desconto</span><span>-{formatCurrency(desconto)}</span></div>}<div className="flex justify-between font-bold text-base"><span>Total</span><span>{formatCurrency(total)}</span></div></div>
     </div>
   </div>
@@ -1362,6 +1370,7 @@ interface ProdutoModalProps {
   initialItem?: CartItem | null
   onReplaceItem?: (itemId: string, item: Omit<CartItem, 'id'>) => void
   lojaAberta?: boolean
+  saboresAtivo?: boolean
 }
 
 export function ProdutoModal({
@@ -1377,6 +1386,7 @@ export function ProdutoModal({
   initialItem,
   onReplaceItem,
   lojaAberta = true,
+  saboresAtivo = false,
 }: ProdutoModalProps) {
   const [quantidade, setQuantidade] = useState(1)
   const [varianteSelecionada, setVarianteSelecionada] = useState<string | null>(
@@ -1385,6 +1395,7 @@ export function ProdutoModal({
   const [complementosSelecionados, setComplementosSelecionados] = useState<{[key: string]: number}>({})
   const [observacao, setObservacao] = useState('')
   const [etapaLista, setEtapaLista] = useState(0)
+  const [numeroSabores, setNumeroSabores] = useState<number | null>(null)
   const [montagemConcluida, setMontagemConcluida] = useState(false)
 
   useEffect(() => {
@@ -1394,18 +1405,30 @@ export function ProdutoModal({
     setComplementosSelecionados(Object.fromEntries((initialItem?.complementos || []).map(c => [c.id, c.quantidade])))
     setObservacao(initialItem?.observacao || '')
     setEtapaLista(0)
+    setNumeroSabores(null)
     setMontagemConcluida(false)
   }, [isOpen, produto, initialItem, variantes])
   useEffect(()=>{if(!isOpen)return;const previous=document.activeElement as HTMLElement|null;const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose();const d=document.querySelector<HTMLElement>('.wd-product-dialog');if(d)keepFocusInside(d,e)};document.addEventListener('keydown',onKey);requestAnimationFrame(()=>document.querySelector<HTMLElement>('.wd-product-dialog button')?.focus());return()=>{document.removeEventListener('keydown',onKey);previous?.focus()}},[isOpen,onClose])
 
   if (!isOpen || !produto) return null
 
+  const modoSabores = Boolean(produto.sabores_grupo_id)
+  const grupoOriginal = listas.find(l => l.id === produto.sabores_grupo_id)
+  const grupoSabores = grupoOriginal ? {...grupoOriginal, complementos: (grupoOriginal.complementos || []).filter((c: any) => c.controlar_estoque !== true)} : undefined
+  const bloqueado = modoSabores && (!saboresAtivo || !grupoSabores?.complementos?.length || ![2, 3].includes(Number(produto.sabores_maximo)) || variantes.length > 0)
+  const escolhendoQuantidade = modoSabores && numeroSabores === null
+  const listasMontagem = modoSabores && grupoSabores ? [grupoSabores, ...listas.filter(l => l.id !== grupoSabores.id)] : listas
+  const idsSabores = new Set<string>((grupoSabores?.complementos || []).map((c: any) => c.id))
+  const selecionadosSabores = complementos.filter(c => idsSabores.has(c.id) && complementosSelecionados[c.id])
+  const saboresValidos = !modoSabores || (numeroSabores !== null && selecionadosSabores.length === numeroSabores)
+  const snapshotSabores = modoSabores && saboresValidos ? createFlavorSnapshot(selecionadosSabores, produto.sabores_grupo_id, numeroSabores!) : []
   const variante = variantes.find(v => v.id === varianteSelecionada)
-  const precoBase = chargedProductBase(produto, variante?.preco_adicional)
+  const precoBase = modoSabores ? 0 : chargedProductBase(produto, variante?.preco_adicional)
   const precoComplementos = Object.entries(complementosSelecionados).reduce((acc, [id, qtd]) => {
+    if (modoSabores && idsSabores.has(id)) return acc
     const comp = complementos.find(c => c.id === id)
-    return acc + (comp?.preco || 0) * (qtd as number)
-  }, 0)
+    return acc + Number(comp?.preco || 0) * qtd
+  }, 0) + snapshotSabores.reduce((acc, c) => acc + c.valor, 0)
   const total = (precoBase + precoComplementos) * quantidade
 
   function toggleComplemento(complementoId: string) {
@@ -1420,19 +1443,20 @@ export function ProdutoModal({
     })
   }
 
-  const listaAtual = listas[etapaLista]
+  const listaAtual = listasMontagem[etapaLista]
+  const listaDeSabores = modoSabores && listaAtual?.id === produto.sabores_grupo_id
   // Regra padrão: grátis no topo, depois alfabético
   const listaAtualOrdenada = listaAtual
     ? { ...listaAtual, complementos: ordenarComplementos(listaAtual.complementos || []) }
     : listaAtual
   const quantidadeLista = listaAtualOrdenada?.complementos?.reduce((s: number, c: any) => s + (complementosSelecionados[c.id] || 0), 0) || 0
-  const minimoLista = Number(listaAtualOrdenada?.qtd_minima ?? (listaAtualOrdenada?.obrigatorio ? 1 : 0))
-  const maximoLista = Number(listaAtualOrdenada?.qtd_maxima ?? listaAtualOrdenada?.max_selecoes ?? 99)
+  const minimoLista = listaDeSabores ? (numeroSabores || 1) : Number(listaAtualOrdenada?.qtd_minima ?? (listaAtualOrdenada?.obrigatorio ? 1 : 0))
+  const maximoLista = listaDeSabores ? (numeroSabores || 1) : Number(listaAtualOrdenada?.qtd_maxima ?? listaAtualOrdenada?.max_selecoes ?? 99)
 
   function alterarComplemento(comp: any, delta: number) {
     setComplementosSelecionados(prev => {
       const atual = prev[comp.id] || 0
-      const maxItem = listaAtual?.max_um_de_cada ? 1 : Number(comp.qtd_max || 99)
+      const maxItem = (listaDeSabores || listaAtual?.max_um_de_cada) ? 1 : Number(comp.qtd_max || 99)
       const proximo = Math.max(0, Math.min(maxItem, atual + delta))
       if (delta > 0 && quantidadeLista >= maximoLista) return prev
       const novo = { ...prev }
@@ -1444,13 +1468,14 @@ export function ProdutoModal({
 
   function avancarLista() {
     if (quantidadeLista < minimoLista) return
-    if (etapaLista < listas.length - 1) setEtapaLista(v => v + 1)
+    if (etapaLista < listasMontagem.length - 1) setEtapaLista(v => v + 1)
     else adicionar(true)
   }
 
   function adicionar(finalizar = false) {
-    const complementoItems = Object.entries(complementosSelecionados)
-      .filter(([_, qtd]) => (qtd as number) > 0)
+    if (bloqueado || !saboresValidos || escolhendoQuantidade) return
+    const complementoItems = [...snapshotSabores, ...Object.entries(complementosSelecionados)
+      .filter(([id, qtd]) => (qtd as number) > 0 && !(modoSabores && idsSabores.has(id)))
       .map(([id, qtd]) => {
         const comp = complementos.find(c => c.id === id)!
         return {
@@ -1459,16 +1484,17 @@ export function ProdutoModal({
           quantidade: qtd as number,
           valor: comp.preco
         }
-      })
+      })]
 
     const itemMontado: Omit<CartItem, 'id'> = {
       produto_id: produto.id,
       nome: produto.nome,
       quantidade,
-      valor_unitario: chargedProductBase(produto),
+      valor_unitario: modoSabores ? 0 : chargedProductBase(produto),
+      sabores_quantidade: modoSabores ? numeroSabores! : undefined,
       variante_id: variante?.id,
       variante_nome: variante?.nome,
-      variante_preco: produto.exibir_preco_a_partir_de === true ? 0 : variante?.preco_adicional,
+      variante_preco: modoSabores || produto.exibir_preco_a_partir_de === true ? 0 : variante?.preco_adicional,
       complementos: complementoItems,
       tempo_preparo_min: produto.tempo_preparo_min || 30,
       observacao: observacao.trim() || undefined,
@@ -1482,6 +1508,7 @@ export function ProdutoModal({
     setComplementosSelecionados({})
     setObservacao('')
     setEtapaLista(0)
+    setNumeroSabores(null)
     setMontagemConcluida(false)
     onClose()
     if (finalizar) onGoToCheckout?.()
@@ -1559,11 +1586,13 @@ export function ProdutoModal({
           )}
 
           {/* Complementos por lista, na ordem configurada (grátis no topo, depois alfabético) */}
-          {!montagemConcluida && listaAtualOrdenada && (
+          {bloqueado && <p role="alert" className="my-5 text-red-700">Este produto está indisponível para montagem no momento.</p>}
+          {!bloqueado && escolhendoQuantidade && <div className="mt-5 space-y-3"><h3 className="text-xl font-bold">Quantos sabores você quer?</h3>{Array.from({length: Math.min(Number(produto.sabores_maximo || 2), grupoSabores?.complementos?.length || 0)}, (_, i) => i + 1).map(n => <button key={n} type="button" onClick={() => { setNumeroSabores(n); setComplementosSelecionados({}); setEtapaLista(0) }} className="w-full border-2 rounded-xl p-4 text-left font-semibold">{n} {n === 1 ? 'sabor — inteira' : n === 2 ? 'sabores — metade de cada' : 'sabores — um terço de cada'}</button>)}<p className="text-sm text-gray-600">O preço será a média dos sabores escolhidos. Outros adicionais são cobrados separadamente.</p></div>}
+          {!bloqueado && !escolhendoQuantidade && !montagemConcluida && listaAtualOrdenada && (
             <div className="mt-5">
-              <p className="text-xs text-gray-500 mb-1">Etapa {etapaLista + 1} de {listas.length}</p>
-              <h3 className="text-xl font-bold mb-1 text-gray-900">{listaAtualOrdenada.nome || 'Escolha seus complementos'}</h3>
-              <p className="text-xs text-gray-500 mb-3">Escolha de {minimoLista} ate {maximoLista} itens ({quantidadeLista}/{maximoLista})</p>
+              <p className="text-xs text-gray-500 mb-1">Etapa {etapaLista + 1} de {listasMontagem.length}</p>
+              <h3 className="text-xl font-bold mb-1 text-gray-900">{listaDeSabores ? `Escolha ${numeroSabores} ${numeroSabores === 1 ? 'sabor' : 'sabores'}` : listaAtualOrdenada.nome || 'Escolha seus complementos'}</h3>
+              <p className="text-xs text-gray-500 mb-3">{listaDeSabores ? `Selecionados: ${quantidadeLista} de ${maximoLista}. O valor é a média dos sabores.` : `Escolha de ${minimoLista} até ${maximoLista} itens (${quantidadeLista}/${maximoLista})`}</p>
               <div className="space-y-2">
                 {listaAtualOrdenada.complementos.map((comp: any) => (
                   <div
@@ -1577,13 +1606,13 @@ export function ProdutoModal({
                       <div className="flex-1">
                         <span className="font-medium block">{comp.nome}</span>
                         {comp.descricao && <span className="text-xs text-gray-500 block mt-0.5 leading-snug">{comp.descricao}</span>}
-                        <span className="text-sm text-green-600 block mt-1">+ {formatCurrency(comp.preco)}</span>
+                        <span className="text-sm text-green-600 block mt-1">{listaDeSabores ? 'Pizza inteira: ' : '+ '}{formatCurrency(comp.preco)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => alterarComplemento(comp, -1)} className="w-8 h-8 border rounded-full"><Minus className="w-4 h-4 mx-auto" /></button>
+                      <button type="button" aria-label={`Remover ${comp.nome}`} disabled={!complementosSelecionados[comp.id]} onClick={() => alterarComplemento(comp, -1)} className="w-8 h-8 border rounded-full"><Minus className="w-4 h-4 mx-auto" /></button>
                       <strong>{complementosSelecionados[comp.id] || 0}</strong>
-                      <button type="button" onClick={() => alterarComplemento(comp, 1)} className="w-8 h-8 border rounded-full"><Plus className="w-4 h-4 mx-auto" /></button>
+                      <button type="button" aria-label={`Selecionar ${comp.nome}`} disabled={quantidadeLista >= maximoLista || (listaDeSabores && Boolean(complementosSelecionados[comp.id]))} onClick={() => alterarComplemento(comp, 1)} className="w-8 h-8 border rounded-full"><Plus className="w-4 h-4 mx-auto" /></button>
                     </div>
                   </div>
                 ))}
@@ -1608,9 +1637,13 @@ export function ProdutoModal({
             </div>
           </div>
 
-          {listas.length > 0 ? (
-            <button disabled={quantidadeLista < minimoLista} onClick={avancarLista} className="wd-primary-action w-full py-4 rounded-2xl font-bold text-white text-lg disabled:opacity-40">Continuar</button>
-          ) : <button onClick={() => adicionar(true)} className="wd-primary-action w-full py-4 rounded-2xl font-bold text-white text-lg">Continuar {formatCurrency(total)}</button>}
+          {!bloqueado && !escolhendoQuantidade && <>
+          {modoSabores && saboresValidos && <p className="text-sm text-gray-600">{snapshotSabores.map(flavorLabel).join(' + ')}</p>}
+          {modoSabores && etapaLista === listasMontagem.length - 1 && <label className="block text-sm">Observação da pizza<textarea value={observacao} onChange={e => setObservacao(e.target.value)} className="w-full border rounded-lg p-2 mt-1" rows={2} placeholder="Ex.: sem cebola" /></label>}
+          <div className="flex justify-between items-center"><button type="button" onClick={() => etapaLista > 0 ? setEtapaLista(v => v - 1) : setNumeroSabores(null)} disabled={!modoSabores && etapaLista === 0} className="text-sm underline disabled:invisible">Voltar</button><strong>{saboresValidos ? formatCurrency(total) : 'Selecione os sabores'}</strong></div>
+          {listasMontagem.length > 0 ? (
+            <button disabled={quantidadeLista < minimoLista} onClick={avancarLista} style={{background: paletaCor}} className="wd-primary-action w-full py-4 rounded-2xl font-bold text-white text-lg disabled:opacity-40">Continuar</button>
+          ) : <button onClick={() => adicionar(true)} className="wd-primary-action w-full py-4 rounded-2xl font-bold text-white text-lg">Continuar {formatCurrency(total)}</button>}</>}
         </div>
       </div>
     </>

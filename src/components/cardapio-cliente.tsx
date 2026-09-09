@@ -1,4 +1,5 @@
 'use client'
+import { createFlavorSnapshot, flavorCount } from '@/lib/flavor-pricing'
 import { normalizeCartPrices } from '@/lib/product-pricing'
 
 import { useState, useMemo, useEffect } from 'react'
@@ -145,6 +146,7 @@ interface CardapioData {
     slug: string
     telefone: string
     logo_url: string | null
+    sabores_ativo?: boolean
     banner_url: string | null
     banners: string[]
     endereco: string
@@ -192,6 +194,8 @@ function scrollToSession(id:string){const reduce=window.matchMedia('(prefers-red
 function SecondaryStrip({ data }: { data:any }){if(!data.segundaFaixa?.ativo||!data.segundaFaixa.mensagem)return null;const href=safeHttpLink(data.segundaFaixa.link);const cls="wd-secondary-strip block rounded-xl px-4 py-3 mb-4 text-center font-semibold";return href?<a href={href} className={cls}>{data.segundaFaixa.mensagem}</a>:<div className={cls}>{data.segundaFaixa.mensagem}</div>}
 
 export function CardapioCliente({ data }: { data: CardapioData }) {
+  const [carrinhoCarregadoSlug, setCarrinhoCarregadoSlug] = useState<string | null>(null)
+  const [avisoCarrinho, setAvisoCarrinho] = useState('')
   const [carrinho, setCarrinho] = useState<CartItem[]>([])
   const [carrinhoAberto, setCarrinhoAberto] = useState(false)
   const [checkoutDireto, setCheckoutDireto] = useState(false)
@@ -243,12 +247,37 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
   useEffect(() => {
     try {
       const salvo = localStorage.getItem(`delivery_carrinho_${data.tenant.slug}`)
+      if (!salvo) setCarrinho([])
       if (salvo) {
         const items = JSON.parse(salvo)
-        if (Array.isArray(items)) setCarrinho(normalizeCartPrices(items, data.produtos))
+        if (Array.isArray(items)) {
+          let removidos = 0
+          const validos = items.flatMap((item: CartItem) => {
+            const produto = data.produtos.find(p => p.id === item.produto_id)
+            const count = flavorCount(item.complementos)
+            if (!produto?.sabores_grupo_id && !item.complementos?.some(c => c.tipo === 'sabor')) return [item]
+            if (!produto?.sabores_grupo_id || !data.tenant.sabores_ativo || !count || count !== item.sabores_quantidade || count > produto.sabores_maximo) { removidos++; return [] }
+            const grupo = data.listasComplementos.find(g => g.id === produto.sabores_grupo_id)
+            const atuais = item.complementos.filter(c => c.tipo === 'sabor').flatMap(c => {
+              const atual = data.complementos.find(a => a.id === c.id && a.categoria_id === produto.sabores_grupo_id && a.controlar_estoque !== true)
+              const vinculado = data.produtoComplementos.some(pc => pc.produto_id === produto.id && pc.complemento_id === c.id)
+              return atual && vinculado ? [atual] : []
+            })
+            try {
+              if (!grupo) throw new Error('Grupo indisponivel')
+              const snapshot = createFlavorSnapshot(atuais, produto.sabores_grupo_id, count)
+              const iguais = snapshot.every(c => item.complementos.some(old => old.id === c.id && old.preco_integral === c.preco_integral && old.valor === c.valor))
+              if (!iguais) throw new Error('Precos alterados')
+              return [{...item, valor_unitario: 0, variante_preco: 0}]
+            } catch { removidos++; return [] }
+          })
+          const normalizados = normalizeCartPrices(validos, data.produtos).map(item => flavorCount(item.complementos) ? {...item, valor_unitario: 0, variante_preco: 0} : item)
+          setCarrinho(normalizados)
+          if (removidos) setAvisoCarrinho('A montagem de uma pizza mudou. Selecione novamente os sabores para conferir o valor atualizado.')
+        }
       }
-    } catch { /* armazenamento indisponivel */ }
-  }, [data.tenant.slug, data.produtos])
+    } catch { setCarrinho([]) } finally { setCarrinhoCarregadoSlug(data.tenant.slug) }
+  }, [data.tenant.slug, data.tenant.sabores_ativo, data.produtos, data.complementos, data.produtoComplementos, data.listasComplementos])
 
   useEffect(() => {
     try {
@@ -266,8 +295,9 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
   }
 
   useEffect(() => {
+    if (carrinhoCarregadoSlug !== data.tenant.slug) return
     try { localStorage.setItem(`delivery_carrinho_${data.tenant.slug}`, JSON.stringify(carrinho)) } catch { /* noop */ }
-  }, [carrinho, data.tenant.slug])
+  }, [carrinho, data.tenant.slug, carrinhoCarregadoSlug])
 
   // Tracking de visita ao cardápio (1× por sessão)
   useEffect(() => {
@@ -327,12 +357,15 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
 
   // Filtro de busca
   const produtosFiltrados = useMemo(() => {
-    if (!busca.trim()) return data.produtos
     const b = busca.toLowerCase()
     return data.produtos.filter((p: any) =>
-      p.nome.toLowerCase().includes(b) || (p.descricao && p.descricao.toLowerCase().includes(b))
-    )
-  }, [data.produtos, busca])
+      (!p.sabores_grupo_id || data.tenant.sabores_ativo === true) && (p.nome.toLowerCase().includes(b) || (p.descricao && p.descricao.toLowerCase().includes(b)))
+    ).map((p: any) => {
+      if (!p.sabores_grupo_id) return p
+      const sabores = complementosPorProduto[p.id]?.filter((c: any) => c.categoria_id === p.sabores_grupo_id && c.controlar_estoque !== true) || []
+      return {...p, preco: sabores.length ? Math.min(...sabores.map((c: any) => Number(c.preco))) : p.preco, exibir_preco_a_partir_de: true, preco_promocional: null}
+    })
+  }, [data.produtos, data.tenant.sabores_ativo, busca, complementosPorProduto])
 
   function abrirModal(produto: any) {
     setItemEmEdicao(null)
@@ -473,11 +506,13 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         }}
       />
 
+      {avisoCarrinho && <div role="alert" className="fixed bottom-24 inset-x-4 mx-auto max-w-md z-[70] bg-amber-50 border border-amber-300 p-4 rounded-xl shadow-lg"><p>{avisoCarrinho}</p><button type="button" onClick={() => setAvisoCarrinho('')} className="font-semibold underline mt-2">Entendi</button></div>}
       <ProdutoModal
         isOpen={modalAberto}
         onClose={() => setModalAberto(false)}
         produto={produtoSelecionado}
         variantes={variantesDoProduto}
+        saboresAtivo={data.tenant.sabores_ativo === true}
         complementos={complementosDoProduto}
         listas={produtoSelecionado ? listasPorProduto[produtoSelecionado.id] || [] : []}
         onAddToCart={adicionarAoCarrinho}
@@ -868,12 +903,7 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
                       {produto.badge}
                     </span>
                   )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); }}
-                    className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-white/90 backdrop-blur flex items-center justify-center"
-                  >
-                    <span className="text-red-500">♡</span>
-                  </button>
+                  <span className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-white/90 backdrop-blur flex items-center justify-center"><span className="text-red-500">♡</span></span>
                   <div className="aspect-square bg-gray-100">
                     {produto.imagem_url ? (
                       <img src={produto.imagem_url} alt={produto.nome} className="w-full h-full object-cover" />
@@ -902,12 +932,7 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
                       )}
                     </div>
                     <div className="flex items-center justify-between">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); }}
-                        className="text-xs text-gray-400 font-medium"
-                      >
-                        Adicionar
-                      </button>
+                      <span className="text-xs text-gray-400 font-medium">Adicionar</span>
                       <span
                         className="w-7 h-7 rounded-full flex items-center justify-center text-white"
                         style={{ background: cor }}
@@ -1165,12 +1190,9 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                     )}
                   </div>
                   <div className="flex items-center justify-between">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); }}
-                      className="wd-description text-xs font-medium"
-                    >
+                    <span className="wd-description text-xs font-medium">
                       Toque para +
-                    </button>
+                    </span>
                     <span
                       className="wd-cta w-7 h-7 rounded-full flex items-center justify-center"
                     >

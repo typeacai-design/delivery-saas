@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ChefHat, Check, Bike, Home, MapPin, Receipt, MessageCircle, Package, X as XIcon, ChevronRight, Loader2 } from 'lucide-react'
 import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
+import { flavorLabel, parseComplements } from '@/lib/flavor-pricing'
+import { savedItemTotal } from '@/lib/product-pricing'
 
 type Customer = Record<string, string | undefined> & { whatsapp?: string; accessToken?: string }
-type OrderItem = { nome: string; quantidade: number; variante_nome?: string | null }
+type OrderItem = { nome: string; quantidade: number; valor_unitario: number; complementos?: unknown; variante_nome?: string | null }
 type Order = {
   id: string
   codigo?: string | null
@@ -408,9 +410,10 @@ export function CustomerOrders({
                 <div key={idx} className="text-sm border-b pb-2 last:border-0">
                   <div className="flex justify-between">
                     <span className="font-medium">{item.quantidade}× {item.nome}</span>
-                    <span className="font-semibold">{formatCurrency(Number(order.valor_total) / Math.max(totalItens, 1))}</span>
+                    <span className="font-semibold">{formatCurrency(savedItemTotal(item))}</span>
                   </div>
                   {item.variante_nome && <p className="text-xs text-gray-500">({item.variante_nome})</p>}
+                  {parseComplements(item.complementos).map((c, i) => <p key={i} className="text-xs text-gray-500">{c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}</p>)}
                 </div>
               ))}
               <div className="pt-3 border-t space-y-1 text-sm">

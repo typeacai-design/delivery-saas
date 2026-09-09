@@ -1,4 +1,6 @@
 'use client'
+
+import { flavorLabel, parseComplements } from '@/lib/flavor-pricing'
 import { savedItemTotal } from '@/lib/product-pricing'
 
 import { useEffect, useState } from 'react'
@@ -158,9 +160,7 @@ export default function PedidoClienteWrapper({
           <h2 className="font-semibold text-gray-900 mb-4">Itens do Pedido</h2>
           <div className="space-y-3">
             {(pedido.pedido_itens || []).map((item: any) => {
-              const comps = Array.isArray(item.complementos)
-                ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
-                : []
+              const comps = parseComplements(item.complementos)
               return (
                 <div key={item.id} className="border-b pb-3 last:border-0">
                   <div className="flex justify-between items-start">
@@ -178,7 +178,7 @@ export default function PedidoClienteWrapper({
                     <div className="ml-2 mt-1 space-y-0.5">
                       {comps.map((c: any, i: number) => (
                         <p key={i} className="text-xs text-gray-500">
-                          • {c.quantidade > 1 ? `${c.quantidade}x ` : ''}{c.nome}
+                          • {c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}
                         </p>
                       ))}
                     </div>

@@ -44,6 +44,8 @@ type FormState = {
   quantidade_estoque: string
   // Complementos
   complemento_ids: string[]
+  sabores_grupo_id: string
+  sabores_maximo: number
   // Matéria-prima (vinculada ao produto com qtd por unidade)
   ingredientes: Array<{ insumo_id: string; quantidade: string }>
 }
@@ -77,6 +79,8 @@ const FORM_VAZIO: FormState = {
   controlar_estoque: false,
   quantidade_estoque: '',
   complemento_ids: [],
+  sabores_grupo_id: '',
+  sabores_maximo: 2,
   ingredientes: [],
 }
 
@@ -122,6 +126,8 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
   const [form, setForm] = useState<FormState>(FORM_VAZIO)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [saboresAtivo, setSaboresAtivo] = useState(false)
+  const [dividirSabores, setDividirSabores] = useState(Boolean(produto?.sabores_grupo_id))
   const [complementos, setComplementos] = useState<any[]>([])
   const [categoriasComp, setCategoriasComp] = useState<any[]>([])
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>('')
@@ -170,6 +176,8 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
       setForm({
         ...FORM_VAZIO,
         ...produto,
+        sabores_grupo_id: produto.sabores_grupo_id || "",
+        sabores_maximo: produto.sabores_maximo || 2,
         preco: produto.preco != null ? String(produto.preco) : '',
         exibir_preco_a_partir_de: produto.exibir_preco_a_partir_de === true,
         preco_riscado: produto.preco_riscado != null ? String(produto.preco_riscado) : '',
@@ -185,6 +193,10 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
       })
     }
     loadComplementos()
+    fetch('/api/configuracoes/sabores', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error()))
+      .then(data => setSaboresAtivo(data.sabores_ativo === true))
+      .catch(() => setSaboresAtivo(false))
     loadCategoriasComp()
     loadVinculos()
     carregarSlug()
@@ -197,7 +209,7 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
     if (!tenantId) return
     const { data } = await supabase
       .from('complementos')
-      .select('id, nome, preco, categoria_id')
+      .select('id, nome, preco, categoria_id, controlar_estoque')
       .eq('tenant_id', tenantId)
       .eq('ativo', true)
       .order('nome')
@@ -227,6 +239,15 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
   }
 
   const salvar = async () => {
+    const sabores = complementos.filter(c => c.categoria_id === form.sabores_grupo_id)
+    if (dividirSabores && (!form.sabores_grupo_id || sabores.length < form.sabores_maximo)) {
+      setErro('Escolha uma lista com ao menos o limite de sabores ativos configurado.')
+      return
+    }
+    if (dividirSabores && sabores.some(c => c.controlar_estoque)) {
+      setErro('A lista de sabores não pode conter itens com controle de estoque nesta versão.')
+      return
+    }
     if (!form.nome.trim() || !form.preco || !form.categoria_id) {
       setErro('Preencha nome, preço e categoria.')
       return
@@ -283,6 +304,8 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
       limite_vendas_turno: intOrZero(form.limite_vendas_turno),
       controlar_estoque: form.controlar_estoque,
       quantidade_estoque: intOrZero(form.quantidade_estoque),
+      sabores_grupo_id: dividirSabores ? form.sabores_grupo_id : null,
+      sabores_maximo: form.sabores_maximo === 3 ? 3 : 2,
     }
 
     let produtoId = produto?.id
@@ -321,8 +344,10 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
         return
       }
       const atuais = new Set((vinculosAtuais || []).map((v: any) => v.complemento_id))
-      const desejados = new Set(form.complemento_ids)
-      const adicionar = form.complemento_ids.filter((id) => !atuais.has(id))
+      const mudouListaSabores = dividirSabores && produto?.sabores_grupo_id && produto.sabores_grupo_id !== form.sabores_grupo_id
+      const idsAnteriores = new Set(complementos.filter(c => mudouListaSabores && c.categoria_id === produto.sabores_grupo_id).map(c => c.id))
+      const desejados = new Set([...form.complemento_ids.filter(id => !idsAnteriores.has(id)), ...(dividirSabores ? sabores.map(c => c.id as string) : [])])
+      const adicionar = [...desejados].filter((id) => !atuais.has(id))
       const remover = [...atuais].filter((id) => !desejados.has(id))
 
       if (adicionar.length > 0) {
@@ -725,6 +750,32 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
           </CardSection>
 
           {/* ====== CARD 10: Complementos ====== */}
+          <CardSection title="Divisão em sabores" icon={Layers}>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={dividirSabores} disabled={!saboresAtivo && !dividirSabores}
+                onChange={e => setDividirSabores(e.target.checked)} />
+              Permitir escolher mais de um sabor neste produto
+            </label>
+            {!saboresAtivo && <p className="text-sm text-amber-700 mt-3">Ative em Configurações → Sabores. Produtos configurados ficam indisponíveis para novas vendas enquanto a função da loja estiver desligada.</p>}
+            {dividirSabores && <div className="mt-4 space-y-3">
+              <Field label="Lista de sabores">
+                <select className="form-input" value={form.sabores_grupo_id || ''} onChange={e => setForm(f => ({ ...f, sabores_grupo_id: e.target.value }))}>
+                  <option value="">Selecione uma lista de complementos</option>
+                  {categoriasComp.map(cat => <option key={cat.id} value={cat.id}>{cat.nome}</option>)}
+                </select>
+              </Field>
+              {produto?.sabores_grupo_id && produto.sabores_grupo_id !== form.sabores_grupo_id && <p className="text-sm text-amber-700">Ao trocar a lista, os vínculos da lista anterior de sabores serão substituídos. Outros adicionais serão preservados.</p>}
+              <Field label="Quantidade máxima de sabores">
+                <select className="form-input" value={form.sabores_maximo || 2} onChange={e => setForm(f => ({ ...f, sabores_maximo: Number(e.target.value) }))}>
+                  <option value={2}>Até 2 sabores</option><option value={3}>Até 3 sabores</option>
+                </select>
+              </Field>
+              <p className="text-sm text-gray-600">Cadastre em Complementos o preço da pizza inteira de cada sabor para este tamanho. Todos os sabores ativos desta lista serão vinculados ao salvar. O cliente escolhe primeiro a quantidade e depois os sabores.</p>
+              <p className="text-sm text-gray-600">O preço da pizza será a média dos sabores escolhidos; o preço base deste produto não será somado. Bordas e outros adicionais continuam cobrados integralmente. Use listas diferentes quando os tamanhos tiverem preços diferentes.</p>
+              <div className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900">Exemplo: (R$ 30,00 + R$ 36,00) ÷ 2 sabores = R$ 33,00. Produtos com variações e sabores com estoque controlado não são compatíveis nesta versão.</div>
+            </div>}
+            {!dividirSabores && produto?.sabores_grupo_id && <p className="text-sm text-amber-700 mt-3">Ao salvar sem divisão, este produto voltará ao preço base mais a soma dos complementos vinculados. Revise os preços e vínculos antes de salvar. Pedidos existentes permanecem como foram vendidos.</p>}
+          </CardSection>
           <CardSection title="Complementos vinculados" icon={Layers}>
             <p className="text-sm text-gray-500 mb-3 -mt-1">
               Clique em uma lista para vincular todos os complementos de uma vez, ou selecione individualmente.

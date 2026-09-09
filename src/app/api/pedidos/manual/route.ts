@@ -1,3 +1,4 @@
+import { FlavorValidationError, normalizeManualFlavorItems, manualFlavorTotals } from '@/lib/flavor-order-server'
 import { removeReferenceCharges } from '@/lib/product-pricing'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
@@ -55,15 +56,26 @@ export async function POST(request: Request) {
     if (itens.some((item: any) => !priceProducts?.some(product => product.id === item.produto_id))) {
       return NextResponse.json({ error: 'Produto indisponivel nesta loja' }, { status: 400 })
     }
-    const pricing = removeReferenceCharges(itens, priceProducts || [])
-    const subtotalCorrigido = Math.max(0, Math.round((Number(valor_subtotal || 0) - pricing.removed) * 100) / 100)
-    const totalCorrigido = Math.max(0, Math.round((Number(valor_total || 0) - pricing.removed) * 100) / 100)
+    const referencePricing = removeReferenceCharges(itens, priceProducts || [])
+    const flavorPricing = await normalizeManualFlavorItems(admin, auth.tenantId!, referencePricing.items)
+    const pricing = { items: flavorPricing.items, removed: referencePricing.removed - flavorPricing.adjustment }
+    const flavorTotals = flavorPricing.hasFlavors ? manualFlavorTotals(pricing.items, body) : null
+    const subtotalCorrigido = flavorTotals?.subtotal ?? Math.max(0, Math.round((Number(valor_subtotal || 0) - pricing.removed) * 100) / 100)
+    const totalCorrigido = flavorTotals?.total ?? Math.max(0, Math.round((Number(valor_total || 0) - pricing.removed) * 100) / 100)
 
 
     // Criar pedido (service_role bypassa RLS)
-    const { data: pedido, error: pedidoError } = await admin
-      .from('pedidos')
-      .insert({
+    const itensParaInserir = pricing.items.map((item: any) => ({
+      produto_id: item.produto_id,
+      nome: item.nome,
+      quantidade: item.quantidade,
+      valor_unitario: item.valor_unitario,
+      complementos: item.complementos || [],
+      observacao: item.observacao || null,
+      pontos: item.pontos || 0,
+    }))
+    const { data: pedido, error: pedidoError } = await admin.rpc('criar_pedido_manual_atomico', {
+      p_tenant_id: auth.tenantId, p_pedido: {
         tenant_id: auth.tenantId,
         cliente_id: cliente_id || null,
         cliente_nome: cliente_nome || 'Cliente',
@@ -83,43 +95,17 @@ export async function POST(request: Request) {
         endereco_entrega: endereco || null,
         numero_entrega: numero || null,
         complemento_entrega: complemento || null,
-      })
-      .select()
-      .single()
+      }, p_itens: itensParaInserir,
+    })
+    if (pedidoError || !pedido) throw new Error('Nao foi possivel salvar o pedido. Nenhum item foi gravado.')
 
-    if (pedidoError) {
-      console.error('pedido insert error:', pedidoError)
-      return NextResponse.json({ error: pedidoError.message }, { status: 500 })
-    }
-
-    // Criar itens do pedido
-    const itensParaInserir = pricing.items.map((item: any) => ({
-      pedido_id: pedido.id,
-      produto_id: item.produto_id,
-      nome: item.nome,
-      quantidade: item.quantidade,
-      valor_unitario: item.valor_unitario,
-      complementos: item.complementos || [],
-      observacao: item.observacao || null,
-      pontos: item.pontos || 0,
-    }))
-
-    const { error: itensError } = await admin
-      .from('pedido_itens')
-      .insert(itensParaInserir)
-
-    if (itensError) {
-      // Rollback: deletar pedido criado
-      await admin.from('pedidos').delete().eq('id', pedido.id)
-      console.error('itens insert error:', itensError)
-      return NextResponse.json({ error: itensError.message }, { status: 500 })
-    }
 
     return NextResponse.json({
       ...pedido,
       itens: itensParaInserir,
     })
   } catch (error: any) {
+    if (error instanceof FlavorValidationError) return NextResponse.json({ error: error.message }, { status: 400 })
     console.error('pedido_manual_error:', error)
     return NextResponse.json({ error: error.message || 'Erro ao criar pedido' }, { status: 500 })
   }

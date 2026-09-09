@@ -10,6 +10,8 @@ import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import { gerarMensagemWhatsApp, formatarFormaPagamentoDisplay, normalizarFormaPagamento } from '@/lib/whatsapp/template'
 import { useToast } from '@/components/toast'
+import { flavorLabel, parseComplements, flavorCount } from '@/lib/flavor-pricing'
+import { ProdutoModal } from '@/components/checkout-flow'
 
 // Componente de alerta de tempo
 function TempoAlerta({ dataCriacao, tempoEstimadoMin }: { dataCriacao: string; tempoEstimadoMin?: number }) {
@@ -164,27 +166,41 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
   const [showProdutos, setShowProdutos] = useState(false)
   const [showComps, setShowComps] = useState(false)
   const [busca, setBusca] = useState('')
+  const [saboresAtivo, setSaboresAtivo] = useState(false)
+  const [listas, setListas] = useState<any[]>([])
+  const [vinculos, setVinculos] = useState<any[]>([])
+  const [produtoSabores, setProdutoSabores] = useState<any>(null)
+  const [erroSabores, setErroSabores] = useState('')
 
   useEffect(() => {
     const carregar = async () => {
-      const { data: prods } = await supabase.from('produtos').select('id, nome, preco, imagem_url, categoria_id, ativo, exibir_preco_a_partir_de').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
+      const { data: prods } = await supabase.from('produtos').select('id, nome, preco, imagem_url, categoria_id, ativo, exibir_preco_a_partir_de, sabores_grupo_id, sabores_maximo').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
       setProdutos(prods || [])
       const { data: comps } = await supabase.from('complementos').select('id, nome, preco, ativo, categoria_id').eq('tenant_id', tenantId).eq('ativo', true).order('nome')
       setComplementosDb(comps || [])
+      const [{ data: grupos }, { data: links }, configResponse] = await Promise.all([
+        supabase.from('categorias_complementos').select('*').eq('tenant_id', tenantId).eq('ativo', true),
+        supabase.from('produto_complementos').select('produto_id, complemento_id').in('produto_id', (prods || []).map(p => p.id)),
+        fetch('/api/configuracoes/sabores', { cache: 'no-store' }),
+      ])
+      setListas(grupos || []); setVinculos(links || [])
+      if (configResponse.ok) setSaboresAtivo((await configResponse.json()).sabores_ativo === true)
     }
     carregar()
   }, [tenantId])
 
   const selecionarProduto = (prod: any) => {
-    onChange(idx, { ...item, produto_id: prod.id, nome: prod.nome, valor_unitario: chargedProductBase(prod) })
+    if (prod.sabores_grupo_id) {
+      if (!saboresAtivo) { setErroSabores('Divisão em sabores indisponível para novas vendas nesta loja.'); return }
+      setProdutoSabores(prod); setShowProdutos(false); setBusca(''); return
+    }
+    onChange(idx, { ...item, produto_id: prod.id, nome: prod.nome, valor_unitario: chargedProductBase(prod), complementos: [], variante_id: null, variante_nome: null, sabores_quantidade: undefined })
     setShowProdutos(false)
     setBusca('')
   }
 
   const toggleComplemento = (comp: any) => {
-    const compsAtuais = Array.isArray(item.complementos)
-      ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
-      : []
+    const compsAtuais = parseComplements(item.complementos)
     const existe = compsAtuais.find((c: any) => c.id === comp.id)
     let novos: any[]
     if (existe) {
@@ -196,9 +212,7 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
   }
 
   const alterarQtdComplemento = (compId: string, delta: number) => {
-    const compsAtuais = Array.isArray(item.complementos)
-      ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
-      : []
+    const compsAtuais = parseComplements(item.complementos)
     const novos = compsAtuais.map((c: any) =>
       c.id === compId ? { ...c, quantidade: Math.max(1, (c.quantidade || 1) + delta) } : c
     )
@@ -206,12 +220,18 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
   }
 
   const produtosFiltrados = produtos.filter((p) =>
-    !busca || p.nome.toLowerCase().includes(busca.toLowerCase())
+    (!p.sabores_grupo_id || saboresAtivo) && (!busca || p.nome.toLowerCase().includes(busca.toLowerCase()))
   )
 
-  const compsAtuais = Array.isArray(item.complementos)
-    ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
-    : []
+  const compsAtuais = parseComplements(item.complementos)
+  const temSabores = Boolean(flavorCount(compsAtuais))
+  const produtoAtual = produtos.find(p => p.id === item.produto_id)
+  const compsModal = produtoSabores ? complementosDb.filter(c => vinculos.some(v => v.produto_id === produtoSabores.id && v.complemento_id === c.id)) : []
+  const listasModal = listas.map(l => ({ ...l, complementos: compsModal.filter(c => c.categoria_id === l.id) })).filter(l => l.complementos.length)
+  const aplicarSabores = (novo: any) => {
+    onChange(idx, { ...item, ...novo, id: item.id })
+    setProdutoSabores(null); setErroSabores('')
+  }
 
   return (
     <div className="bg-gray-50 p-3 rounded-lg space-y-2">
@@ -276,6 +296,7 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
           step="0.01"
           className="form-input text-sm w-24"
           value={item.valor_unitario || 0}
+          disabled={temSabores}
           onChange={(e) => onChange(idx, { ...item, valor_unitario: Number(e.target.value) || 0 })}
           title="Valor unitário"
         />
@@ -290,16 +311,28 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
         </button>
       </div>
 
+      {erroSabores && <p role="alert" className="text-xs text-red-700">{erroSabores}</p>}
+      {temSabores && <div className="text-xs space-y-2">
+        <p>Sabores e preços preservados conforme o pedido original. Alterar a composição utiliza os preços atuais.</p>
+        <button type="button" className="text-blue-700 underline" disabled={!saboresAtivo || !produtoAtual?.sabores_grupo_id}
+          onClick={() => setProdutoSabores(produtoAtual)}>Alterar sabores e adicionais</button>
+        {(!saboresAtivo || !produtoAtual?.sabores_grupo_id) && <p>A composição está preservada; este produto não está disponível para uma nova seleção de sabores.</p>}
+      </div>}
+      {produtoSabores && <ProdutoModal isOpen onClose={() => setProdutoSabores(null)} produto={produtoSabores}
+        variantes={[]} complementos={compsModal} listas={listasModal} saboresAtivo={saboresAtivo}
+        paletaCor="#16a34a" onAddToCart={aplicarSabores} onReplaceItem={(_id, novo) => aplicarSabores(novo)}
+        initialItem={item.produto_id === produtoSabores.id ? { ...item, id: item.id || 'editing', complementos: compsAtuais, sabores_quantidade: flavorCount(compsAtuais) } : undefined} />}
       {/* COMPLEMENTOS */}
       <div className="ml-2">
         <button
           type="button"
+          disabled={temSabores}
           onClick={() => setShowComps(!showComps)}
           className="text-xs text-blue-600 hover:underline flex items-center gap-1"
         >
           {showComps ? '▲ Ocultar' : '▼ Adicionar'} complementos ({compsAtuais.length})
         </button>
-        {showComps && (
+        {showComps && !temSabores && (
           <div className="mt-1 p-2 bg-white border rounded-lg max-h-40 overflow-y-auto">
             {complementosDb.length === 0 ? (
               <p className="text-xs text-gray-500">Nenhum complemento cadastrado</p>
@@ -334,7 +367,7 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
         {compsAtuais.length > 0 && (
           <div className="text-xs text-gray-500 mt-1">
             {compsAtuais.map((c: any) => (
-              <span key={c.id} className="mr-2">+{c.quantidade}x {c.nome}</span>
+              <span key={c.id} className="mr-2">{c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}</span>
             ))}
           </div>
         )}
@@ -379,9 +412,7 @@ function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compact
       <p className="text-xs font-medium text-gray-500 mb-1">🛒 ITENS ({itens.length}):</p>
       <div className="space-y-1">
         {itensVisiveis.map((item) => {
-          const comps = Array.isArray(item.complementos)
-            ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
-            : []
+          const comps = parseComplements(item.complementos)
           return (
             <div key={item.id} className="text-xs">
               <div className="flex justify-between gap-1">
@@ -392,7 +423,7 @@ function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compact
                 <div className="ml-2 text-gray-600 text-xs font-medium">
                   {comps.map((c: any, i: number) => (
                     <div key={i} className="flex justify-between gap-4">
-                      <span>+ {c.quantidade > 1 ? `${c.quantidade}x` : ''} {c.nome}</span>
+                      <span>{c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}</span>
                       <span className="whitespace-nowrap">{formatCurrency(c.valor * (c.quantidade || 1))}</span>
                     </div>
                   ))}
@@ -731,9 +762,7 @@ export default function PedidosPage() {
           quantidade: it.quantidade,
           valor_unitario: Number(it.valor_unitario) || 0,
           variante_nome: it.variante_nome,
-          complementos: Array.isArray(it.complementos)
-            ? (typeof it.complementos === 'string' ? JSON.parse(it.complementos) : it.complementos)
-            : [],
+          complementos: parseComplements(it.complementos),
           observacao: it.observacao,
         })),
         subtotal: pedido.valor_subtotal || (pedido.valor_total - (pedido.taxa_entrega || 0)),
@@ -775,9 +804,7 @@ export default function PedidosPage() {
 
     // Gerar HTML dos itens com complementos
     const itensHtml = itensDoPedido.map((i: any) => {
-      const comps = Array.isArray(i.complementos)
-        ? (typeof i.complementos === 'string' ? JSON.parse(i.complementos) : i.complementos)
-        : []
+      const comps = parseComplements(i.complementos)
 
       let html = `<tr><td><strong>${i.quantidade}x ${i.nome}</strong>`
       if (i.variante_nome) html += ` (${i.variante_nome})`
@@ -786,7 +813,7 @@ export default function PedidosPage() {
       // Complementos
       comps.forEach((c: any) => {
         const compValor = (c.valor || 0) * (c.quantidade || 1)
-        html += `<tr><td style="padding-left:15px;color:#666;font-size:11px">+ ${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}</td><td style="text-align:right;color:#666;font-size:11px">R$ ${compValor.toFixed(2)}</td></tr>`
+        html += `<tr><td style="padding-left:15px;color:#666;font-size:11px">${c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}</td><td style="text-align:right;color:#666;font-size:11px">R$ ${compValor.toFixed(2)}</td></tr>`
       })
 
       return html
@@ -1493,9 +1520,7 @@ export default function PedidosPage() {
                   ) : (
                     <div className="space-y-3">
                       {itensDoCard.map((item: any) => {
-                        const comps = Array.isArray(item.complementos)
-                          ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
-                          : []
+                        const comps = parseComplements(item.complementos)
                         return (
                           <div key={item.id}>
                             <div className="flex justify-between gap-3 text-[14px] font-medium" style={{ color: '#172033' }}>
@@ -1507,7 +1532,7 @@ export default function PedidosPage() {
                                 {comps.map((c: any, i: number) => (
                                   <div key={i} className="flex justify-between gap-3 text-xs" style={{ color: '#697386' }}>
                                     <span className="truncate">
-                                      {c.quantidade > 1 ? `${c.quantidade}x ` : ''}{c.nome}
+                                      {c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}
                                     </span>
                                     <span className="whitespace-nowrap">{formatCurrency((c.valor || 0) * (c.quantidade || 1))}</span>
                                   </div>
@@ -1749,7 +1774,7 @@ export default function PedidosPage() {
                         {item.quantidade}x {item.nome}
                         {item.variante_nome && <span className="text-gray-500"> ({item.variante_nome})</span>}
                         {item.complementos && item.complementos.length > 0 && (
-                          <span className="text-gray-500"> + {JSON.parse(item.complementos).length} complementos</span>
+                          <span className="text-gray-500"> + {parseComplements(item.complementos).map(flavorLabel).join(', ')}</span>
                         )}
                       </span>
                       <span className="font-medium">{formatCurrency(savedItemTotal(item))}</span>
@@ -2289,9 +2314,7 @@ export default function PedidosPage() {
                 <div className="mt-3 pt-3 border-t">
                   {(() => {
                     const subtotal = itensEditando.reduce((acc, i) => {
-                      const compTotal = (Array.isArray(i.complementos)
-                        ? (typeof i.complementos === 'string' ? JSON.parse(i.complementos) : i.complementos)
-                        : []
+                      const compTotal = (parseComplements(i.complementos)
                       ).reduce((s: number, c: any) => s + (Number(c.valor) || 0) * (Number(c.quantidade) || 1), 0)
                       return acc + ((Number(i.valor_unitario) || 0) + compTotal) * (Number(i.quantidade) || 1)
                     }, 0)

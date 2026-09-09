@@ -1,3 +1,5 @@
+import { FlavorValidationError, validateFlavorItem } from '@/lib/flavor-order-server'
+import { savedItemTotal } from '@/lib/product-pricing'
 import { chargedProductBase } from '@/lib/product-pricing'
 import { NextResponse as NextResponseBase } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
@@ -114,7 +116,7 @@ export async function POST(request: Request) {
     // 1) Valida tenant
     const { data: tenant, error: tenantErr } = await admin
       .from('tenants')
-      .select('id, status, config, slug, latitude, longitude')
+      .select('id, status, config, slug, latitude, longitude, sabores_ativo')
       .eq('slug', tenant_slug)
       .single()
 
@@ -144,7 +146,7 @@ export async function POST(request: Request) {
     // 3) Valor mínimo
     // Reconstroi precos e vinculos no servidor; valores do navegador nao sao confiaveis.
     const produtoIdsValidacao = [...new Set(itens.map((i: any) => i.produto_id).filter(Boolean))] as string[]
-    const { data: produtosDb } = await admin.from('produtos').select('id,nome,preco,ativo,exibir_preco_a_partir_de').eq('tenant_id', tenant.id).in('id', produtoIdsValidacao)
+    const { data: produtosDb } = await admin.from('produtos').select('id,nome,preco,ativo,exibir_preco_a_partir_de,sabores_grupo_id,sabores_maximo').eq('tenant_id', tenant.id).in('id', produtoIdsValidacao)
     if (!produtosDb || produtosDb.length !== produtoIdsValidacao.length || produtosDb.some((p: any) => !p.ativo)) return NextResponse.json({ error: 'Produto indisponivel' }, { status: 400 })
     const varianteIds = itens.map((i: any) => i.variante_id).filter(Boolean)
     const complementoIds = itens.flatMap((i: any) => (i.complementos || []).map((c: any) => c.id)).filter(Boolean)
@@ -152,7 +154,7 @@ export async function POST(request: Request) {
       varianteIds.length ? admin.from('variantes').select('id,produto_id,nome,preco_adicional').in('id', varianteIds) : Promise.resolve({ data: [] }),
       complementoIds.length ? admin.from('complementos').select('id,nome,preco,ativo,categoria_id,qtd_max,controlar_estoque,quantidade_estoque').eq('tenant_id', tenant.id).in('id', complementoIds) : Promise.resolve({ data: [] }),
       admin.from('produto_complementos').select('produto_id,complemento_id').in('produto_id', produtoIdsValidacao),
-      admin.from('categorias_complementos').select('id,qtd_minima,qtd_maxima,max_selecoes,obrigatorio').eq('tenant_id', tenant.id).eq('ativo', true),
+      admin.from('categorias_complementos').select('id,qtd_minima,qtd_maxima').eq('tenant_id', tenant.id).eq('ativo', true),
     ])
     const todosComplementoIds = (vinculosDb || []).map((v: any) => v.complemento_id)
     const { data: categoriasDosComplementos } = todosComplementoIds.length
@@ -170,6 +172,12 @@ export async function POST(request: Request) {
     let subtotalCalculado = 0
     for (const item of itens) {
       const produto: any = produtosMap.get(item.produto_id)
+      const flavorItem = await validateFlavorItem(admin, tenant.id, tenant.sabores_ativo === true, produto, item)
+      if (flavorItem) {
+        itensValidados.push({ ...flavorItem, observacao: String(item.observacao || '').slice(0, 500) || null })
+        subtotalCalculado += savedItemTotal(flavorItem)
+        continue
+      }
       const quantidade = Math.max(1, Math.min(99, Number(item.quantidade) || 1))
       const variante: any = item.variante_id ? variantesMap.get(item.variante_id) : null
       if (item.variante_id && (!variante || variante.produto_id !== produto.id)) return NextResponse.json({ error: 'Variacao invalida' }, { status: 400 })
@@ -376,6 +384,7 @@ export async function POST(request: Request) {
       cliente_whatsapp: whatsappLimpo,
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error: any) {
+    if (error instanceof FlavorValidationError) return NextResponse.json({ error: error.message }, { status: 400 })
     console.error('Erro ao criar pedido público:', error)
     return NextResponse.json({ error: error.message || 'Erro ao criar pedido' }, { status: 500 })
   }
