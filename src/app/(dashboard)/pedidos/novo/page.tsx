@@ -875,7 +875,7 @@ export default function NovoPedidoPage() {
           data_nascimento: null,
           endereco: endereco || null,
           bairro: bairroSelecionado?.bairro || null,
-          numero: numero || null,
+          // Coluna 'numero' não existe em clientes — vai em 'endereco' ou 'observacoes'
         })
         .select()
         .single()
@@ -976,7 +976,7 @@ export default function NovoPedidoPage() {
             data_nascimento: null,
             endereco: endereco || null,
             bairro: bairroSelecionado?.bairro || null,
-            numero: numero || null,
+            // Coluna 'numero' não existe em clientes
           })
           .select()
           .single()
