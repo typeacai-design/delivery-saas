@@ -22,8 +22,19 @@ The explicit produtos.exibir_preco_a_partir_de flag now makes the product price 
 - Local browser used the existing catalog with all non-GET/HEAD requests blocked. Espaguete Pequeno + Espaguete de Frango displays R$27.00, not R$54.00; stale local cart base is removed on reload. Screenshots in artifacts/preco-a-partir/.
 - Local build/runtime must load environment from C:/Users/ranie/.claude/PROJETOS/delivery-saas/.env.local into process memory. The active source checkout and linked worktree .env.local contain only a Vercel OIDC token. Never print or commit environment values.
 
-## Publication pending explicit approval
-Automatic approval review rejected vercel deploy --yes as external publication of private source requiring explicit user authorization. No preview or production deployment occurred. Do not bypass that rejection. Obtain approval for preview to the existing delivery-saas1/delivery-saas Vercel project and production promotion on wedelivery.site after preview validation. Current production is dpl_8ESRAiBYKZAqA7vTEyvF5ozpKcji (delivery-saas-igkexnbcy-delivery-saas1.vercel.app); reconfirm before publishing.
+## Publication completed - 2026-09-09
+The user explicitly authorized deployment to Vercel/production and any necessary Supabase work. The earlier approval rejection was resolved by that authorization.
+
+- Published code commit: f16b5ba (on production baseline 4aaafe6).
+- Preview build: dpl_2XvVVioVp5dESaSB6ztyvzXq1HRP, READY. Preview environment lacks the service-role key, so runtime validation used a staged production build instead of changing shared environment permissions.
+- Staged production: dpl_7NehPjynkyVYmZKKN5NCiSvTXESi, https://delivery-saas-6ywo5gv2e-delivery-saas1.vercel.app, built with --prod --skip-domain and verified using the existing Vercel deployment access credential.
+- Promoted that exact build with vercel promote. The wedelivery.site alias was confirmed to point to dpl_7NehPjynkyVYmZKKN5NCiSvTXESi.
+- Vercel build and TypeScript passed, 96 pages.
+- Public HTTP checks passed for /, /login, /cozinhadacris and /typeacai.
+- Browser checks on staged production and wedelivery.site confirmed Espaguete Pequeno + Espaguete de Frango = R$27.00. Public-domain verification passed at 390px and 1280px widths. Browser writes were blocked; no real orders were submitted.
+- Screenshots: artifacts/preco-a-partir/vercel-staged-mobile.png and producao-390.png / producao-1280.png in the isolated worktree.
+- No database migration, catalog edit or existing order update was required.
+- Previous production available for rollback: dpl_8ESRAiBYKZAqA7vTEyvF5ozpKcji.
 
 ## Boundaries
 Pizza flavor averaging is not implemented. Existing order records/catalog prices were not changed. Full authenticated manual-order browser checkout was not exercised against live customers; no real orders were submitted. Broader pre-existing manual pricing/transaction behavior is not redesigned by this patch.

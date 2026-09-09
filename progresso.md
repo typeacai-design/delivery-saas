@@ -51,4 +51,4 @@ Este arquivo registra o estado do código. Ele não afirma que mudanças locais 
 
 ## 2026-09-09 - Reference-price correction
 
-Fix prepared and tested on production baseline 4aaafe6 in branch fix/preco-a-partir-de. Publication pending explicit approval after automatic review rejection. See docs/sessions/2026-09/2026-09-09-preco-a-partir-de.md.
+Fix deployed after explicit authorization: wedelivery.site now uses dpl_7NehPjynkyVYmZKKN5NCiSvTXESi (code f16b5ba, baseline 4aaafe6). Verified on mobile and desktop; no database changes. See docs/sessions/2026-09/2026-09-09-preco-a-partir-de.md.
