@@ -656,3 +656,8 @@ vercel logs --since 1h
 
 
 Evidencias visuais da correcao anterior de preco: `.local-validation/preco-a-partir/` (sete PNGs preservados do worktree de correcao). Resultados sinteticos de sabores: `.local-validation/flavor-ui/` e `.local-validation/flavor-admin/`.
+
+
+## Correção do link de acompanhamento - 09/09/2026
+
+Links novos enviados pelo WhatsApp usam o UUID único do pedido na rota /pedido/[id]. O código visível continua no texto da mensagem. Isso evita a falha causada por códigos iguais entre lojas. A versão foi publicada no deployment dpl_EDgqa5UcRKiD46mByAS4nqYbjVYj e o link UUID foi verificado em produção com HTTP 200. Links antigos que usam somente código podem continuar ambíguos; a confirmação deve ser reenviada para gerar o novo link seguro.
