@@ -71,9 +71,9 @@ export function gerarMensagemWhatsApp(d: DadosPedido): string {
   // Link aponta para /pedido/[codigo] - rota dedicada que funciona SEM precisar de
   // localStorage/token (util quando cliente abre link no WhatsApp Web no celular)
   // Usa traco (-) no lugar de barra (/) para evitar problemas de roteamento
-  const codigoParaUrl = (d.pedidoCodigo || d.pedidoId).replace(/\//g, '-')
+  const identificadorParaUrl = encodeURIComponent(d.pedidoId)
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://wedelivery.site'
-  const linkPedido = `${baseUrl}/pedido/${codigoParaUrl}`
+  const linkPedido = `${baseUrl}/pedido/${identificadorParaUrl}`
 
   let texto = `🛒 *PEDIDO - ${d.tenantNome}*\n`
   texto += `📋 *#${codigoExibir}*\n`
