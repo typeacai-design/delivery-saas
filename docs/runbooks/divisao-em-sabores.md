@@ -2,7 +2,7 @@
 
 ## Para o lojista
 
-**Migração 084 aplicada e verificada via API; publicação da interface ainda pendente de confirmação.** A configuração passa a ficar inteiramente no popup de cadastro/edição do produto. A aba Sabores em Configurações foi removida nessa revisão. Na versão inicial 083, a ativação separada da loja era necessária; essa instrução foi substituída pelo fluxo abaixo.
+**Migração 084 e interface publicadas, verificadas via API/HTTP.** A configuração passa a ficar inteiramente no popup de cadastro/edição do produto. A aba Sabores em Configurações foi removida nessa revisão. Na versão inicial 083, a ativação separada da loja era necessária; essa instrução foi substituída pelo fluxo abaixo.
 
 A função continua opcional por produto. Marcar a opção e cancelar não grava nada. Ao salvar validamente um produto configurado, o banco habilita o suporte técnico de sabores somente para a loja desse produto, na mesma transação. Nenhum outro produto é convertido e não há ativação em massa de lojas.
 
@@ -54,7 +54,7 @@ No cardápio, o preço “a partir de” da pizza configurada vem do menor preç
 
 A migração `supabase/migrations/083_divisao_sabores.sql` adiciona configuração opt-in e proteções. `tenants.sabores_ativo` inicia `false`; `produtos.sabores_grupo_id` inicia vazio, com `sabores_maximo` limitado a 2/3 quando configurado. Sabores permanecem em `complementos`, ligados pelo cadastro existente. O pedido guarda a composição no JSON de complementos; não depende do cadastro atual para renderizar o histórico.
 
-A migração `supabase/migrations/084_sabores_ativacao_no_produto.sql` acrescenta ativação transacional da flag técnica ao salvar um produto com sabores. Mantém as validações 083, permissões e limites; o endpoint de leitura da flag continua disponível para os fluxos de pedidos. Não cria conversões em massa. A aplicação 084 foi verificada com hashes das quatro tabelas preservados, trigger/função conferidos e sem fixtures persistentes; a publicação da interface deve ser confirmada no registro da liberação.
+A migração `supabase/migrations/084_sabores_ativacao_no_produto.sql` acrescenta ativação transacional da flag técnica ao salvar um produto com sabores. Mantém as validações 083, permissões e limites; o endpoint de leitura da flag continua disponível para os fluxos de pedidos. Não cria conversões em massa. A aplicação 084 foi verificada com hashes das quatro tabelas preservados, trigger/função conferidos e sem fixtures persistentes; a publicação da interface foi confirmada no [registro da liberação 084](../releases/2026-09-09-sabores-no-produto.md).
 
 O cliente envia `sabores_quantidade` de 1 a 3 por item e `quantidade` de pizzas separadamente. Cada sabor tem `quantidade: 1`, nunca `0.5` ou `0.333`. O snapshot guarda:
 
@@ -76,11 +76,11 @@ O cliente envia `sabores_quantidade` de 1 a 3 por item e `quantidade` de pizzas 
 
 ## Liberação e verificação
 
-Este documento descreve o procedimento; não afirma que o deploy foi concluído.
+Este documento descreve o procedimento e o comportamento publicado; consulte a [liberação 084](../releases/2026-09-09-sabores-no-produto.md) para as evidências finais.
 
 **Acesso operacional desta entrega:** use as APIs/CLI autorizadas. O usuário revogou o uso de seu navegador: não acesse seu Chrome, perfil ou autenticação pelo navegador. Os testes locais isolados com fixtures sintéticas não usam esse perfil e podem ser utilizados quando a verificação de código exigir. Siga [Acesso local às APIs](../ACESSO_API_LOCAL.md): o loader lê a credencial Supabase cifrada por DPAPI na pasta `.credentials` canônica, também utilizada pelas worktrees. Não copie nem imprima tokens. A Vercel utiliza o cache autenticado oficial da CLI/API.
 
-**Evidência registrada antes da publicação:** 51 testes automatizados passaram (incluindo 3 de credenciais), build com 97 rotas concluído e teste SQL da migração 083 via API concluído com rollback. O teste SQL não deixou linhas/schema temporários. Os 18 cenários de interface pública e 5 administrativos foram executados anteriormente, antes da restrição de acesso ao navegador do usuário; essas evidências não equivalem a uma verificação visual da versão publicada. A migração 083 foi aplicada via API e verificada: hashes dos dados existentes preservados, três colunas e permissões corretas, flags inicialmente desligadas. A entrega 083 foi publicada e está registrada em [liberação 083](../releases/2026-09-09-divisao-sabores.md). A migração 084 foi aplicada e verificada; a publicação da nova interface permanece pendente de confirmação nesta revisão do guia.
+**Evidência registrada antes da publicação:** 51 testes automatizados passaram (incluindo 3 de credenciais), build com 97 rotas concluído e teste SQL da migração 083 via API concluído com rollback. O teste SQL não deixou linhas/schema temporários. Os 18 cenários de interface pública e 5 administrativos foram executados anteriormente, antes da restrição de acesso ao navegador do usuário; essas evidências não equivalem a uma verificação visual da versão publicada. A migração 083 foi aplicada via API e verificada: hashes dos dados existentes preservados, três colunas e permissões corretas, flags inicialmente desligadas. A entrega 083 foi publicada e está registrada em [liberação 083](../releases/2026-09-09-divisao-sabores.md). A migração 084 foi aplicada e verificada; a nova interface está publicada no deployment `dpl_DdaU82QKSEmHvBKu9puSNqDQ9exD`, com alias `wedelivery.site` verificado em `2026-09-09T20:15:31.328Z`.
 
 1. Registre commit, versão de produção anterior na Vercel e estado do banco. Preserve pedidos e alterações locais existentes.
 2. Revise e teste a migração em ambiente isolado, incluindo permissões, gravação transacional, estoque e isolamento entre lojas. Não ative lojas ou produtos automaticamente.

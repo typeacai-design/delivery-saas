@@ -4,22 +4,22 @@ Atualizado em 09/09/2026. Este documento registra as alterações concluídas e 
 
 ## Estado atual
 
-**Sistema publicado em https://wedelivery.site.** A correção de preço “a partir de” e a funcionalidade opcional de divisão em sabores estão implementadas e publicadas. Nenhuma loja foi ativada automaticamente para sabores e nenhum produto existente foi convertido. Os pedidos e demais dados existentes foram preservados.
+**Sistema publicado em https://wedelivery.site.** Deployment atual `dpl_DdaU82QKSEmHvBKu9puSNqDQ9exD`, verificado em `2026-09-09T20:15:31.328Z`; implementação atual `e6bd94b` (configuração de sabores diretamente no produto). A correção de preço “a partir de” e a funcionalidade opcional de divisão em sabores estão implementadas e publicadas. As migrações não ativaram lojas em massa nem converteram produtos existentes; na revisão 084, o salvamento autorizado de um produto com sabores habilita tecnicamente somente sua loja. Os pedidos e demais dados existentes foram preservados.
 
 - Projeto principal para continuar o trabalho: `C:/Users/ranie/delivery-saas`, branch `main`.
 - Worktree usado na implementação: `C:/Users/ranie/we-delivery-sabores`, branch `feat/divisao-sabores`.
 - Cópia original preservada: `C:/Users/ranie/.claude/PROJETOS/delivery-saas`. Não foi sobrescrita.
-- A cópia principal foi sincronizada por fast-forward até `3cc513c`; este documento integra um commit local posterior apenas de documentação.
+- A cópia principal recebeu a entrega 083 por fast-forward até `3cc513c` e a revisão 084 no commit local `e6bd94b`; o fechamento desta publicação acrescenta somente documentação.
 
-## Revisão 084 em andamento: configuração somente no produto
+## Revisão 084 publicada: configuração somente no produto
 
-**Ainda não confirmar como publicada.** Nesta revisão local, a aba Sabores de Configurações foi removida. O lojista marca a divisão diretamente no popup do produto, escolhe a lista e o limite de dois ou três sabores e salva. O checkbox não exige uma ativação prévia da loja. Cancelar não grava alterações.
+**Publicada e verificada por HTTP/API.** Nesta revisão, a aba Sabores de Configurações foi removida. O lojista marca a divisão diretamente no popup do produto, escolhe a lista e o limite de dois ou três sabores e salva. O checkbox não exige uma ativação prévia da loja. Cancelar não grava alterações.
 
 A migração `084_sabores_ativacao_no_produto.sql` habilita o suporte técnico de sabores somente na loja do produto salvo validamente, na mesma transação. Não converte outros produtos e não faz ativação em massa. Desmarcar um produto não desliga os outros produtos da loja. Preços, limites, snapshots e as proteções 083 permanecem.
 
 O seletor de listas passa a mostrar **título — descrição interna**, com fallback para apenas título. Os IDs e títulos públicos não mudam; a descrição interna da lista não passa a ser exibida no cardápio. O endpoint de leitura da flag técnica permanece para compatibilidade com os fluxos de pedidos.
 
-Seis testes locais isolados da nova interface, 51 testes automatizados e build de 97 rotas foram aprovados. O teste SQL 084 com rollback também passou. A migração 084 foi aplicada via API e verificada em produção: hashes das quatro tabelas preservados, trigger/função conferidos, sem permissão pública de execução e sem fixtures persistentes. A publicação da nova interface ainda está pendente. Os dados de produção e publicação descritos abaixo referem-se à entrega 083 já concluída.
+Seis testes locais isolados da nova interface, 51 testes automatizados e build de 97 rotas foram aprovados. O teste SQL 084 com rollback também passou. A migração 084 foi aplicada via API e verificada em produção: hashes das quatro tabelas preservados, trigger/função conferidos, sem permissão pública de execução e sem fixtures persistentes. A nova interface foi publicada e o alias `wedelivery.site` confirmado. O smoke público sem bypass verificou oito rotas com 200, API protegida com 401 e quatorze bundles administrativos com instruções novas/descrição presentes e bloqueio/toggle antigos ausentes. Registro final: [liberação 084](docs/releases/2026-09-09-sabores-no-produto.md). O deployment anterior `dpl_3RauGZrDLUy46bZkGX54Dn5zz6fq` permanece registrado para reversão. Os dados de publicação 083 abaixo são históricos.
 
 ## 1. Correção de preço a partir de
 
@@ -62,14 +62,14 @@ Migration `supabase/migrations/083_divisao_sabores.sql` aplicada via API após t
 
 Contagens e hashes de tenants, produtos, pedidos e itens foram comparados antes/depois na mesma transação de aplicação e confirmaram preservação dos dados anteriores. Nenhum registro de teste persistiu.
 
-## Validações e publicação
+## Validações e publicação 083 (histórico)
 
 - 51 testes automatizados aprovados, incluindo regressão e credenciais locais.
 - Build de produção e TypeScript aprovados, 97 páginas.
 - 18 cenários locais da interface pública e 5 administrativos aprovados antes da proibição posterior de uso do navegador.
 - Validação final de produção em `2026-09-09T17:58:07.213Z` por HTTP/API: inicial, login e quatro URLs dos cardápios Cris/Type Açaí responderam 200; configuração de sabores respondeu 401 sem autenticação, como esperado.
 - Doze bundles publicados conferidos, contendo o fluxo e `media_v1`. Nenhum pedido real foi criado para verificar produção.
-- Deployment ativo confirmado: `dpl_3RauGZrDLUy46bZkGX54Dn5zz6fq`, alias `wedelivery.site`.
+- Deployment confirmado na entrega 083: `dpl_3RauGZrDLUy46bZkGX54Dn5zz6fq`; substituído em produção pela revisão 084 descrita acima.
 - Deployment anterior: `dpl_7NehPjynkyVYmZKKN5NCiSvTXESi`.
 
 Evidências sanitizadas selecionadas ficam em `C:/Users/ranie/delivery-saas/.local-validation/`, ignoradas pelo Git e pela Vercel. Incluem resultados do smoke SQL, baseline/aplicação/verificação da migration e smoke HTTP. A evidência original de trabalho permanece na mesma pasta relativa do worktree. Consulte o [registro definitivo da liberação](docs/releases/2026-09-09-divisao-sabores.md).
