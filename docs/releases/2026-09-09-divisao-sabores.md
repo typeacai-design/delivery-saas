@@ -45,6 +45,6 @@ Referencias: `docs/runbooks/divisao-em-sabores.md`, `docs/ACESSO_API_LOCAL.md`. 
 
 ## Estado do repositorio
 
-O codigo da implementacao e o registro desta liberacao estao versionados localmente; a copia principal sera sincronizada por fast-forward com `feat/divisao-sabores`. A publicacao Vercel foi concluida diretamente a partir do codigo validado. Nao houve push ao GitHub nesta liberacao: a revisao automatica bloqueou o envio e a confirmacao explicita solicitada ainda nao havia sido recebida no fechamento. Isso nao desfaz a publicacao Vercel nem a migration aplicada.
+O codigo da implementacao e o registro desta liberacao estao versionados localmente; a copia principal foi sincronizada por fast-forward com `feat/divisao-sabores` ate `3cc513c`. A publicacao Vercel foi concluida diretamente a partir do codigo validado. Nao houve push ao GitHub nesta liberacao: a revisao automatica bloqueou o envio e a confirmacao explicita solicitada ainda nao havia sido recebida no fechamento. Isso nao desfaz a publicacao Vercel nem a migration aplicada.
 
 Evidencia HTTP final: `.local-validation/production-smoke.json`. As evidencias locais sao ignoradas no Git/deploy; este registro conserva os resultados e identificadores necessarios para operacao.

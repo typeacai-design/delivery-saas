@@ -1,3 +1,5 @@
+> Atualizacao posterior de 09/09/2026: a divisao em sabores tambem foi implementada e publicada. As limitacoes descritas neste registro representam o estado na data da correcao de preco. Consulte [o progresso atual](../../../PROGRESSO_WE_DELIVERY.md) e [a liberacao de sabores](../../releases/2026-09-09-divisao-sabores.md).
+
 # Reference-price correction - 2026-09-09
 
 The explicit produtos.exibir_preco_a_partir_de flag now makes the product price display-only: selected complements determine the charge. Fixed-price products keep their base charge. Automatic variant-based catalog labels do not change that rule.

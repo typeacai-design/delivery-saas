@@ -1,3 +1,93 @@
+# Progresso do We Delivery
+
+Atualizado em 09/09/2026. Este documento registra as alterações concluídas e o contexto necessário para retomar o trabalho com segurança.
+
+## Estado atual
+
+**Sistema publicado em https://wedelivery.site.** A correção de preço “a partir de” e a funcionalidade opcional de divisão em sabores estão implementadas e publicadas. Nenhuma loja foi ativada automaticamente para sabores e nenhum produto existente foi convertido. Os pedidos e demais dados existentes foram preservados.
+
+- Projeto principal para continuar o trabalho: `C:/Users/ranie/delivery-saas`, branch `main`.
+- Worktree usado na implementação: `C:/Users/ranie/we-delivery-sabores`, branch `feat/divisao-sabores`.
+- Cópia original preservada: `C:/Users/ranie/.claude/PROJETOS/delivery-saas`. Não foi sobrescrita.
+- A cópia principal foi sincronizada por fast-forward até `3cc513c`; este documento integra um commit local posterior apenas de documentação.
+
+## 1. Correção de preço a partir de
+
+Identificada com o cliente Cozinha da Cris e corrigida antes da funcionalidade de sabores:
+
+- Produto com preço fixo: cobra base do produto, variação aplicável e adicionais.
+- Produto com a opção explícita “preço a partir de”: cobra somente os adicionais; o preço exibido do produto é referência e não entra novamente na cobrança.
+- Carrinhos abertos são normalizados ao recarregar; pedidos antigos não são recalculados.
+
+Implementação `f16b5ba`; registro de publicação `e36a6ef`. A verificação anterior confirmou Espaguete com Frango por R$ 27,00 sem duplicar a base. Detalhes: [registro da correção](docs/sessions/2026-09/2026-09-09-preco-a-partir-de.md).
+
+## 2. Divisão da pizza em sabores
+
+Implementação `2d46c2f`; registro da liberação `3cc513c`.
+
+O lojista ativa a função nas configurações da loja. No popup de cadastro/edição do produto, habilita divisão em sabores, escolhe uma lista existente de complementos e define o máximo de dois ou três sabores. Cada sabor continua com seu preço cadastrado na lista: o valor deve representar a pizza inteira daquele sabor e tamanho. Não é necessário repetir preços no produto ou criar listas separadas para cada quantidade de sabores. Tamanhos com preços diferentes podem usar listas diferentes.
+
+Fluxo do cliente:
+
+1. Escolhe a pizza/tamanho.
+2. Escolhe um, dois ou três sabores, conforme o limite daquele produto.
+3. Seleciona exatamente a quantidade escolhida, com sabores distintos e partes iguais.
+4. Escolhe bordas e outros adicionais comuns.
+5. Confere a composição e o total no carrinho antes de concluir.
+
+Cálculo: soma dos preços integrais dos sabores dividida pela quantidade escolhida. Essa média substitui a base do produto; demais adicionais são somados integralmente. Exemplo: Calabresa R$ 30 + Frango R$ 36 = pizza de dois sabores por R$ 33. Com Portuguesa R$ 39, os três sabores custam R$ 35. Borda de R$ 8 leva essa pizza a R$ 43.
+
+A regra é compartilhada entre cardápio e lançamento manual, com validação autoritativa no servidor. Os snapshots guardam nomes, preços integrais, frações e parcelas em centavos com versão `media_v1`. Carrinho, pedido, impressão, acompanhamento, histórico e WhatsApp exibem essa composição.
+
+## Banco de dados e proteções
+
+Migration `supabase/migrations/083_divisao_sabores.sql` aplicada via API após teste transacional com rollback:
+
+- `tenants.sabores_ativo`: `false` inicialmente.
+- `produtos.sabores_grupo_id`: `null` inicialmente.
+- `produtos.sabores_maximo`: `2` inicialmente, aceitando 2 ou 3.
+- Novas RPCs para criação manual e edição atômicas; gravação falha sem deixar pedido parcial.
+- RPC pública existente e novas RPCs restritas a `service_role`, impedindo chamadas diretas que contornem a validação dos preços.
+- Limites, vínculos e pertencimento à loja verificados no servidor.
+
+Contagens e hashes de tenants, produtos, pedidos e itens foram comparados antes/depois na mesma transação de aplicação e confirmaram preservação dos dados anteriores. Nenhum registro de teste persistiu.
+
+## Validações e publicação
+
+- 51 testes automatizados aprovados, incluindo regressão e credenciais locais.
+- Build de produção e TypeScript aprovados, 97 páginas.
+- 18 cenários locais da interface pública e 5 administrativos aprovados antes da proibição posterior de uso do navegador.
+- Validação final de produção em `2026-09-09T17:58:07.213Z` por HTTP/API: inicial, login e quatro URLs dos cardápios Cris/Type Açaí responderam 200; configuração de sabores respondeu 401 sem autenticação, como esperado.
+- Doze bundles publicados conferidos, contendo o fluxo e `media_v1`. Nenhum pedido real foi criado para verificar produção.
+- Deployment ativo confirmado: `dpl_3RauGZrDLUy46bZkGX54Dn5zz6fq`, alias `wedelivery.site`.
+- Deployment anterior: `dpl_7NehPjynkyVYmZKKN5NCiSvTXESi`.
+
+Evidências sanitizadas selecionadas ficam em `C:/Users/ranie/delivery-saas/.local-validation/`, ignoradas pelo Git e pela Vercel. Incluem resultados do smoke SQL, baseline/aplicação/verificação da migration e smoke HTTP. A evidência original de trabalho permanece na mesma pasta relativa do worktree. Consulte o [registro definitivo da liberação](docs/releases/2026-09-09-divisao-sabores.md).
+
+## Limites e operação segura
+
+- Sabores com controle de estoque não podem ser divididos; não foi introduzido consumo fracionário de estoque.
+- Produto configurado para sabores não aceita variantes: usar um produto por tamanho.
+- Aumentar quantidade de pizza histórica revalida disponibilidade/configuração, preservando o preço salvo. Se o produto controla estoque, o aumento na edição é bloqueado, com orientação para novo pedido das unidades extras.
+- Composição inalterada e dados de cliente/endereco preservam snapshots históricos. Mudança de sabores exige validação atual.
+- Ao desligar a função, produtos configurados ficam indisponíveis para novas compras; não retornam silenciosamente à soma integral.
+- Antes de restaurar código antigo, desativar explicitamente produtos configurados afetados. Apenas desligar a flag não protege o deployment anterior, que desconhece a nova regra. Não apagar colunas, snapshots ou pedidos para reverter interface.
+
+Guia de uso e contenção: [divisão em sabores](docs/runbooks/divisao-em-sabores.md).
+
+## Credenciais, restrições e pendências
+
+A credencial Supabase fica cifrada com DPAPI do usuário Windows em `C:/Users/ranie/delivery-saas/.credentials/supabase.json`. Usar `scripts/lib/local-credentials.js` por meio de `scripts/lib/supabase-management.js`; não imprimir, copiar para documentos ou commitar segredos. Orientações: [acesso por API](docs/ACESSO_API_LOCAL.md).
+
+**O usuário proibiu o acesso ao navegador pessoal.** Continuar operações autorizadas por APIs e comandos; não reutilizar sessões do navegador. As evidências anteriores de interface não autorizam novo acesso.
+
+O código e documentos estão salvos localmente e a publicação Vercel está concluída. **Não houve push ao GitHub:** a revisão automática bloqueou o envio; a autorização explícita para o destino segue pendente. O pedido de salvar progresso na pasta do projeto não autoriza esse envio externo. Não ativar lojas nem alterar produtos existentes automaticamente ao retomar.
+
+
+## Registro historico preservado
+
+O conteudo anterior a este checkpoint foi preservado integralmente abaixo. Para o estado atual, prevalecem as secoes de 09/09/2026 acima.
+
 # We Delivery - Progresso do Sistema
 
 ## Última Atualização: 07/09/2026 — correção "Pago", UI de complementos
@@ -553,3 +643,6 @@ vercel logs --since 1h
 - Fix: `ALTER TABLE cupons DROP CONSTRAINT cupons_tenant_id_codigo_key`
 - Agora só o índice parcial vigora — cupons inativos não impedem recriação
 - **Autor**: rick (feedback direto)
+
+
+Evidencias visuais da correcao anterior de preco: `.local-validation/preco-a-partir/` (sete PNGs preservados do worktree de correcao). Resultados sinteticos de sabores: `.local-validation/flavor-ui/` e `.local-validation/flavor-admin/`.

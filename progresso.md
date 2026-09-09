@@ -1,3 +1,7 @@
+## Estado atual - 2026-09-09
+
+As atualizacoes de preco a partir de e divisao em sabores foram publicadas. Consulte [PROGRESSO_WE_DELIVERY.md](PROGRESSO_WE_DELIVERY.md) para o checkpoint atual, evidencias, limites e orientacoes de retomada. Os registros historicos abaixo permanecem preservados.
+
 # Progresso do We Delivery — 2026-08-12
 
 ## Rodada integrada e publicada
