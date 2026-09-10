@@ -650,6 +650,8 @@ button.btn-primary {
 .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--line-ink), transparent); }
 
 /* === Layout helpers === */
+html, body { overflow-x: hidden; max-width: 100vw; }
+
 .app-shell {
   display: flex;
   justify-content: center;
@@ -667,6 +669,8 @@ button.btn-primary {
   display: flex;
   flex-direction: column;
   gap: 0;
+  width: 100%;
+  max-width: 100%;
 }
 @media (min-width: 1024px) {
   .app-grid {
@@ -674,9 +678,43 @@ button.btn-primary {
     gap: 1.25rem;
   }
 }
+
+/* SIDEBAR — escondido por padrão; aparece só em >=1024px. Sem hook React. */
+.app-sidebar {
+  display: none !important;
+  width: 232px;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-self: flex-start;
+  position: sticky;
+  top: 0.75rem;
+}
+@media (min-width: 1024px) {
+  .app-sidebar {
+    display: flex !important;
+  }
+}
+
+/* BOTTOM NAV — só mobile. Escondida em >=1024px. */
+.app-bottom-nav {
+  display: block;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--glass-strong);
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 1024px) {
+  .app-bottom-nav { display: none !important; }
+}
+
 .app-content {
   flex: 1;
   min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;

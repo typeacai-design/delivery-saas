@@ -16,15 +16,12 @@ import {
   Megaphone,
   CreditCard,
   Users,
-  Bike,
-  Star,
 } from 'lucide-react'
 import { SidebarNav } from '@/components/sidebar-nav'
 import ErrorBoundary from '@/components/error-boundary'
 import { createClient } from '@/lib/supabase/client'
 import GlobalSomPedidos from '@/components/global-som-pedidos'
 import { ToastProvider } from '@/components/toast'
-import { useIsMobile } from '@/hooks/use-is-mobile'
 
 export default function DashboardLayout({
   children,
@@ -36,15 +33,12 @@ export default function DashboardLayout({
   const [authChecked, setAuthChecked] = useState(false)
   const [tenant, setTenant] = useState<any>(null)
   const [role, setRole] = useState('owner')
-  const isMobile = useIsMobile(1024)
   const sair = async () => { await createClient().auth.signOut(); localStorage.removeItem('wedelivery-auth'); window.location.replace('/') }
 
   useEffect(() => {
     let active = true
     const checkAuth = async () => {
       let response: Response | null = null
-      // Aguarda a persistência do cookie após o login; evita um redirecionamento
-      // falso quando a primeira leitura ocorre antes do cookie estar disponível.
       for (let attempt = 0; attempt < 3; attempt += 1) {
         response = await fetch('/api/auth/session', { cache: 'no-store', credentials: 'include' })
         if (response.ok) break
@@ -114,9 +108,8 @@ export default function DashboardLayout({
     <div className="app-shell">
       <div className="app-shell-inner">
         <div className="app-grid">
-          {/* SIDEBAR - desktop only (hidden mobile via CSS + inline style) */}
-          {!isMobile && (
-          <aside className="w-[232px] shrink-0 flex flex-col gap-3 self-start sticky top-3">
+          {/* SIDEBAR — desktop only. Escondido por padrão via CSS; aparece só em >=1024px. */}
+          <aside className="app-sidebar">
             <div className="glass px-4 py-4 flex items-center gap-3">
               <Link href="/configuracoes?tab=perfil" aria-label="Abrir meu perfil"
                 className="size-10 rounded-2xl flex items-center justify-center text-white font-bold text-[13px] overflow-hidden"
@@ -145,10 +138,8 @@ export default function DashboardLayout({
               <span>Sair</span>
             </button>
           </aside>
-          )}
 
           <div className="app-content">
-            {/* HEADER mobile-only com busca e notificação */}
             <header className="glass px-3 sm:px-5 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4 sticky top-0 z-30 mb-2 sm:mb-3">
               <div className="lg:hidden flex items-center gap-2 shrink-0">
                 <div
@@ -182,7 +173,7 @@ export default function DashboardLayout({
         </div>
       </div>
 
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 glass border-t" style={{ borderColor: 'var(--line)' }}>
+      <nav className="app-bottom-nav">
         <div className="grid grid-cols-5 gap-1 px-2 py-2">
           {( role === 'attendant' ? navItems.filter(item => ['/dashboard','/pedidos','/clientes'].includes(item.href)) : ['kitchen', 'motoboy', 'delivery'].includes(role) ? navItems.filter(item => ['/dashboard','/pedidos'].includes(item.href)) : navItems).slice(0, 5).map((item) => (
             <Link
@@ -202,7 +193,3 @@ export default function DashboardLayout({
     </ToastProvider>
   )
 }
-
-
-
-
