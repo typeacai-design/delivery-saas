@@ -1677,27 +1677,27 @@ export default function NovoPedidoPage() {
 
       {/* Tela de Sucesso */}
       {pedidoCriado && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-strong rounded-3xl p-8 w-full max-w-lg text-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }}>
+          <div className="rounded-3xl p-8 w-full max-w-lg text-center shadow-2xl" style={{ background: '#FFFFFF' }}>
             <div className="size-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #16A34A, #22C55E)' }}>
               <Check size={36} className="text-white" />
             </div>
-            <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--ink)' }}>
+            <h2 className="text-2xl font-bold mb-2 text-gray-900">
               Pedido #{pedidoCriado.id.split('-')[0].toUpperCase()} criado!
             </h2>
-            <p className="hint mb-6">{clienteSelecionado?.nome} • {formatCurrency(pedidoCriado.valor_total)}</p>
+            <p className="text-gray-500 mb-6">{clienteSelecionado?.nome} • {formatCurrency(pedidoCriado.valor_total)}</p>
 
             {whatsappMsg && (
-              <div className="glass-soft p-4 rounded-2xl text-left mb-6" style={{ background: 'rgba(37,211,102,.06)', border: '1px solid rgba(37,211,102,.25)' }}>
-                <div className="text-xs font-semibold mb-2" style={{ color: '#25D162' }}>📱 Mensagem WhatsApp</div>
-                <pre className="text-xs whitespace-pre-wrap break-all font-mono" style={{ color: 'var(--ink-muted)', maxHeight: 200, overflowY: 'auto' }}>
+              <div className="p-4 rounded-2xl text-left mb-6" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <div className="text-xs font-semibold mb-2" style={{ color: '#16A34A' }}>📱 Mensagem WhatsApp</div>
+                <pre className="text-xs whitespace-pre-wrap break-all font-mono text-gray-700" style={{ maxHeight: 200, overflowY: 'auto' }}>
                   {whatsappMsg}
                 </pre>
               </div>
             )}
 
             <div className="flex gap-3">
-              <button onClick={copiarMsg} className="flex-1 btn-ghost justify-center">
+              <button onClick={copiarMsg} className="flex-1 px-4 py-3 rounded-2xl font-medium border border-gray-300 hover:bg-gray-50 transition">
                 📋 Copiar mensagem
               </button>
               {whatsappUrl && (
@@ -1708,7 +1708,7 @@ export default function NovoPedidoPage() {
               )}
             </div>
 
-            <button onClick={novoPedido} className="mt-4 text-sm hint hover:underline">
+            <button onClick={novoPedido} className="mt-4 text-sm text-gray-500 hover:text-gray-900 hover:underline">
               ← Lançar outro pedido
             </button>
           </div>
