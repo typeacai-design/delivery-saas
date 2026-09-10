@@ -599,7 +599,16 @@ export default function PedidosPage() {
     }
   }, [])
 
-  const loadPedidos = async () => {
+  // Backup: recarrega pedidos periodicamente (a cada 30s) para garantir que nada foi perdido
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadPedidos()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [loadPedidos])
+
+  // Carrega pedidos do servidor
+  const loadPedidos = useCallback(async () => {
     try {
       const apiRes = await fetch('/api/pedidos/list', { cache: 'no-store' })
       const apiData = await apiRes.json()
@@ -623,7 +632,7 @@ export default function PedidosPage() {
     } catch (err) {
       console.error('Erro no loadPedidos:', err)
     }
-  }
+  }, [loading, inicializarIds, verificarMudancaStatus])
 
   const atribuirMotoboy = async (pedidoId: string, motoboyId: string) => {
     const { error } = await supabase.from('pedidos').update({ motoboy_id: motoboyId || null }).eq('id', pedidoId)
@@ -749,7 +758,20 @@ export default function PedidosPage() {
         itens = fetched || []
       }
 
-      const fp = normalizarFormaPagamento(pedido.forma_pagamento)
+      // Buscar formas de pagamento do banco para formatar como o cliente fez
+      const { data: formasPg } = await supabase.from('formas_pagamento').select('id, nome').eq('tenant_id', pedido.tenant_id).eq('ativo', true)
+
+      // Formatar pagamento(s) como o cliente fez no checkout: "PIX: R$ 40,00" ou "PIX: R$ 25,00, Dinheiro: R$ 15,00"
+      const formasSelecionadas = Array.isArray(pedido.forma_pagamento) ? pedido.forma_pagamento : [pedido.forma_pagamento || 'dinheiro']
+      const pagamentosTexto = formasSelecionadas
+        .map(fp => {
+          const formaNome = formasPg?.find(f => f.id === fp)?.nome || fp
+          // Usa o valor total se não houver rateio
+          const valorPg = pedido.valor_total
+          return `${formaNome}: ${formatCurrency(valorPg)}`
+        })
+        .join(', ')
+
       const mensagem = gerarMensagemWhatsApp({
         pedidoId: pedido.id,
         pedidoCodigo: pedido.codigo || null,
@@ -769,7 +791,7 @@ export default function PedidosPage() {
         taxaEntrega: pedido.taxa_entrega || 0,
         desconto: pedido.valor_desconto || 0,
         total: pedido.valor_total,
-        formaPagamento: fp,
+        formaPagamento: pagamentosTexto,
         trocoPara: pedido.troco,
         endereco: pedido.endereco_entrega || '',
         numero: pedido.numero_entrega || '',
@@ -878,7 +900,23 @@ export default function PedidosPage() {
       </div>
       ` : ''}
 
-      <script>window.onload = function() { window.print(); }</script>
+      <script>
+        // Auto-imprimir quando a página carregar
+        window.addEventListener('load', function() {
+          // Pequeno delay para garantir que tudo foi renderizado
+          setTimeout(function() {
+            window.print();
+            // Fecha a janela após imprimir (opcional)
+            // setTimeout(function() { window.close(); }, 1000);
+          }, 300);
+        });
+      </script>
+      <style>
+        @media print {
+          body { padding: 0; }
+          @page { margin: 10mm; }
+        }
+      </style>
       </body></html>
     `)
     } catch (err: any) {
@@ -1401,8 +1439,8 @@ export default function PedidosPage() {
               </div>
             )}
 
-      {/* Lista de Pedidos em GRID 3 COLUNAS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      {/* Lista de Pedidos em GRID 3 COLUNAS - key forca re-render quando filtro muda */}
+      <div key={`grid-${filtroPeriodo}-${filtroDataDe}-${filtroDataAte}-${pedidosTab}`} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {loading ? (
           <div className="col-span-full text-center py-8 text-gray-500">Carregando pedidos...</div>
         ) : pedidosPorData.length === 0 ? (
