@@ -1,37 +1,42 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bike, ChefHat, Edit, Plus, Trash2 } from 'lucide-react'
+import { Bike, ChefHat, Edit, Plus, Trash2, KeyRound, Copy, Check } from 'lucide-react'
 import { Dialog } from '@/components/ui/Dialog'
+import { useToast } from '@/components/toast'
 
-type Role = 'kitchen' | 'motoboy'
-type Member = { id: string; nome: string; email: string; role: Role; ativo: boolean }
+type Perfil = 'cozinha' | 'motoboy'
+type Member = { id: string; nome: string; username: string; perfil: Perfil; ativo: boolean }
 
 const roles = [
-  { id: 'kitchen' as Role, nome: 'Cozinha', desc: 'Acesso operacional aos pedidos em produção.', icon: ChefHat },
-  { id: 'motoboy' as Role, nome: 'Motoboy', desc: 'Acesso operacional às entregas atribuídas.', icon: Bike },
+  { id: 'cozinha' as Perfil, nome: 'Cozinha', desc: 'Acesso operacional aos pedidos em produção.', icon: ChefHat },
+  { id: 'motoboy' as Perfil, nome: 'Motoboy', desc: 'Acesso operacional às entregas atribuídas.', icon: Bike },
 ]
 
 export default function EquipePage() {
+  const { success: toastSuccess, error: toastError } = useToast()
   const [members, setMembers] = useState<Member[]>([])
   const [canManage, setCanManage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [editing, setEditing] = useState<Member | null>(null)
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState<{ nome: string; email: string; role: Role; ativo: boolean }>({
-    nome: '', email: '', role: 'kitchen', ativo: true,
+  const [form, setForm] = useState<{ nome: string; username: string; senha: string; perfil: Perfil }>({
+    nome: '', username: '', senha: '', perfil: 'cozinha',
   })
-  const [message, setMessage] = useState('')
+  const [senhaEdit, setSenhaEdit] = useState('')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
-    const r = await fetch('/api/usuarios-loja')
+    const r = await fetch('/api/membros-equipe')
     const b = await r.json()
     if (r.ok) {
-      setMembers(b.usuarios || [])
-      setCanManage(!!b.can_manage)
-    } else setMessage(b.error)
+      setMembers(b.membros || [])
+      setCanManage(true)
+    } else {
+      toastError('Erro ao carregar', b.error)
+    }
     setLoading(false)
   }
 
@@ -40,62 +45,88 @@ export default function EquipePage() {
   function start(member?: Member) {
     setEditing(member || null)
     setForm(member
-      ? { nome: member.nome, email: member.email, role: member.role, ativo: member.ativo }
-      : { nome: '', email: '', role: 'kitchen', ativo: true }
+      ? { nome: member.nome, username: member.username, senha: '', perfil: member.perfil }
+      : { nome: '', username: '', senha: '', perfil: 'cozinha' }
     )
+    setSenhaEdit('')
     setOpen(true)
   }
 
-  useEffect(() => {
-    if (!open) return
-    requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('[data-dialog-content] input')?.focus()
-    })
-  }, [open])
-
   async function save() {
     setActionLoading(true)
-    setMessage('')
     try {
-      const r = await fetch('/api/usuarios-loja', {
+      const payload: any = { nome: form.nome, username: form.username, perfil: form.perfil }
+      if (form.senha) payload.senha = form.senha
+
+      const r = await fetch('/api/membros-equipe', {
         method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editing ? { id: editing.id, ...form } : form),
+        body: JSON.stringify(editing ? { id: editing.id, ...payload } : payload),
       })
       const b = await r.json()
       if (!r.ok) {
-        setMessage(b.error || 'Não foi possível salvar.')
+        toastError('Não foi possível salvar', b.error)
         return
       }
       setOpen(false)
-      setMessage(editing ? 'Acesso atualizado.' : 'Convite enviado.')
+      toastSuccess(editing ? 'Acesso atualizado.' : 'Acesso criado.')
       await load()
     } finally {
       setActionLoading(false)
     }
   }
 
-  async function toggle(member: Member) {
+  async function resetSenha(member: Member) {
+    const nova = prompt(`Nova senha para ${member.nome}:`, '')
+    if (!nova || nova.length < 4) {
+      toastError('Senha inválida', 'Mínimo 4 caracteres')
+      return
+    }
     setActionLoading(true)
-    const r = await fetch('/api/usuarios-loja', {
+    const r = await fetch(`/api/membros-equipe?id=${member.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...member, ativo: !member.ativo }),
+      body: JSON.stringify({ senha: nova }),
     })
-    const b = await r.json()
-    if (!r.ok) setMessage(b.error || 'Não foi possível alterar o acesso.')
-    else await load()
     setActionLoading(false)
+    if (r.ok) toastSuccess('Senha redefinida')
+    else toastError('Erro', (await r.json()).error)
+  }
+
+  async function toggle(member: Member) {
+    setActionLoading(true)
+    const r = await fetch(`/api/membros-equipe?id=${member.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ativo: !member.ativo }),
+    })
+    setActionLoading(false)
+    if (r.ok) {
+      toastSuccess(member.ativo ? 'Acesso desativado' : 'Acesso ativado')
+      await load()
+    } else {
+      toastError('Erro', (await r.json()).error)
+    }
   }
 
   async function remove(member: Member) {
     if (!confirm(`Excluir o acesso de ${member.nome}?`)) return
     setActionLoading(true)
-    const r = await fetch(`/api/usuarios-loja?id=${member.id}`, { method: 'DELETE' })
-    const b = await r.json()
-    if (!r.ok) setMessage(b.error || 'Não foi possível excluir o acesso.')
-    else await load()
+    const r = await fetch(`/api/membros-equipe?id=${member.id}`, { method: 'DELETE' })
     setActionLoading(false)
+    if (r.ok) {
+      toastSuccess('Acesso removido')
+      await load()
+    } else {
+      toastError('Erro', (await r.json()).error)
+    }
+  }
+
+  function copiarLink(perfil: Perfil) {
+    const base = typeof window !== 'undefined' ? window.location.origin : ''
+    const url = `${base}/acesso?perfil=${perfil}`
+    navigator.clipboard.writeText(url)
+    toastSuccess('Link copiado!', url)
   }
 
   return (
@@ -104,7 +135,7 @@ export default function EquipePage() {
         <div>
           <div className="eyebrow mb-2">Equipe</div>
           <h1 className="text-3xl font-semibold">Acessos operacionais</h1>
-          <p className="hint mt-1">Somente Cozinha e Motoboy são disponibilizados nesta etapa.</p>
+          <p className="hint mt-1">Cozinha e Motoboy acessam com usuário e senha.</p>
         </div>
         {canManage && (
           <button className="btn-primary" onClick={() => start()}>
@@ -114,98 +145,112 @@ export default function EquipePage() {
         )}
       </header>
 
+      {/* Cards explicativos com link rápido */}
       <div className="grid md:grid-cols-2 gap-3">
         {roles.map((role) => (
           <div key={role.id} className="glass p-5">
             <role.icon size={20} />
             <h2 className="font-semibold mt-2">{role.nome}</h2>
             <p className="hint text-sm">{role.desc}</p>
+            <button
+              onClick={() => copiarLink(role.id)}
+              className="mt-3 inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+            >
+              <Copy size={12} /> Copiar link de acesso
+            </button>
           </div>
         ))}
       </div>
 
-      {message && <p className="text-sm">{message}</p>}
-
-      <section className="glass p-5">
-        <h2 className="font-semibold mb-3">Pessoas cadastradas</h2>
-        {loading ? (
-          <p className="hint">Carregando…</p>
-        ) : members.length === 0 ? (
-          <p className="hint">Nenhum acesso de Cozinha ou Motoboy cadastrado.</p>
-        ) : (
+      {members.length > 0 && (
+        <section className="glass p-4">
+          <h2 className="font-semibold mb-3">Pessoas cadastradas</h2>
           <div className="space-y-2">
             {members.map((m) => (
               <div key={m.id} className="glass-soft p-4 flex items-center gap-3">
                 <div className="flex-1">
-                  <b>{m.nome}</b>
-                  <p className="hint text-xs">
-                    {m.email} · {roles.find((r) => r.id === m.role)?.nome} · {m.ativo ? 'Ativo' : 'Inativo'}
+                  <div className="flex items-center gap-2">
+                    <b>{m.nome}</b>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${m.ativo ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
+                      {m.ativo ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </div>
+                  <p className="hint text-xs mt-0.5">
+                    usuário: <code className="bg-gray-100 px-1.5 py-0.5 rounded">{m.username}</code>
+                    {' · '}{roles.find((r) => r.id === m.perfil)?.nome}
                   </p>
                 </div>
-                {canManage && (
-                  <>
-                    <button className="btn-ghost" onClick={() => toggle(m)}>
-                      {m.ativo ? 'Desativar' : 'Ativar'}
-                    </button>
-                    <button className="btn-icon-round" onClick={() => start(m)}>
-                      <Edit size={14} />
-                    </button>
-                    <button className="btn-icon-round" onClick={() => remove(m)}>
-                      <Trash2 size={14} />
-                    </button>
-                  </>
-                )}
+                <button className="btn-ghost flex items-center gap-1" onClick={() => toggle(m)}>
+                  {m.ativo ? 'Desativar' : 'Ativar'}
+                </button>
+                <button
+                  className="btn-icon-round"
+                  onClick={() => resetSenha(m)}
+                  title="Redefinir senha"
+                >
+                  <KeyRound size={14} />
+                </button>
+                <button className="btn-icon-round" onClick={() => start(m)} title="Editar">
+                  <Edit size={14} />
+                </button>
+                <button className="btn-icon-round" onClick={() => remove(m)} title="Excluir">
+                  <Trash2 size={14} />
+                </button>
               </div>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
         title={editing ? 'Editar acesso' : 'Novo acesso'}
       >
-        <div data-dialog-content className="space-y-3">
+        <div className="space-y-3">
           <label className="block">
             <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Nome</span>
             <input
               className="form-input w-full"
               value={form.nome}
               onChange={(e) => setForm({ ...form, nome: e.target.value })}
+              placeholder="Ex: João Cozinha"
             />
           </label>
           <label className="block">
-            <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Email</span>
+            <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Usuário</span>
             <input
-              type="email"
               className="form-input w-full"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+              placeholder="ex: joao_cozinha"
+            />
+            <span className="text-xs text-gray-500">Use letras, números e underscore. Mín. 3 caracteres.</span>
+          </label>
+          <label className="block">
+            <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>
+              {editing ? 'Nova senha (deixe vazio para manter)' : 'Senha'}
+            </span>
+            <input
+              type="password"
+              className="form-input w-full"
+              value={form.senha}
+              onChange={(e) => setForm({ ...form, senha: e.target.value })}
+              placeholder={editing ? '••••••' : 'Mínimo 4 caracteres'}
             />
           </label>
           <label className="block">
             <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Função</span>
             <select
               className="form-input w-full"
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
+              value={form.perfil}
+              onChange={(e) => setForm({ ...form, perfil: e.target.value as Perfil })}
             >
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>{r.nome}</option>
               ))}
             </select>
           </label>
-          {editing && (
-            <label className="flex gap-2 items-center">
-              <input
-                type="checkbox"
-                checked={form.ativo}
-                onChange={(e) => setForm({ ...form, ativo: e.target.checked })}
-              />
-              <span className="text-sm" style={{ color: '#172033' }}>Acesso ativo</span>
-            </label>
-          )}
           <button
             disabled={actionLoading}
             className="btn-primary w-full disabled:opacity-50"
