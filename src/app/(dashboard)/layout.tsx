@@ -100,6 +100,7 @@ export default function DashboardLayout({
     { href: '/clientes', label: 'Clientes', icon: Users },
     { href: '/cardapio', label: 'Cardápio', icon: Utensils },
     { href: '/gestao', label: 'Gestão', icon: Package },
+    { href: '/equipes', label: 'Equipe', icon: Users },
     { href: '/marketing', label: 'Marketing', icon: Megaphone },
     { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
     { href: '/configuracoes', label: 'Configurações', icon: Settings },

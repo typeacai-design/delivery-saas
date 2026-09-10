@@ -725,6 +725,10 @@ export default function NovoPedidoPage() {
 
   // Tipo de entrega
   const [tipoEntrega, setTipoEntrega] = useState<'delivery' | 'retirada' | 'mesa'>('delivery')
+  const [mesaNumero, setMesaNumero] = useState('')
+  const [mesaSessaoId, setMesaSessaoId] = useState<string | null>(null)
+  const [mesaClienteNome, setMesaClienteNome] = useState('')
+  const [mesaClienteWhatsapp, setMesaClienteWhatsapp] = useState('')
 
   // Cliente selecionado
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
@@ -1009,6 +1013,29 @@ export default function NovoPedidoPage() {
         return
       }
 
+      // Se for mesa, criar sessão antes
+      let sessaoMesaId: string | null = null
+      if (tipoEntrega === 'mesa') {
+        if (!mesaNumero.trim()) {
+          toastError('Informe o número da mesa')
+          setLoading(false)
+          return
+        }
+        const sessaoRes = await fetch('/api/sessoes-mesa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mesa_numero: mesaNumero.trim(),
+            cliente_nome: mesaClienteNome.trim() || `Mesa ${mesaNumero}`,
+            cliente_whatsapp: mesaClienteWhatsapp.trim() || null,
+          }),
+        })
+        const sessaoData = await sessaoRes.json()
+        if (!sessaoRes.ok) throw new Error(sessaoData.error || 'Erro ao abrir mesa')
+        sessaoMesaId = sessaoData.sessao?.id || null
+        if (!sessaoMesaId) throw new Error('Sessão da mesa não retornou ID')
+      }
+
       const total = calcularTotal()
       const pago = parseFloat(valorPago) || total
       const taxaEntrega = tipoEntrega === 'delivery' && bairroSelecionado ? Number(bairroSelecionado.taxa) : 0
@@ -1031,8 +1058,8 @@ export default function NovoPedidoPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cliente_id: clienteId,
-          cliente_nome: nomeCliente,
-          cliente_whatsapp: telefoneCliente,
+          cliente_nome: tipoEntrega === 'mesa' ? mesaClienteNome.trim() || nomeCliente : nomeCliente,
+          cliente_whatsapp: tipoEntrega === 'mesa' ? mesaClienteWhatsapp.trim() || telefoneCliente : telefoneCliente,
           itens: itensParaApi,
           valor_subtotal: total - taxaEntrega,
           taxa_entrega: taxaEntrega,
@@ -1045,6 +1072,8 @@ export default function NovoPedidoPage() {
           taxa_bairro: taxaEntrega,
           observacoes: observacoes,
           tipo_entrega: tipoEntrega,
+          tipo_pedido: tipoEntrega === 'mesa' ? 'mesa' : tipoEntrega === 'retirada' ? 'retirada' : 'delivery',
+          sessao_mesa_id: sessaoMesaId,
           endereco,
           numero,
           complemento,
@@ -1160,6 +1189,41 @@ export default function NovoPedidoPage() {
                 <span className="text-xs font-medium">Mesa</span>
               </button>
             </div>
+
+            {/* Campos extras para Mesa */}
+            {tipoEntrega === 'mesa' && (
+              <div className="mt-3 p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3">
+                <div className="flex items-center gap-2 text-amber-900 text-sm font-medium">
+                  🍽️ <span>Pedido de mesa</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Nº da mesa"
+                    className="form-input"
+                    value={mesaNumero}
+                    onChange={(e) => setMesaNumero(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Nome do cliente"
+                    className="form-input"
+                    value={mesaClienteNome}
+                    onChange={(e) => setMesaClienteNome(e.target.value)}
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="WhatsApp (opcional)"
+                  className="form-input"
+                  value={mesaClienteWhatsapp}
+                  onChange={(e) => setMesaClienteWhatsapp(e.target.value)}
+                />
+                <p className="hint text-xs">
+                  O pedido vai pra cozinha normalmente. Pra adicionar mais itens depois, abra o card da mesa na aba "Mesas" em Pedidos.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Cliente */}
@@ -1677,27 +1741,27 @@ export default function NovoPedidoPage() {
 
       {/* Tela de Sucesso */}
       {pedidoCriado && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-strong rounded-3xl p-8 w-full max-w-lg text-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }}>
+          <div className="rounded-3xl p-8 w-full max-w-lg text-center shadow-2xl" style={{ background: '#FFFFFF' }}>
             <div className="size-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #16A34A, #22C55E)' }}>
               <Check size={36} className="text-white" />
             </div>
-            <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--ink)' }}>
+            <h2 className="text-2xl font-bold mb-2 text-gray-900">
               Pedido #{pedidoCriado.id.split('-')[0].toUpperCase()} criado!
             </h2>
-            <p className="hint mb-6">{clienteSelecionado?.nome} • {formatCurrency(pedidoCriado.valor_total)}</p>
+            <p className="text-gray-500 mb-6">{clienteSelecionado?.nome} • {formatCurrency(pedidoCriado.valor_total)}</p>
 
             {whatsappMsg && (
-              <div className="glass-soft p-4 rounded-2xl text-left mb-6" style={{ background: 'rgba(37,211,102,.06)', border: '1px solid rgba(37,211,102,.25)' }}>
-                <div className="text-xs font-semibold mb-2" style={{ color: '#25D162' }}>📱 Mensagem WhatsApp</div>
-                <pre className="text-xs whitespace-pre-wrap break-all font-mono" style={{ color: 'var(--ink-muted)', maxHeight: 200, overflowY: 'auto' }}>
+              <div className="p-4 rounded-2xl text-left mb-6" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <div className="text-xs font-semibold mb-2" style={{ color: '#16A34A' }}>📱 Mensagem WhatsApp</div>
+                <pre className="text-xs whitespace-pre-wrap break-all font-mono text-gray-700" style={{ maxHeight: 200, overflowY: 'auto' }}>
                   {whatsappMsg}
                 </pre>
               </div>
             )}
 
             <div className="flex gap-3">
-              <button onClick={copiarMsg} className="flex-1 btn-ghost justify-center">
+              <button onClick={copiarMsg} className="flex-1 px-4 py-3 rounded-2xl font-medium border border-gray-300 hover:bg-gray-50 transition">
                 📋 Copiar mensagem
               </button>
               {whatsappUrl && (
@@ -1708,7 +1772,7 @@ export default function NovoPedidoPage() {
               )}
             </div>
 
-            <button onClick={novoPedido} className="mt-4 text-sm hint hover:underline">
+            <button onClick={novoPedido} className="mt-4 text-sm text-gray-500 hover:text-gray-900 hover:underline">
               ← Lançar outro pedido
             </button>
           </div>

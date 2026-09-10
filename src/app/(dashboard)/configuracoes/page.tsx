@@ -431,10 +431,254 @@ function EntregasTab() {
   return <div className="space-y-5">
     <div className="glass p-6"><h2 className="text-lg font-semibold mb-4">Método da taxa</h2><div className="grid grid-cols-2 gap-3">{(['bairro','km'] as const).map(v=><button key={v} disabled={v==='km'&&mapOk===false} onClick={()=>{if(v==='km'&&mapOk!==true){setMsg('Entrega por km indisponível. Configure o Mapbox ou mantenha bairro.');return}setMetodo(v)}} className="p-4 rounded-xl border disabled:opacity-50 disabled:cursor-not-allowed" style={{borderColor:metodo===v?'var(--green)':'var(--line)'}}>{v==='bairro'?'Por bairro':'Por quilômetro'}</button>)}</div></div>
     {metodo==='bairro'?<><div className="glass p-6"><h2 className="text-lg font-semibold mb-4">{form.id?'Editar':'Novo'} bairro</h2><div className="grid md:grid-cols-5 gap-3"><input placeholder="Bairro" value={form.bairro} onChange={e=>setForm({...form,bairro:e.target.value})} className="form-input"/><input type="number" step=".01" placeholder="Taxa" value={form.taxa} onChange={e=>setForm({...form,taxa:Number(e.target.value)})} className="form-input"/><input type="number" placeholder="Prazo (min)" value={form.prazo_min} onChange={e=>setForm({...form,prazo_min:e.target.value})} className="form-input"/><label className="flex items-center gap-2"><input type="checkbox" checked={form.ativo} onChange={e=>setForm({...form,ativo:e.target.checked})}/>Ativo</label><button className="btn-primary justify-center" onClick={saveBairro}><Save size={14}/>Salvar</button></div></div><div className="glass p-6 space-y-2">{data.bairros.map((b:any)=><div key={b.id} className="glass-soft p-3 flex items-center gap-3"><MapPin size={15}/><b className="flex-1">{b.bairro}</b><span>{formatCurrency(Number(b.taxa))}{b.prazo_min?` · ${b.prazo_min} min`:''}</span><span className={b.ativo?'text-green-700':'text-gray-400'}>{b.ativo?'Ativo':'Inativo'}</span><button onClick={()=>setForm({...b,prazo_min:b.prazo_min||''})}>Editar</button><button className="text-red-600" onClick={()=>remove(b.id)}>Excluir</button></div>)}</div></>:<div className="glass p-6 space-y-4"><h2 className="text-lg font-semibold">Taxa por distância real</h2><div className="relative"><label>Origem da loja</label><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Busque o endereço de origem" className="form-input"/><div className="absolute z-20 bg-white shadow rounded-xl w-full">{suggestions.map(s=><button className="block w-full text-left p-2" key={s.id} onClick={()=>selectPlace(s)}>{s.label}</button>)}</div></div>{mapOk===false&&<div className="p-3 bg-amber-50 text-amber-800 rounded-xl">Mapa indisponível: configure MAPBOX_ACCESS_TOKEN no servidor. Bairro continua funcionando.</div>}<CoordinateMap value={data.origem} onChange={(p:any)=>setData((d:any)=>({...d,origem:{...d.origem,...p}}))}/><div className="grid md:grid-cols-4 gap-3"><FieldNum label="R$/km" value={data.config.valor_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,valor_km:v}}))}/><FieldNum label="Taxa mínima" value={data.config.minimo} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,minimo:v}}))}/><FieldNum label="Raio máximo (km)" value={data.config.max_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,max_km:v}}))}/><label>Arredondamento<select value={data.config.arredondamento} onChange={e=>setData((d:any)=>({...d,config:{...d.config,arredondamento:e.target.value}}))} className="form-input"><option value="ceil">Para cima</option><option value="round">Mais próximo</option><option value="none">Centavos</option></select></label></div><button className="btn-primary" onClick={saveKm}>Salvar taxa por km</button><div className="border-t pt-4"><h3 className="font-semibold">Prévia de rota</h3><input className="form-input mt-2" placeholder="Longitude destino" onChange={e=>setPreview({...preview,longitude:Number(e.target.value)})}/><input className="form-input mt-2" placeholder="Latitude destino" onChange={e=>setPreview({...preview,latitude:Number(e.target.value)})}/><button className="btn-ghost mt-2" onClick={calcPreview}>Calcular rota</button>{preview?.km&&<p className="mt-2"><b>{preview.km.toFixed(2)} km</b> · {preview.minutos} min · taxa {formatCurrency(preview.taxa)}</p>}</div></div>}{msg&&<p className="text-sm text-center">{msg}</p>}
+    <TempoPicoSection />
   </div>
 }
 
 function FieldNum({label,value,onChange}:{label:string,value:any,onChange:(v:number)=>void}){return <label>{label}<input type="number" step=".01" value={value??''} onChange={e=>onChange(Number(e.target.value))}/></label>}
+
+function TempoPicoSection() {
+  const { success: toastSuccess, error: toastError } = useToast()
+  const [loading, setLoading] = useState(true)
+  const [tempoExtraGlobal, setTempoExtraGlobal] = useState(0)
+  const [recorrentes, setRecorrentes] = useState<Array<{ id: string; dia_semana: string; tempo_extra_minutos: number }>>([])
+  const [especificas, setEspecificas] = useState<Array<{ id: string; data: string; tempo_extra_minutos: number; motivo: string | null }>>([])
+  const [novaData, setNovaData] = useState('')
+  const [novoMotivo, setNovoMotivo] = useState('')
+  const [novaDataExtra, setNovaDataExtra] = useState(30)
+  const [salvando, setSalvando] = useState(false)
+
+  const DIAS = [
+    { id: 'seg', nome: 'Seg' },
+    { id: 'ter', nome: 'Ter' },
+    { id: 'qua', nome: 'Qua' },
+    { id: 'qui', nome: 'Qui' },
+    { id: 'sex', nome: 'Sex' },
+    { id: 'sab', nome: 'Sáb' },
+    { id: 'dom', nome: 'Dom' },
+  ] as const
+
+  async function load() {
+    setLoading(true)
+    const r = await fetch('/api/configuracoes/tempo-pico', { cache: 'no-store' })
+    const b = await r.json()
+    if (r.ok) {
+      setTempoExtraGlobal(b.tempo_extra_global ?? 0)
+      setRecorrentes(b.dias_pico_recorrentes || [])
+      setEspecificas(b.datas_especificas || [])
+    } else {
+      toastError('Erro ao carregar', b.error)
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function salvarGlobal() {
+    setSalvando(true)
+    const r = await fetch('/api/configuracoes/tempo-pico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo: 'global', tempo_preparo_extra_minutos: tempoExtraGlobal }),
+    })
+    const b = await r.json()
+    setSalvando(false)
+    if (!r.ok) return toastError('Erro ao salvar', b.error)
+    toastSuccess('Tempo extra global salvo')
+  }
+
+  async function toggleRecorrente(diaId: string, ativo: boolean) {
+    if (ativo) {
+      const item = recorrentes.find((x) => x.dia_semana === diaId)
+      if (!item) return
+      const r = await fetch(`/api/configuracoes/tempo-pico?id=${item.id}`, { method: 'DELETE' })
+      if (r.ok) { toastSuccess(`${DIAS.find((d) => d.id === diaId)?.nome} removido dos picos`); load() }
+    } else {
+      const r = await fetch('/api/configuracoes/tempo-pico', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: 'recorrente', dia_semana: diaId, tempo_extra_minutos: tempoExtraGlobal || 30 }),
+      })
+      const b = await r.json()
+      if (!r.ok) return toastError('Erro', b.error)
+      toastSuccess(`${DIAS.find((d) => d.id === diaId)?.nome} marcado como pico`)
+      load()
+    }
+  }
+
+  async function atualizarExtraRecorrente(id: string, n: number) {
+    const item = recorrentes.find((x) => x.id === id)
+    if (!item) return
+    const r = await fetch('/api/configuracoes/tempo-pico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo: 'recorrente', dia_semana: item.dia_semana, tempo_extra_minutos: n }),
+    })
+    if (r.ok) load()
+    else toastError('Erro ao atualizar', (await r.json()).error)
+  }
+
+  async function adicionarDataEspecifica() {
+    if (!novaData) return toastError('Selecione uma data')
+    const r = await fetch('/api/configuracoes/tempo-pico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tipo: 'especifica',
+        data: novaData,
+        tempo_extra_minutos: novaDataExtra,
+        motivo: novoMotivo || null,
+      }),
+    })
+    const b = await r.json()
+    if (!r.ok) return toastError('Erro ao adicionar', b.error)
+    toastSuccess('Data de pico adicionada')
+    setNovaData('')
+    setNovoMotivo('')
+    setNovaDataExtra(30)
+    load()
+  }
+
+  async function removerDataEspecifica(id: string) {
+    if (!confirm('Remover esta data de pico?')) return
+    const r = await fetch(`/api/configuracoes/tempo-pico?id=${id}`, { method: 'DELETE' })
+    if (r.ok) { toastSuccess('Removido'); load() }
+    else toastError('Erro ao remover', (await r.json()).error)
+  }
+
+  if (loading) {
+    return (
+      <div className="glass p-6">
+        <h2 className="text-lg font-semibold mb-4">Tempo de preparo em dias de pico</h2>
+        <p className="hint">Carregando…</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="glass p-6 space-y-4">
+      <div>
+        <div className="eyebrow mb-1">Configuração</div>
+        <h2 className="text-lg font-semibold">Tempo de preparo em dias de pico</h2>
+        <p className="hint text-sm mt-1">
+          Adiciona minutos extras ao tempo estimado exibido no cardápio público nos dias configurados.
+        </p>
+      </div>
+
+      <div className="glass-soft p-4 space-y-3">
+        <label className="block">
+          <span className="text-sm font-medium" style={{ color: '#172033' }}>
+            Tempo extra global (minutos)
+          </span>
+          <p className="hint text-xs mb-2">
+            Aplicado em dias recorrentes e datas específicas (pode ser sobrescrito por data).
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min={0}
+              max={240}
+              className="form-input flex-1"
+              value={tempoExtraGlobal}
+              onChange={(e) => setTempoExtraGlobal(Math.max(0, Math.min(240, Number(e.target.value) || 0)))}
+            />
+            <button onClick={salvarGlobal} disabled={salvando} className="btn-primary">
+              <Save size={14} /> Salvar
+            </button>
+          </div>
+        </label>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold mb-2" style={{ color: '#172033' }}>
+          Dias da semana com pico recorrente
+        </h3>
+        <div className="flex flex-wrap gap-2">
+          {DIAS.map((d) => {
+            const ativo = recorrentes.some((r) => r.dia_semana === d.id)
+            const item = recorrentes.find((r) => r.dia_semana === d.id)
+            return (
+              <div key={d.id} className={`px-3 py-2 rounded-xl border flex items-center gap-2 ${ativo ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+                <button
+                  type="button"
+                  onClick={() => toggleRecorrente(d.id, ativo)}
+                  className="text-sm font-medium"
+                  style={{ color: ativo ? '#92400E' : '#172033' }}
+                >
+                  {d.nome}
+                </button>
+                {ativo && item && (
+                  <input
+                    type="number"
+                    min={0}
+                    max={240}
+                    className="w-16 text-xs form-input"
+                    value={item.tempo_extra_minutos}
+                    onChange={(e) => atualizarExtraRecorrente(item.id, Math.max(0, Math.min(240, Number(e.target.value) || 0)))}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold mb-2" style={{ color: '#172033' }}>
+          Datas específicas (feriados, eventos)
+        </h3>
+        <div className="glass-soft p-3 space-y-2 mb-3">
+          <div className="grid md:grid-cols-4 gap-2">
+            <input
+              type="date"
+              className="form-input"
+              value={novaData}
+              onChange={(e) => setNovaData(e.target.value)}
+            />
+            <input
+              type="number"
+              min={0}
+              max={240}
+              placeholder="+ min"
+              className="form-input"
+              value={novaDataExtra}
+              onChange={(e) => setNovaDataExtra(Math.max(0, Math.min(240, Number(e.target.value) || 0)))}
+            />
+            <input
+              type="text"
+              placeholder="Motivo (ex: Natal)"
+              className="form-input md:col-span-1"
+              value={novoMotivo}
+              onChange={(e) => setNovoMotivo(e.target.value)}
+            />
+            <button onClick={adicionarDataEspecifica} className="btn-primary justify-center">
+              <Plus size={14} /> Adicionar
+            </button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {especificas.length === 0 ? (
+            <p className="hint text-sm">Nenhuma data específica cadastrada.</p>
+          ) : (
+            especificas.map((d) => (
+              <div key={d.id} className="glass-soft p-3 flex items-center gap-3">
+                <Calendar size={14} style={{ color: '#697386' }} />
+                <b className="flex-1">
+                  {new Date(d.data + 'T00:00:00').toLocaleDateString('pt-BR')}
+                  {d.motivo ? <span className="hint text-xs ml-2">· {d.motivo}</span> : null}
+                </b>
+                <span className="text-sm font-medium" style={{ color: '#B55C00' }}>+{d.tempo_extra_minutos} min</span>
+                <button onClick={() => removerDataEspecifica(d.id)} className="text-red-600 hover:bg-red-50 rounded p-1">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 function PagamentosTab({ tenant }: { tenant: any }) {
   const supabase = createClient()
   const config = (tenant?.config || {}) as any

@@ -39,12 +39,29 @@ export default function PedidoClienteWrapper({
   initialData,
 }: Props) {
   const [pedido, setPedido] = useState(initialData)
+  const [realtimeConnected, setRealtimeConnected] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
-    // Inscrever no realtime para receber atualizacoes
+    // Polling de backup: recarrega status a cada 5 segundos
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from('pedidos')
+          .select('status')
+          .eq('id', pedidoId)
+          .single()
+        if (data && data.status !== pedido.status) {
+          setPedido((prev: any) => ({ ...prev, status: data.status }))
+        }
+      } catch (err) {
+        console.error('Erro no polling de status:', err)
+      }
+    }, 5000)
+
+    // Inscrever no realtime para receber atualizacoes em tempo real
     const channel = supabase
-      .channel('pedido-cliente')
+      .channel(`pedido-cliente-${pedidoId}`)
       .on(
         'postgres_changes',
         {
@@ -54,15 +71,20 @@ export default function PedidoClienteWrapper({
           filter: `id=eq.${pedidoId}`,
         },
         (payload) => {
+          console.log('Realtime update recebido:', payload.new)
           setPedido((prev: any) => ({ ...prev, ...payload.new }))
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Realtime status:', status)
+        setRealtimeConnected(status === 'SUBSCRIBED')
+      })
 
     return () => {
+      clearInterval(pollInterval)
       supabase.removeChannel(channel)
     }
-  }, [pedidoId])
+  }, [pedidoId, pedido.status])
 
   const status = pedido.status || initialStatus
   const statusInfo = STATUS_LABELS[status] || STATUS_LABELS.novo
@@ -268,7 +290,10 @@ export default function PedidoClienteWrapper({
         )}
 
         <p className="text-center text-xs text-gray-400 pt-4">
-          🔄 Atualização em tempo real
+          🔄 Atualização em tempo real {!realtimeConnected && <span className="text-amber-500">(polling backup ativo)</span>}
+        </p>
+        <p className="text-center text-xs text-gray-300 mt-1">
+          Status atual: <strong className="text-green-600">{statusInfo.label}</strong>
         </p>
       </div>
     </div>

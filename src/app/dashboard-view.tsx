@@ -298,7 +298,8 @@ export default function VisaoGeralPage() {
   const temOverride = lojaAberta !== null
   const lojaEstaAberta = lojaAberta === true || (!temOverride && abertoPorHorario)
 
-  const podeFechar = lojaEstaAberta && (temOverride || estaForaDoHorario)
+  // Lojista pode SEMPRE abrir ou fechar manualmente
+  const podeFechar = lojaEstaAberta
   const podeAbrir = !lojaEstaAberta
 
   const copiarLink = async () => {
@@ -411,27 +412,34 @@ export default function VisaoGeralPage() {
               {horarioMsg && (
                 <span className="text-gray-400">· {horarioMsg}</span>
               )}
+              {temOverride && (
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                  lojaAberta ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                }`} title={lojaAberta ? 'Loja aberta manualmente - fechará no próximo horário programado' : 'Loja fechada manualmente - abrirá no próximo horário programado'}>
+                  {lojaAberta ? 'manual' : 'manual'}
+                </span>
+              )}
             </div>
 
             {/* Botão Abrir/Fechar - aparece sempre quando lojista quer mudar */}
-            {(podeAbrir || podeFechar) && (
+            {(podeAbrir || podeFechar || temOverride) && (
               <button
                 onClick={lojaEstaAberta ? fecharLoja : abrirLoja}
                 disabled={toggleLoading}
-                className={`px-2 py-1 text-xs rounded-lg transition flex items-center gap-1 ${
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition flex items-center gap-1.5 ${
                   lojaEstaAberta
                     ? 'bg-red-100 text-red-700 hover:bg-red-200'
                     : 'bg-green-100 text-green-700 hover:bg-green-200'
                 }`}
-                title={lojaEstaAberta ? 'Fechar loja' : 'Abrir loja'}
+                title={lojaEstaAberta ? 'Fechar loja agora (segue horário automaticamente)' : 'Abrir loja agora (fecha no próximo horário programado)'}
               >
                 {toggleLoading ? (
                   <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <Power size={10} />
-                    <span className="hidden sm:inline">
-                      {lojaEstaAberta ? 'Fechar' : 'Abrir'}
+                    <Power size={12} />
+                    <span>
+                      {lojaEstaAberta ? (temOverride ? 'Fechar agora' : 'Fechar loja') : 'Abrir loja'}
                     </span>
                   </>
                 )}
