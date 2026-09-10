@@ -5,12 +5,11 @@ import { Bike, ChefHat, Edit, Plus, Trash2, KeyRound, Copy, Check } from 'lucide
 import { Dialog } from '@/components/ui/Dialog'
 import { useToast } from '@/components/toast'
 
-type Perfil = 'cozinha' | 'motoboy'
+type Perfil = 'attendant'
 type Member = { id: string; nome: string; username: string; perfil: Perfil; ativo: boolean }
 
-const roles = [
-  { id: 'cozinha' as Perfil, nome: 'Cozinha', desc: 'Acesso operacional aos pedidos em produção.', icon: ChefHat },
-  { id: 'motoboy' as Perfil, nome: 'Motoboy', desc: 'Acesso operacional às entregas atribuídas.', icon: Bike },
+const perfis = [
+  { id: 'attendant' as Perfil, nome: 'Atendimento', desc: 'Operador com acesso total à aba de pedidos (delivery, mesas, retirada).', icon: ChefHat },
 ]
 
 export default function EquipePage() {
@@ -22,7 +21,7 @@ export default function EquipePage() {
   const [editing, setEditing] = useState<Member | null>(null)
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<{ nome: string; username: string; senha: string; perfil: Perfil }>({
-    nome: '', username: '', senha: '', perfil: 'cozinha',
+    nome: '', username: '', senha: '', perfil: 'attendant',
   })
   const [senhaEdit, setSenhaEdit] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -51,7 +50,7 @@ export default function EquipePage() {
     setEditing(member || null)
     setForm(member
       ? { nome: member.nome, username: member.username, senha: '', perfil: member.perfil }
-      : { nome: '', username: '', senha: '', perfil: 'cozinha' }
+      : { nome: '', username: '', senha: '', perfil: 'attendant' }
     )
     setSenhaEdit('')
     setOpen(true)
@@ -140,7 +139,7 @@ export default function EquipePage() {
         <div>
           <div className="eyebrow mb-2">Equipe</div>
           <h1 className="text-3xl font-semibold">Acessos operacionais</h1>
-          <p className="hint mt-1">Cozinha e Motoboy acessam com usuário e senha.</p>
+          <p className="hint mt-1">Atendentes acessam com usuário e senha.</p>
         </div>
         {canManage && (
           <button className="btn-primary" onClick={() => start()}>
@@ -152,7 +151,7 @@ export default function EquipePage() {
 
       {/* Cards explicativos com link rápido */}
       <div className="grid md:grid-cols-2 gap-3">
-        {roles.map((role) => (
+        {perfis.map((role) => (
           <div key={role.id} className="glass p-5">
             <role.icon size={20} />
             <h2 className="font-semibold mt-2">{role.nome}</h2>
@@ -182,7 +181,7 @@ export default function EquipePage() {
                   </div>
                   <p className="hint text-xs mt-0.5">
                     usuário: <code className="bg-gray-100 px-1.5 py-0.5 rounded">{m.username}</code>
-                    {' · '}{roles.find((r) => r.id === m.perfil)?.nome}
+                    {' · '}{perfis.find((r) => r.id === m.perfil)?.nome}
                   </p>
                 </div>
                 <button className="btn-ghost flex items-center gap-1" onClick={() => toggle(m)}>
@@ -251,7 +250,7 @@ export default function EquipePage() {
               value={form.perfil}
               onChange={(e) => setForm({ ...form, perfil: e.target.value as Perfil })}
             >
-              {roles.map((r) => (
+              {perfis.map((r) => (
                 <option key={r.id} value={r.id}>{r.nome}</option>
               ))}
             </select>

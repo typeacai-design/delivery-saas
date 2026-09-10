@@ -61,9 +61,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'nome, username, senha e perfil são obrigatórios' }, { status: 400 })
   }
 
-  const perfisPermitidos = ['attendant', 'cozinha', 'motoboy']
+  const perfisPermitidos = ['attendant']
   if (!perfisPermitidos.includes(perfil)) {
-    return NextResponse.json({ error: 'Perfil inválido. Use attendant, cozinha ou motoboy.' }, { status: 400 })
+    return NextResponse.json({ error: 'Perfil inválido. Apenas atendente é permitido.' }, { status: 400 })
   }
 
   if (senha.length < 4) {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { ChefHat, Bike, Loader2, LogIn } from 'lucide-react'
+import { UserCircle2, Loader2, LogIn } from 'lucide-react'
 
 export default function AcessoPage() {
   const router = useRouter()
@@ -12,49 +12,29 @@ export default function AcessoPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [lojas, setLojas] = useState<any[]>([])
 
   useEffect(() => {
-    // Verificar se já está logado
     const supabase = createClient()
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        // Verificar perfil
-        verificarPerfil(session.user.id)
+        // Já está logado no Supabase Auth → vai direto pro painel
+        router.push('/pedidos')
       } else {
+        // Verifica se tem sessão de equipe (atendente) salva
+        const membroStr = typeof window !== 'undefined' ? localStorage.getItem('membro_equipe') : null
+        if (membroStr) {
+          try {
+            const m = JSON.parse(membroStr)
+            if (m.perfil === 'attendant') {
+              router.push('/pedidos')
+              return
+            }
+          } catch {}
+        }
         setLoading(false)
-        carregarLojas()
       }
     })
   }, [])
-
-  const carregarLojas = async () => {
-    const supabase = createClient()
-    const { data } = await supabase.from('tenants').select('id, nome, slug').eq('ativo', true).order('nome')
-    setLojas(data || [])
-  }
-
-  const verificarPerfil = async (userId: string) => {
-    const supabase = createClient()
-    const { data: membro } = await supabase
-      .from('membros_equipe')
-      .select('id, perfil, tenants(nome)')
-      .eq('user_id', userId)
-      .eq('ativo', true)
-      .single()
-
-    if (membro) {
-      if (membro.perfil === 'cozinha') {
-        router.push('/acesso/cozinha')
-      } else if (membro.perfil === 'motoboy') {
-        router.push('/acesso/motoboy')
-      } else {
-        setLoading(false)
-      }
-    } else {
-      setLoading(false)
-    }
-  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,6 +60,7 @@ export default function AcessoPage() {
 
       const membro = data.membro
 
+      // Salva sessão local
       localStorage.setItem('membro_equipe', JSON.stringify({
         id: membro.id,
         nome: membro.nome,
@@ -87,12 +68,15 @@ export default function AcessoPage() {
         tenant_id: membro.tenant_id,
       }))
 
-      if (membro.perfil === 'cozinha') {
+      // Roteamento por perfil
+      if (membro.perfil === 'attendant') {
+        router.push('/pedidos')
+      } else if (membro.perfil === 'cozinha') {
         router.push('/acesso/cozinha')
       } else if (membro.perfil === 'motoboy') {
         router.push('/acesso/motoboy')
       } else {
-        setError('Este perfil não tem acesso às páginas de operação')
+        setError('Este perfil não tem acesso a esta área')
         setSaving(false)
       }
     } catch (err: any) {
@@ -115,10 +99,10 @@ export default function AcessoPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-            <ChefHat className="text-green-600" size={32} />
+            <UserCircle2 className="text-green-600" size={32} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Acesso à Operação</h1>
-          <p className="text-sm text-gray-500 mt-1">Faça login com seu usuário e senha</p>
+          <h1 className="text-2xl font-bold text-gray-900">Acesso ao Atendimento</h1>
+          <p className="text-sm text-gray-500 mt-1">Acesse a aba de pedidos com seu usuário e senha</p>
         </div>
 
         {/* Form */}
@@ -167,17 +151,7 @@ export default function AcessoPage() {
 
         {/* Info */}
         <div className="mt-6 pt-6 border-t border-gray-100">
-          <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
-            <div className="flex items-center gap-2">
-              <ChefHat size={18} className="text-orange-500" />
-              <span>Cozinha</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Bike size={18} className="text-green-500" />
-              <span>Motoboy</span>
-            </div>
-          </div>
-          <p className="text-xs text-gray-400 text-center mt-3">
+          <p className="text-xs text-gray-400 text-center">
             Solicite seu acesso ao administrador da loja
           </p>
         </div>
