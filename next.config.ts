@@ -11,20 +11,23 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'no-referrer' },
           { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],
-      },      {
+      },
+      {
         // Páginas HTML (sem _next/static) — sem cache pra forçar sempre a versão nova
         source: '/((?!_next/static|_next/image|favicon.ico).*)',
         headers: [
-          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate, proxy-revalidate' },
           { key: 'Pragma', value: 'no-cache' },
           { key: 'Expires', value: '0' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Surrogate-Control', value: 'no-store' },
         ],
       },
       {
+        // CSS/JS estáticos — cache curto pra forçar reload após deploys
         source: '/_next/static/:path*',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+          { key: 'Cache-Control', value: 'public, max-age=300, must-revalidate' },
         ],
       },
     ]
