@@ -17,24 +17,52 @@ export default function AcessoPage() {
     const supabase = createClient()
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        // Já está logado no Supabase Auth → vai direto pro painel
         router.push('/pedidos')
       } else {
-        // Verifica se tem sessão de equipe (atendente) salva
-        const membroStr = typeof window !== 'undefined' ? localStorage.getItem('membro_equipe') : null
-        if (membroStr) {
-          try {
-            const m = JSON.parse(membroStr)
-            if (m.perfil === 'attendant') {
-              router.push('/pedidos')
-              return
-            }
-          } catch {}
-        }
         setLoading(false)
       }
     })
   }, [])
+
+  async function loginAtendente() {
+    const r = await fetch('/api/auth/atendente-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: username.toLowerCase().trim(),
+        senha: password,
+      }),
+    })
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.error || 'Falha no login')
+
+    // Seta sessão no client Supabase
+    const supabase = createClient()
+    const { error: setErr } = await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    })
+    if (setErr) throw new Error('Erro ao iniciar sessão: ' + setErr.message)
+
+    // Salva membro no localStorage como fallback
+    localStorage.setItem('membro_equipe', JSON.stringify(data.membro))
+    return data.membro
+  }
+
+  async function loginCozinhaOuMotoboy() {
+    const r = await fetch('/api/membros-equipe/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: username.toLowerCase().trim(),
+        senha: password,
+      }),
+    })
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.error || 'Falha no login')
+    localStorage.setItem('membro_equipe', JSON.stringify(data.membro))
+    return data.membro
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,33 +70,25 @@ export default function AcessoPage() {
     setSaving(true)
 
     try {
-      const r = await fetch('/api/membros-equipe/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: username.toLowerCase().trim(),
-          senha: password,
-        }),
-      })
-      const data = await r.json()
+      // Tenta primeiro como atendente (cria sessão Supabase)
+      // Se falhar, tenta como cozinha/motoboy (localStorage)
+      const normalizedUsername = username.toLowerCase().trim()
 
-      if (!r.ok) {
-        setError(data.error || 'Usuário inválido ou não encontrado')
-        setSaving(false)
-        return
+      let membro
+      try {
+        membro = await loginAtendente()
+      } catch (e1: any) {
+        if (e1.message?.includes('Perfil sem acesso') || e1.message?.includes('Usuário') || e1.message?.includes('Senha')) {
+          try {
+            membro = await loginCozinhaOuMotoboy()
+          } catch (e2: any) {
+            throw new Error(e2.message || e1.message)
+          }
+        } else {
+          throw new Error(e1.message)
+        }
       }
 
-      const membro = data.membro
-
-      // Salva sessão local
-      localStorage.setItem('membro_equipe', JSON.stringify({
-        id: membro.id,
-        nome: membro.nome,
-        perfil: membro.perfil,
-        tenant_id: membro.tenant_id,
-      }))
-
-      // Roteamento por perfil
       if (membro.perfil === 'attendant') {
         router.push('/pedidos')
       } else if (membro.perfil === 'cozinha') {
