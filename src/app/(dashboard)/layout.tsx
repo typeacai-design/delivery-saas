@@ -24,6 +24,7 @@ import ErrorBoundary from '@/components/error-boundary'
 import { createClient } from '@/lib/supabase/client'
 import GlobalSomPedidos from '@/components/global-som-pedidos'
 import { ToastProvider } from '@/components/toast'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 
 export default function DashboardLayout({
   children,
@@ -35,6 +36,7 @@ export default function DashboardLayout({
   const [authChecked, setAuthChecked] = useState(false)
   const [tenant, setTenant] = useState<any>(null)
   const [role, setRole] = useState('owner')
+  const isMobile = useIsMobile(1024)
   const sair = async () => { await createClient().auth.signOut(); localStorage.removeItem('wedelivery-auth'); window.location.replace('/') }
 
   useEffect(() => {
@@ -112,8 +114,9 @@ export default function DashboardLayout({
     <div className="app-shell">
       <div className="app-shell-inner">
         <div className="app-grid">
-          {/* SIDEBAR - desktop only */}
-          <aside className="w-[232px] shrink-0 hidden lg:flex flex-col gap-3 self-start sticky top-3">
+          {/* SIDEBAR - desktop only (hidden mobile via CSS + inline style) */}
+          {!isMobile && (
+          <aside className="w-[232px] shrink-0 flex flex-col gap-3 self-start sticky top-3">
             <div className="glass px-4 py-4 flex items-center gap-3">
               <Link href="/configuracoes?tab=perfil" aria-label="Abrir meu perfil"
                 className="size-10 rounded-2xl flex items-center justify-center text-white font-bold text-[13px] overflow-hidden"
@@ -138,10 +141,11 @@ export default function DashboardLayout({
             <SidebarNav role={role} />
 
             <button type="button" onClick={sair} className="glass w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-white/75 transition rounded-2xl" style={{ color: 'var(--ink-muted)' }}>
-                <LogOut size={16} />
-                <span>Sair</span>
-              </button>
+              <LogOut size={16} />
+              <span>Sair</span>
+            </button>
           </aside>
+          )}
 
           <div className="app-content">
             {/* HEADER mobile-only com busca e notificação */}
