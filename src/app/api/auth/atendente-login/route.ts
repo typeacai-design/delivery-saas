@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   if (e1) return NextResponse.json({ error: 'Erro ao buscar membro' }, { status: 500 })
   if (!membro) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 401 })
   if (!membro.ativo) return NextResponse.json({ error: 'Usuário inativo' }, { status: 401 })
-  if (membro.perfil !== 'attendant') {
+  if (membro.perfil !== 'attendant' && membro.perfil !== 'cozinha' && membro.perfil !== 'motoboy') {
     return NextResponse.json({ error: 'Perfil sem acesso a esta área' }, { status: 403 })
   }
   if (membro.password_hash !== senha) {

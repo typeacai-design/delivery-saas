@@ -5,11 +5,13 @@ import { Bike, ChefHat, Edit, Plus, Trash2, KeyRound, Copy, Check } from 'lucide
 import { Dialog } from '@/components/ui/Dialog'
 import { useToast } from '@/components/toast'
 
-type Perfil = 'attendant'
+type Perfil = 'attendant' | 'cozinha' | 'motoboy'
 type Member = { id: string; nome: string; username: string; perfil: Perfil; ativo: boolean }
 
 const perfis = [
   { id: 'attendant' as Perfil, nome: 'Atendimento', desc: 'Operador com acesso total à aba de pedidos (delivery, mesas, retirada).', icon: ChefHat },
+  { id: 'cozinha' as Perfil, nome: 'Cozinha', desc: 'Acesso operacional aos pedidos em produção.', icon: ChefHat },
+  { id: 'motoboy' as Perfil, nome: 'Motoboy', desc: 'Acesso operacional às entregas atribuídas.', icon: Bike },
 ]
 
 export default function EquipePage() {
@@ -139,7 +141,7 @@ export default function EquipePage() {
         <div>
           <div className="eyebrow mb-2">Equipe</div>
           <h1 className="text-3xl font-semibold">Acessos operacionais</h1>
-          <p className="hint mt-1">Atendentes acessam com usuário e senha.</p>
+          <p className="hint mt-1">Atendentes, Cozinha e Motoboy acessam com usuário e senha.</p>
         </div>
         {canManage && (
           <button className="btn-primary" onClick={() => start()}>
