@@ -61,32 +61,25 @@ export default function AcessoPage() {
     setError('')
     setSaving(true)
 
-    const supabase = createClient()
-
     try {
-      // Buscar membro pelo username
-      const { data: membro, error: membroError } = await supabase
-        .from('membros_equipe')
-        .select('*')
-        .eq('username', username.toLowerCase().trim())
-        .eq('ativo', true)
-        .single()
+      const r = await fetch('/api/membros-equipe/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username.toLowerCase().trim(),
+          senha: password,
+        }),
+      })
+      const data = await r.json()
 
-      if (membroError || !membro) {
-        setError('Usuário não encontrado ou inativo')
+      if (!r.ok) {
+        setError(data.error || 'Usuário inválido ou não encontrado')
         setSaving(false)
         return
       }
 
-      // Verificar senha (hash simples - em produção usar bcrypt)
-      if (membro.password_hash !== password) {
-        setError('Senha incorreta')
-        setSaving(false)
-        return
-      }
+      const membro = data.membro
 
-      // Simular autenticação com metadata
-      // Em produção, integrar com Auth real
       localStorage.setItem('membro_equipe', JSON.stringify({
         id: membro.id,
         nome: membro.nome,
