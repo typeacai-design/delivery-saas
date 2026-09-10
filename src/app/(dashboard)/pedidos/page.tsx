@@ -1146,86 +1146,91 @@ export default function PedidosPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="eyebrow mb-2">Atendimento</div>
-            <h1 className="text-3xl font-semibold tracking-tight mb-1" style={{ color: 'var(--ink)' }}>
-              Pedidos
+      <div className="mb-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <div className="eyebrow mb-1" style={{ color: '#16A34A' }}>ATENDIMENTO</div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2 flex-wrap" style={{ color: 'var(--ink)' }}>
+              <span>Pedidos</span>
               {novosPedidosCount > 0 && (
-                <span className="ml-3 inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500 text-white text-base font-medium rounded-full animate-pulse">
-                  🔔 {novosPedidosCount} novo{novosPedidosCount > 1 ? 's' : ''}
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-500 text-white text-sm font-semibold rounded-full animate-pulse">
+                  <Bell size={12} /> {novosPedidosCount} novo{novosPedidosCount > 1 ? 's' : ''}
                 </span>
               )}
             </h1>
-            <p className="hint">Gerencie os pedidos do seu delivery</p>
+            <p className="hint text-sm hidden sm:block">Gerencie os pedidos do seu delivery</p>
           </div>
-          <div className="flex items-center gap-3">
-            {/* Tabs de subseção */}
-            <div className="flex bg-white rounded-2xl border p-1 gap-1">
-              <button
-                onClick={() => { setPedidosTab('fluxo'); setFiltroStatus('') }}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
-                  pedidosTab === 'fluxo'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Activity size={14} />
-                Fluxo
-                {novosPedidosCount > 0 && (
-                  <span className="inline-flex items-center justify-center size-5 text-[10px] font-bold bg-orange-500 text-white rounded-full">
-                    {novosPedidosCount}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => { setPedidosTab('historico'); setFiltroStatus('') }}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
-                  pedidosTab === 'historico'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <History size={14} />
-                Histórico
-              </button>
-              <button
-                onClick={() => { setPedidosTab('mesas'); setFiltroStatus('') }}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
-                  pedidosTab === 'mesas'
-                    ? 'bg-amber-500 text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Utensils size={14} />
-                Mesas
-                {sessoesMesa.filter((s) => s.status === 'aberta').length > 0 && (
-                  <span className="inline-flex items-center justify-center size-5 text-[10px] font-bold bg-amber-500 text-white rounded-full">
-                    {sessoesMesa.filter((s) => s.status === 'aberta').length}
-                  </span>
-                )}
-              </button>
-            </div>
-            <button
-              onClick={() => setSomAtivado(!somAtivado)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border ${
-                somAtivado
-                  ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
-                  : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200'
-              }`}
-              title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som silenciado - clique para ativar'}
-            >
-              {somAtivado ? '🔊 Som' : '🔇 Mudo'}
-            </button>
-            <Link
-              href="/pedidos/novo"
-              className="btn-primary flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Novo Pedido
-            </Link>
-          </div>
+          <Link
+            href="/pedidos/novo"
+            className="btn-primary flex items-center gap-2 shrink-0"
+            style={{ background: '#16A34A' }}
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Novo Pedido</span>
+            <span className="sm:hidden">Novo</span>
+          </Link>
+        </div>
+
+        {/* TABS - grid full no mobile */}
+        <div className="grid grid-cols-3 gap-1 bg-white rounded-2xl border p-1 mb-3">
+          <button
+            onClick={() => { setPedidosTab('fluxo'); setFiltroStatus('') }}
+            className={`px-2 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 ${
+              pedidosTab === 'fluxo'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Activity size={14} />
+            <span>Fluxo</span>
+            {novosPedidosCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 text-[10px] font-bold bg-orange-500 text-white rounded-full">
+                {novosPedidosCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => { setPedidosTab('historico'); setFiltroStatus('') }}
+            className={`px-2 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 ${
+              pedidosTab === 'historico'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <History size={14} />
+            <span>Histórico</span>
+          </button>
+          <button
+            onClick={() => { setPedidosTab('mesas'); setFiltroStatus('') }}
+            className={`px-2 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 ${
+              pedidosTab === 'mesas'
+                ? 'bg-amber-500 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Utensils size={14} />
+            <span>Mesas</span>
+            {sessoesMesa.filter((s) => s.status === 'aberta').length > 0 && (
+              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 text-[10px] font-bold bg-amber-500 text-white rounded-full">
+                {sessoesMesa.filter((s) => s.status === 'aberta').length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="flex items-center justify-end mb-3">
+          <button
+            onClick={() => setSomAtivado(!somAtivado)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 border ${
+              somAtivado
+                ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200'
+            }`}
+            title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som desativado - clique para ativar'}
+          >
+            {somAtivado ? '🔊' : '🔇'}
+            <span className="hidden sm:inline">{somAtivado ? 'Som' : 'Mudo'}</span>
+          </button>
         </div>
       </div>
 
@@ -1305,7 +1310,7 @@ export default function PedidosPage() {
       </div>
 
       {/* Stats Bar - BOTOES POR ABA */}
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="grid grid-cols-2 md:flex md:gap-2 gap-2 mb-4">
         {pedidosTab === 'fluxo' && (
           <>
             {/* Novo */}
@@ -1492,7 +1497,7 @@ export default function PedidosPage() {
             )}
 
       {/* Lista de Pedidos em GRID 3 COLUNAS - key forca re-render quando filtro muda */}
-      <div key={`grid-${filtroPeriodo}-${filtroDataDe}-${filtroDataAte}-${pedidosTab}`} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      <div key={`grid-${filtroPeriodo}-${filtroDataDe}-${filtroDataAte}-${pedidosTab}`} className="grid grid-cols-1 gap-3">
         {loading ? (
           <div className="col-span-full text-center py-8 text-gray-500">Carregando pedidos...</div>
         ) : pedidosPorData.length === 0 ? (
@@ -1712,11 +1717,12 @@ export default function PedidosPage() {
                   {nextStatus && (
                     <button
                       onClick={() => updateStatus(pedido, nextStatus)}
-                      className="w-full min-h-[43px] mb-2 flex items-center justify-center gap-2 rounded-xl text-[12px] font-medium transition-all active:scale-[0.98]"
-                      style={{ background: '#00A240', color: '#FFFFFF' }}
+                      className="w-full min-h-[52px] md:min-h-[48px] md:min-h-[43px] mb-2 flex items-center justify-center gap-2 rounded-xl text-base md:text-[12px] font-bold transition-all active:scale-[0.98]"
+                      style={{ background: '#16A34A', color: '#FFFFFF', boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)' }}
                       title={`Avançar para ${STATUS_CONFIG[nextStatus].label}`}
                     >
-                      <ChevronRight size={16} />
+                      <ChevronRight size={18} className="md:hidden" />
+                      <ChevronRight size={16} className="hidden md:block" />
                       AVANÇAR PARA {STATUS_CONFIG[nextStatus].label.toUpperCase()}
                     </button>
                   )}
@@ -1726,7 +1732,7 @@ export default function PedidosPage() {
                     {/* Pago */}
                     <button
                       onClick={() => togglePago(pedido)}
-                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      className="min-h-[48px] md:min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
                       style={{
                         background: (pedido as any).pago ? '#00A240' : '#FFFFFF',
                         color: (pedido as any).pago ? '#FFFFFF' : '#172033',
@@ -1740,7 +1746,7 @@ export default function PedidosPage() {
                     {/* Editar */}
                     <button
                       onClick={() => abrirModalEditar(pedido)}
-                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      className="min-h-[48px] md:min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
                       style={{ background: '#FFFFFF', color: '#172033', border: '1px solid #E4E8EE' }}
                       title="Editar pedido"
                     >
@@ -1750,7 +1756,7 @@ export default function PedidosPage() {
                     {/* WhatsApp */}
                     <button
                       onClick={() => confirmarPedidoWPP(pedido)}
-                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      className="min-h-[48px] md:min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
                       style={{ background: '#EEFAF3', color: '#00A240' }}
                       title="Confirmar pedido (WhatsApp)"
                     >
@@ -1760,7 +1766,7 @@ export default function PedidosPage() {
                     {/* Imprimir */}
                     <button
                       onClick={() => imprimirPedido(pedido)}
-                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      className="min-h-[48px] md:min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
                       style={{ background: '#FFFFFF', color: '#172033', border: '1px solid #E4E8EE' }}
                       title="Imprimir pedido"
                     >
@@ -1770,7 +1776,7 @@ export default function PedidosPage() {
                     {/* Desconto */}
                     <button
                       onClick={() => abrirModalDesconto(pedido)}
-                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                      className="min-h-[48px] md:min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
                       style={{ background: '#FFF7E8', color: '#B55C00' }}
                       title="Dar desconto"
                     >
@@ -1781,7 +1787,7 @@ export default function PedidosPage() {
                     {pedido.status === 'cancelado' ? (
                       <button
                         onClick={() => apagarPedido(pedido)}
-                        className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                        className="min-h-[48px] md:min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
                         style={{ background: '#FFF1F1', color: '#D92D35' }}
                         title="Apagar pedido (somente cancelados)"
                       >
@@ -1790,7 +1796,7 @@ export default function PedidosPage() {
                     ) : (
                       <button
                         onClick={() => abrirModalCancelamento(pedido)}
-                        className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                        className="min-h-[48px] md:min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
                         style={{ background: '#FFF1F1', color: '#D92D35' }}
                         title="Cancelar pedido"
                       >
