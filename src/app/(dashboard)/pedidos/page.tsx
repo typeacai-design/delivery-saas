@@ -458,10 +458,14 @@ export default function PedidosPage() {
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
   const [filtroStatus, setFiltroStatus] = useState<string>('novo') // Padrão: subseção "Novo"
-  // FILTRO PADRÃO: HOJE (somente pedidos do dia atual)
+  // FILTRO PADRÃO: HOJE (somente pedidos do dia atual) - usa data LOCAL de Brasília
   const [filtroPeriodo, setFiltroPeriodo] = useState<'hoje' | 'ontem' | 'todos'>('hoje')
-  const [filtroDataDe, setFiltroDataDe] = useState<string>(new Date().toISOString().split('T')[0]) // Hoje
-  const [filtroDataAte, setFiltroDataAte] = useState<string>(new Date().toISOString().split('T')[0]) // Hoje
+  const getDataLocal = () => {
+    const agora = new Date()
+    return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`
+  }
+  const [filtroDataDe, setFiltroDataDe] = useState<string>(getDataLocal()) // Hoje LOCAL
+  const [filtroDataAte, setFiltroDataAte] = useState<string>(getDataLocal()) // Hoje LOCAL
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
   const [itensEditando, setItensEditando] = useState<any[]>([])
@@ -596,6 +600,15 @@ export default function PedidosPage() {
       if (subscription) {
         supabase.removeChannel(subscription)
       }
+    }
+  }, [])
+
+  // Garante que o filtro "Hoje" está com a data local correta ao montar
+  useEffect(() => {
+    const dataLocalHoje = getDataLocal()
+    if (filtroPeriodo === 'hoje' && filtroDataDe !== dataLocalHoje) {
+      setFiltroDataDe(dataLocalHoje)
+      setFiltroDataAte(dataLocalHoje)
     }
   }, [])
 
