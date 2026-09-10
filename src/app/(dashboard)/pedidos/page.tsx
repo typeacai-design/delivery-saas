@@ -4,7 +4,7 @@ import { chargedProductBase, savedItemTotal } from '@/lib/product-pricing'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, Activity, History, ChefHat, Bell, Bike, MapPin, Home } from 'lucide-react'
+import { Clock, Check, Truck, X, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, Activity, History, ChefHat, Bell, Bike, MapPin, Home, Utensils } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -449,7 +449,8 @@ export default function PedidosPage() {
   const { error: toastError, success: toastSuccess, warning: toastWarning } = useToast()
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
-  const [pedidosTab, setPedidosTab] = useState<'fluxo' | 'historico'>('fluxo')
+  const [pedidosTab, setPedidosTab] = useState<'fluxo' | 'mesas' | 'historico'>('fluxo')
+  const [sessoesMesa, setSessoesMesa] = useState<any[]>([])
   // ENTRA DIRETO NA SUBSEÇÃO "NOVO" + FILTRO "HOJE"
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null)
   const [itensPedido, setItensPedido] = useState<any[]>([])
@@ -639,13 +640,29 @@ export default function PedidosPage() {
     }
   }, [loading, inicializarIds, verificarMudancaStatus])
 
+  const loadSessoesMesa = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sessoes-mesa', { cache: 'no-store' })
+      const data = await res.json()
+      if (res.ok) setSessoesMesa(data.sessoes || [])
+    } catch (e) {
+      console.error('Erro ao carregar sessões de mesa:', e)
+    }
+  }, [])
+
   // Backup: recarrega pedidos periodicamente (a cada 30s)
   useEffect(() => {
     const interval = setInterval(() => {
       loadPedidos()
+      if (pedidosTab === 'mesas') loadSessoesMesa()
     }, 30000)
     return () => clearInterval(interval)
-  }, [loadPedidos])
+  }, [loadPedidos, loadSessoesMesa, pedidosTab])
+
+  // Carrega sessões sempre que a aba Mesas for selecionada
+  useEffect(() => {
+    if (pedidosTab === 'mesas') loadSessoesMesa()
+  }, [pedidosTab, loadSessoesMesa])
 
   const atribuirMotoboy = async (pedidoId: string, motoboyId: string) => {
     const { error } = await supabase.from('pedidos').update({ motoboy_id: motoboyId || null }).eq('id', pedidoId)
@@ -841,14 +858,14 @@ export default function PedidosPage() {
     const itensHtml = itensDoPedido.map((i: any) => {
       const comps = parseComplements(i.complementos)
 
-      let html = `<tr><td><strong>${i.quantidade}x ${i.nome}</strong>`
+      let html = `<tr><td class="linha-item"><strong>${i.quantidade}x ${i.nome}</strong>`
       if (i.variante_nome) html += ` (${i.variante_nome})`
-      html += `</td><td style="text-align:right">R$ ${savedItemTotal(i).toFixed(2)}</td></tr>`
+      html += `</td><td class="valor">R$ ${savedItemTotal(i).toFixed(2)}</td></tr>`
 
       // Complementos
       comps.forEach((c: any) => {
         const compValor = (c.valor || 0) * (c.quantidade || 1)
-        html += `<tr><td style="padding-left:15px;color:#666;font-size:11px">${c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}</td><td style="text-align:right;color:#666;font-size:11px">R$ ${compValor.toFixed(2)}</td></tr>`
+        html += `<tr><td class="linha-comp">${c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}</td><td class="valor linha-comp">R$ ${compValor.toFixed(2)}</td></tr>`
       })
 
       return html
@@ -857,15 +874,26 @@ export default function PedidosPage() {
     janela.document.write(`
       <html><head><title>Pedido ${pedido.codigo || pedido.id}</title>
       <style>
-        body{font-family:monospace;font-size:13px;padding:15px;max-width:380px;margin:0 auto}
-        h1{font-size:16px;margin:0 0 10px;border-bottom:2px solid #000;padding-bottom:5px}
-        h2{font-size:12px;margin:10px 0 5px;color:#333}
-        p{margin:3px 0;font-size:12px}
-        table{width:100%;border-collapse:collapse;margin:5px 0}
-        td{padding:3px 0;border-bottom:1px dashed #ddd;font-size:12px}
-        hr{border:none;border-top:1px dashed #000;margin:10px 0}
-        .total{font-weight:bold;font-size:16px;margin-top:10px}
-        .info-section{margin-bottom:10px}
+        /* Impressora termica: tinta preta pura, sem cinza */
+        * { color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { font-family: 'Courier New', monospace; font-size: 13px; padding: 12px; max-width: 100%; margin: 0; background: #fff; }
+        h1 { font-size: 18px; margin: 0 0 8px; border-bottom: 2px solid #000; padding-bottom: 6px; font-weight: bold; text-transform: uppercase; }
+        h2 { font-size: 13px; margin: 8px 0 4px; font-weight: bold; text-transform: uppercase; }
+        p { margin: 3px 0; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; margin: 5px 0; }
+        td { padding: 3px 0; border-bottom: 1px dashed #000; font-size: 13px; vertical-align: top; }
+        td.valor { text-align: right; white-space: nowrap; padding-left: 8px; }
+        hr { border: none; border-top: 1px dashed #000; margin: 8px 0; }
+        .total { font-weight: bold; font-size: 18px; margin-top: 10px; padding-top: 6px; border-top: 2px solid #000; }
+        .info-section { margin-bottom: 10px; }
+        .linha-item { font-weight: bold; }
+        .linha-comp { font-size: 11px; padding-left: 8px; }
+        .label { font-weight: bold; }
+        @media print {
+          body { padding: 0; }
+          @page { margin: 8mm; size: auto; }
+          * { color: #000 !important; }
+        }
       </style>
       </head><body>
       <h1>📋 PEDIDO ${pedido.codigo || pedido.id}</h1>
@@ -892,7 +920,7 @@ export default function PedidosPage() {
 
       <div>
         <p><strong>Subtotal:</strong> R$ ${(pedido.valor_subtotal || 0).toFixed(2)}</p>
-        ${pedido.valor_desconto > 0 ? `<p style="color:green"><strong>Desconto:</strong> -R$ ${(pedido.valor_desconto || 0).toFixed(2)}</p>` : ''}
+        ${pedido.valor_desconto > 0 ? `<p><strong>Desconto:</strong> -R$ ${(pedido.valor_desconto || 0).toFixed(2)}</p>` : ''}
         ${pedido.taxa_entrega > 0 ? `<p><strong>Entrega:</strong> R$ ${(pedido.taxa_entrega || 0).toFixed(2)}</p>` : ''}
         <p class="total">TOTAL: R$ ${(pedido.valor_total || 0).toFixed(2)}</p>
       </div>
@@ -909,7 +937,7 @@ export default function PedidosPage() {
       <hr>
       <div>
         <p><strong>📝 Observações:</strong></p>
-        <p style="background:#fffde7;padding:5px;border-radius:3px">${pedido.observacoes}</p>
+        <p style="border:1px solid #000;padding:5px;">${pedido.observacoes}</p>
       </div>
       ` : ''}
 
@@ -924,12 +952,6 @@ export default function PedidosPage() {
           }, 300);
         });
       </script>
-      <style>
-        @media print {
-          body { padding: 0; }
-          @page { margin: 10mm; }
-        }
-      </style>
       </body></html>
     `)
     } catch (err: any) {
@@ -1168,6 +1190,22 @@ export default function PedidosPage() {
                 <History size={14} />
                 Histórico
               </button>
+              <button
+                onClick={() => { setPedidosTab('mesas'); setFiltroStatus('') }}
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
+                  pedidosTab === 'mesas'
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Utensils size={14} />
+                Mesas
+                {sessoesMesa.filter((s) => s.status === 'aberta').length > 0 && (
+                  <span className="inline-flex items-center justify-center size-5 text-[10px] font-bold bg-amber-500 text-white rounded-full">
+                    {sessoesMesa.filter((s) => s.status === 'aberta').length}
+                  </span>
+                )}
+              </button>
             </div>
             <button
               onClick={() => setSomAtivado(!somAtivado)}
@@ -1397,13 +1435,14 @@ export default function PedidosPage() {
 
         // Filtro por tab e status
         if (pedidosTab === 'fluxo') {
-          // Fluxo: filtra pelo status (subseção) selecionado
+          // Fluxo: oculta pedidos de mesa (vão pra aba Mesas) e pedidos consolidados
+          pedidosFiltrados = pedidos.filter((p) => (p as any).tipo_pedido !== 'mesa' && (p as any).tipo_pedido !== 'consolidado')
           if (filtroStatus) {
-            pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
-          } else {
-            // Sem subseção: mostra todos do fluxo
-            pedidosFiltrados = [...pedidos]
+            pedidosFiltrados = pedidosFiltrados.filter(p => p.status === filtroStatus)
           }
+        } else if (pedidosTab === 'mesas') {
+          // Mesas: vazio aqui (renderiza MesaCard mais abaixo)
+          pedidosFiltrados = []
         } else {
           // Historico: sem filtro = todos não cancelados
           if (!filtroStatus) {
@@ -1768,6 +1807,16 @@ export default function PedidosPage() {
           </>
         )
       })()}
+
+      {/* GRID DE MESAS — aparece quando aba 'mesas' selecionada */}
+      {pedidosTab === 'mesas' && (
+        <MesasGrid
+          sessoes={sessoesMesa}
+          onRefresh={loadSessoesMesa}
+          toastError={toastError}
+          toastSuccess={toastSuccess}
+        />
+      )}
 
       {/* Modal de Detalhes Completos */}
       {selectedPedido && (
@@ -2407,3 +2456,278 @@ export default function PedidosPage() {
     </div>
   )
 }
+
+/**
+ * MesasGrid — renderiza cards de sessões de mesa abertas
+ */
+interface MesaCardProps {
+  sessoes: any[]
+  onRefresh: () => void
+  toastError: (msg: string, desc?: string) => void
+  toastSuccess: (msg: string, desc?: string) => void
+}
+
+function MesasGrid({ sessoes, onRefresh, toastError, toastSuccess }: MesaCardProps) {
+  const abertas = sessoes.filter((s) => s.status === 'aberta')
+  const fechadas = sessoes.filter((s) => s.status !== 'aberta')
+
+  if (sessoes.length === 0) {
+    return (
+      <div className="col-span-full text-center py-12">
+        <div className="text-5xl mb-3">🍽️</div>
+        <h3 className="text-lg font-semibold mb-1">Nenhuma mesa aberta</h3>
+        <p className="hint text-sm">
+          Quando você lançar um pedido do tipo "Mesa", ele aparecerá aqui pra acompanhar e fechar.
+        </p>
+        <a
+          href="/pedidos/novo"
+          className="btn-primary inline-flex items-center gap-2 mt-4"
+        >
+          <Plus size={16} /> Lançar pedido de mesa
+        </a>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {/* Mesas abertas */}
+      {abertas.length === 0 ? (
+        <div className="col-span-full text-center py-8">
+          <p className="hint">Nenhuma mesa aberta no momento.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {abertas.map((s) => (
+            <MesaCard
+              key={s.id}
+              sessao={s}
+              onRefresh={onRefresh}
+              toastError={toastError}
+              toastSuccess={toastSuccess}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Mesas fechadas hoje (somente visualização) */}
+      {fechadas.length > 0 && (
+        <details className="mt-6">
+          <summary className="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-900 mb-3">
+            📋 Mesas fechadas hoje ({fechadas.length})
+          </summary>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-3">
+            {fechadas.map((s) => (
+              <MesaCard
+                key={s.id}
+                sessao={s}
+                onRefresh={onRefresh}
+                toastError={toastError}
+                toastSuccess={toastSuccess}
+                somenteLeitura
+              />
+            ))}
+          </div>
+        </details>
+      )}
+    </>
+  )
+}
+
+function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura = false }: any) {
+  const pedidos = sessao.pedidos || []
+  const valorAcumulado = Number(sessao.valor_total || 0)
+  const minutosAberta = sessao.data_abertura
+    ? Math.floor((Date.now() - new Date(sessao.data_abertura).getTime()) / 60000)
+    : 0
+  const ehAberta = sessao.status === 'aberta'
+
+  async function marcarEntregue(pedidoId: string) {
+    const res = await fetch(`/api/pedidos/${pedidoId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pedido_id: pedidoId, status: 'entregue' }),
+    })
+    const data = await res.json()
+    if (!res.ok) return toastError('Erro', data.error || 'Falha ao marcar')
+    toastSuccess('Entregue na mesa')
+    onRefresh()
+  }
+
+  async function fecharMesa() {
+    if (!confirm(`Fechar a Mesa ${sessao.mesa_numero}?\n\nIsso arquiva a sessão. Os pedidos individuais continuam salvos para auditoria.`)) return
+    const res = await fetch(`/api/sessoes-mesa/${sessao.id}/fechar`, { method: 'POST' })
+    const data = await res.json()
+    if (!res.ok) return toastError('Erro', data.error || 'Falha ao fechar')
+    toastSuccess(`Mesa ${sessao.mesa_numero} fechada`)
+    onRefresh()
+  }
+
+  async function reabrirMesa() {
+    const res = await fetch(`/api/sessoes-mesa?id=${sessao.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'aberta' }),
+    })
+    const data = await res.json()
+    if (!res.ok) return toastError('Erro', data.error || 'Falha ao reabrir')
+    toastSuccess(`Mesa ${sessao.mesa_numero} reaberta`)
+    onRefresh()
+  }
+
+  async function cancelarMesa() {
+    if (!confirm(`Cancelar a Mesa ${sessao.mesa_numero}? Esta ação marca todos os pedidos como cancelados.`)) return
+    // Marca cada pedido individual como cancelado
+    for (const p of pedidos) {
+      if (p.status !== 'cancelado' && p.status !== 'entregue') {
+        await fetch(`/api/pedidos/${p.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pedido_id: p.id, status: 'cancelado' }),
+        })
+      }
+    }
+    // Marca sessão como cancelada
+    await fetch(`/api/sessoes-mesa?id=${sessao.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'cancelada' }),
+    })
+    toastSuccess(`Mesa ${sessao.mesa_numero} cancelada`)
+    onRefresh()
+  }
+
+  const statusColors: Record<string, string> = {
+    novo: 'bg-orange-100 text-orange-800',
+    preparando: 'bg-yellow-100 text-yellow-800',
+    pronto: 'bg-blue-100 text-blue-800',
+    entregue: 'bg-green-100 text-green-800',
+    cancelado: 'bg-red-100 text-red-800',
+  }
+
+  const countProntos = pedidos.filter((p: any) => p.status === 'pronto').length
+  const countPreparando = pedidos.filter((p: any) => p.status === 'preparando').length
+
+  return (
+    <div
+      className={`rounded-[18px] border overflow-hidden flex flex-col shadow-sm transition ${
+        ehAberta ? 'bg-white border-amber-300' : 'bg-gray-50 border-gray-200'
+      }`}
+    >
+      {/* HEADER */}
+      <div className={`px-4 py-3 border-b ${ehAberta ? 'bg-amber-50' : 'bg-gray-100'}`} style={{ borderColor: '#E4E8EE' }}>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2" style={{ color: '#172033' }}>
+              🍽️ Mesa {sessao.mesa_numero}
+            </h2>
+            <p className="text-xs mt-1" style={{ color: '#697386' }}>
+              {sessao.cliente_nome} · aberta há {minutosAberta} min
+            </p>
+          </div>
+          <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${ehAberta ? 'bg-amber-500 text-white' : 'bg-gray-500 text-white'}`}>
+            {sessao.status.toUpperCase()}
+          </span>
+        </div>
+      </div>
+
+      {/* PEDIDOS DA SESSÃO */}
+      <div className="px-3 pt-3 space-y-2">
+        {pedidos.length === 0 ? (
+          <p className="hint text-sm px-2">Nenhum pedido lançado ainda.</p>
+        ) : (
+          pedidos.map((p: any) => (
+            <div key={p.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50">
+              <span className="text-xs font-mono text-gray-500">#{String(p.codigo || p.id).slice(0, 6).toUpperCase()}</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColors[p.status] || 'bg-gray-100 text-gray-700'}`}>
+                {p.status}
+              </span>
+              <span className="flex-1 text-xs text-gray-500">
+                {((p.pedido_itens || []).length)} {((p.pedido_itens || []).length) === 1 ? 'item' : 'itens'}
+              </span>
+              <span className="text-sm font-semibold">{formatCurrency(Number(p.valor_total || 0))}</span>
+              {ehAberta && p.status === 'pronto' && (
+                <button
+                  type="button"
+                  onClick={() => marcarEntregue(p.id)}
+                  className="px-2 py-1 rounded-lg bg-green-500 text-white text-xs font-medium hover:bg-green-600 transition"
+                  title="Marcar como entregue na mesa"
+                >
+                  ✓
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* TOTAL + INFO */}
+      <div className="px-4 pt-3 pb-2">
+        <div className="flex items-baseline justify-between">
+          <span className="text-xs" style={{ color: '#697386' }}>
+            {pedidos.length} {pedidos.length === 1 ? 'pedido' : 'pedidos'}
+            {countProntos > 0 && ` · ${countProntos} pronto${countProntos > 1 ? 's' : ''}`}
+            {countPreparando > 0 && ` · ${countPreparando} prep.`}
+          </span>
+          <span className="text-xl font-bold" style={{ color: '#172033' }}>
+            {formatCurrency(valorAcumulado)}
+          </span>
+        </div>
+      </div>
+
+      {/* BOTÕES — só pra sessões abertas */}
+      {ehAberta && !somenteLeitura && (
+        <div className="px-3 pb-3 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={fecharMesa}
+            className="col-span-3 min-h-[40px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition"
+            style={{ background: '#92400E', color: '#fff' }}
+            title="Fechar mesa — arquiva a sessão"
+          >
+            🔒 Fechar Mesa
+          </button>
+          {countProntos > 0 && (
+            <button
+              type="button"
+              disabled
+              className="col-span-3 min-h-[36px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium bg-green-50 text-green-700 border border-green-200"
+              title="Use o ✓ ao lado de cada pedido pronto para marcar como entregue"
+            >
+              ✓ Use ✓ ao lado de cada pedido pronto
+            </button>
+          )}
+          <a
+            href={`/pedidos/novo?sessao_mesa_id=${sessao.id}`}
+            className="col-span-3 min-h-[40px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition border-2 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+            title="Lançar mais itens nesta mesa"
+          >
+            <Plus size={14} /> Adicionar item
+          </a>
+          <button
+            type="button"
+            onClick={cancelarMesa}
+            className="col-span-3 min-h-[36px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+            title="Cancelar sessão e todos pedidos"
+          >
+            <X size={14} /> Cancelar Mesa
+          </button>
+        </div>
+      )}
+
+      {/* Mesas fechadas — botão Reabrir */}
+      {!ehAberta && !somenteLeitura && (
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            onClick={reabrirMesa}
+            className="w-full min-h-[36px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+          >
+            ↻ Reabrir mesa
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+

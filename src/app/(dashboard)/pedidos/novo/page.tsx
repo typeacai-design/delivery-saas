@@ -725,6 +725,10 @@ export default function NovoPedidoPage() {
 
   // Tipo de entrega
   const [tipoEntrega, setTipoEntrega] = useState<'delivery' | 'retirada' | 'mesa'>('delivery')
+  const [mesaNumero, setMesaNumero] = useState('')
+  const [mesaSessaoId, setMesaSessaoId] = useState<string | null>(null)
+  const [mesaClienteNome, setMesaClienteNome] = useState('')
+  const [mesaClienteWhatsapp, setMesaClienteWhatsapp] = useState('')
 
   // Cliente selecionado
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
@@ -1009,6 +1013,29 @@ export default function NovoPedidoPage() {
         return
       }
 
+      // Se for mesa, criar sessão antes
+      let sessaoMesaId: string | null = null
+      if (tipoEntrega === 'mesa') {
+        if (!mesaNumero.trim()) {
+          toastError('Informe o número da mesa')
+          setLoading(false)
+          return
+        }
+        const sessaoRes = await fetch('/api/sessoes-mesa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mesa_numero: mesaNumero.trim(),
+            cliente_nome: mesaClienteNome.trim() || `Mesa ${mesaNumero}`,
+            cliente_whatsapp: mesaClienteWhatsapp.trim() || null,
+          }),
+        })
+        const sessaoData = await sessaoRes.json()
+        if (!sessaoRes.ok) throw new Error(sessaoData.error || 'Erro ao abrir mesa')
+        sessaoMesaId = sessaoData.sessao?.id || null
+        if (!sessaoMesaId) throw new Error('Sessão da mesa não retornou ID')
+      }
+
       const total = calcularTotal()
       const pago = parseFloat(valorPago) || total
       const taxaEntrega = tipoEntrega === 'delivery' && bairroSelecionado ? Number(bairroSelecionado.taxa) : 0
@@ -1031,8 +1058,8 @@ export default function NovoPedidoPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cliente_id: clienteId,
-          cliente_nome: nomeCliente,
-          cliente_whatsapp: telefoneCliente,
+          cliente_nome: tipoEntrega === 'mesa' ? mesaClienteNome.trim() || nomeCliente : nomeCliente,
+          cliente_whatsapp: tipoEntrega === 'mesa' ? mesaClienteWhatsapp.trim() || telefoneCliente : telefoneCliente,
           itens: itensParaApi,
           valor_subtotal: total - taxaEntrega,
           taxa_entrega: taxaEntrega,
@@ -1045,6 +1072,8 @@ export default function NovoPedidoPage() {
           taxa_bairro: taxaEntrega,
           observacoes: observacoes,
           tipo_entrega: tipoEntrega,
+          tipo_pedido: tipoEntrega === 'mesa' ? 'mesa' : tipoEntrega === 'retirada' ? 'retirada' : 'delivery',
+          sessao_mesa_id: sessaoMesaId,
           endereco,
           numero,
           complemento,
@@ -1160,6 +1189,41 @@ export default function NovoPedidoPage() {
                 <span className="text-xs font-medium">Mesa</span>
               </button>
             </div>
+
+            {/* Campos extras para Mesa */}
+            {tipoEntrega === 'mesa' && (
+              <div className="mt-3 p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3">
+                <div className="flex items-center gap-2 text-amber-900 text-sm font-medium">
+                  🍽️ <span>Pedido de mesa</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Nº da mesa"
+                    className="form-input"
+                    value={mesaNumero}
+                    onChange={(e) => setMesaNumero(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Nome do cliente"
+                    className="form-input"
+                    value={mesaClienteNome}
+                    onChange={(e) => setMesaClienteNome(e.target.value)}
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="WhatsApp (opcional)"
+                  className="form-input"
+                  value={mesaClienteWhatsapp}
+                  onChange={(e) => setMesaClienteWhatsapp(e.target.value)}
+                />
+                <p className="hint text-xs">
+                  O pedido vai pra cozinha normalmente. Pra adicionar mais itens depois, abra o card da mesa na aba "Mesas" em Pedidos.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Cliente */}

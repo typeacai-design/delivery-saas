@@ -14,6 +14,8 @@ interface Pedido {
   valor_total: number
   data_criacao: string
   tipo_entrega: string
+  tipo_pedido?: string
+  sessao_mesa_id?: string | null
   itens: any[]
 }
 
@@ -61,6 +63,7 @@ export default function CozinhaPage() {
       .select('*, pedido_itens(*)')
       .eq('tenant_id', tenantId)
       .in('status', ['novo', 'preparando'])
+      .neq('tipo_pedido', 'consolidado')
       .order('data_criacao', { ascending: true })
 
     setPedidos(data || [])
@@ -201,10 +204,28 @@ export default function CozinhaPage() {
                 <div className={`p-4 ${pedido.status === 'novo' ? 'bg-orange-50' : 'bg-yellow-50'}`}>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold">
-                        {formatarCodigoPedido(pedido.id, pedido.data_criacao, pedido.codigo)}
-                      </p>
-                      <p className="text-sm text-gray-600">{pedido.cliente_nome}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-2xl font-bold">
+                          {formatarCodigoPedido(pedido.id, pedido.data_criacao, pedido.codigo)}
+                        </p>
+                        {/* Badge de tipo do pedido */}
+                        {pedido.tipo_pedido === 'mesa' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            🍽️ MESA
+                          </span>
+                        )}
+                        {pedido.tipo_pedido === 'retirada' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-300">
+                            🏪 RETIRADA
+                          </span>
+                        )}
+                        {(!pedido.tipo_pedido || pedido.tipo_pedido === 'delivery') && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                            🚚 DELIVERY
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{pedido.cliente_nome}</p>
                     </div>
                     <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                       pedido.status === 'novo' ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-white'
