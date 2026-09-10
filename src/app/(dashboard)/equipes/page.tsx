@@ -29,7 +29,7 @@ export default function EquipesPage() {
   const [tenantId, setTenantId] = useState<string>('')
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<MembroEquipe | null>(null)
-  const [formData, setFormData] = useState({ nome: '', username: '', password: '', perfil: 'attendant' as const })
+  const [formData, setFormData] = useState<{ nome: string; username: string; password: string; perfil: 'owner' | 'manager' | 'attendant' | 'cozinha' | 'motoboy' }>({ nome: '', username: '', password: '', perfil: 'attendant' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {

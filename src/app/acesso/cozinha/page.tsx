@@ -221,7 +221,7 @@ export default function CozinhaPage() {
                 {/* Itens */}
                 <div className="p-4">
                   <ul className="space-y-2">
-                    {(pedido.pedido_itens || []).map((item: any, idx: number) => (
+                    {((pedido as any).pedido_itens || []).map((item: any, idx: number) => (
                       <li key={idx} className="border-b pb-2 last:border-b-0">
                         <div className="flex items-start gap-2">
                           <span className="font-bold text-lg">{item.quantidade}x</span>

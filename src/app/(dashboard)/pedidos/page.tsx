@@ -599,14 +599,6 @@ export default function PedidosPage() {
     }
   }, [])
 
-  // Backup: recarrega pedidos periodicamente (a cada 30s) para garantir que nada foi perdido
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadPedidos()
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [loadPedidos])
-
   // Carrega pedidos do servidor
   const loadPedidos = useCallback(async () => {
     try {
@@ -633,6 +625,14 @@ export default function PedidosPage() {
       console.error('Erro no loadPedidos:', err)
     }
   }, [loading, inicializarIds, verificarMudancaStatus])
+
+  // Backup: recarrega pedidos periodicamente (a cada 30s)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadPedidos()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [loadPedidos])
 
   const atribuirMotoboy = async (pedidoId: string, motoboyId: string) => {
     const { error } = await supabase.from('pedidos').update({ motoboy_id: motoboyId || null }).eq('id', pedidoId)
@@ -762,9 +762,9 @@ export default function PedidosPage() {
       const { data: formasPg } = await supabase.from('formas_pagamento').select('id, nome').eq('tenant_id', pedido.tenant_id).eq('ativo', true)
 
       // Formatar pagamento(s) como o cliente fez no checkout: "PIX: R$ 40,00" ou "PIX: R$ 25,00, Dinheiro: R$ 15,00"
-      const formasSelecionadas = Array.isArray(pedido.forma_pagamento) ? pedido.forma_pagamento : [pedido.forma_pagamento || 'dinheiro']
+      const formasSelecionadas: string[] = Array.isArray(pedido.forma_pagamento) ? pedido.forma_pagamento : [pedido.forma_pagamento || 'dinheiro']
       const pagamentosTexto = formasSelecionadas
-        .map(fp => {
+        .map((fp: string) => {
           const formaNome = formasPg?.find(f => f.id === fp)?.nome || fp
           // Usa o valor total se não houver rateio
           const valorPg = pedido.valor_total
