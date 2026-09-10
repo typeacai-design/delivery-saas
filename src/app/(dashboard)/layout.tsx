@@ -112,7 +112,7 @@ export default function DashboardLayout({
     <div className="app-shell">
       <div className="app-shell-inner">
         <div className="app-grid">
-          {/* SIDEBAR */}
+          {/* SIDEBAR - desktop only */}
           <aside className="w-[232px] shrink-0 hidden lg:flex flex-col gap-3 self-start sticky top-3">
             <div className="glass px-4 py-4 flex items-center gap-3">
               <Link href="/configuracoes?tab=perfil" aria-label="Abrir meu perfil"
@@ -144,15 +144,16 @@ export default function DashboardLayout({
           </aside>
 
           <div className="app-content">
-            <header className="glass px-5 py-3 flex items-center gap-4 sticky top-3 z-30">
-              <div className="lg:hidden flex items-center gap-2">
+            {/* HEADER mobile-only com busca e notificação */}
+            <header className="glass px-3 sm:px-5 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4 sticky top-0 z-30 mb-2 sm:mb-3">
+              <div className="lg:hidden flex items-center gap-2 shrink-0">
                 <div
-                  className="size-8 rounded-xl flex items-center justify-center text-white font-bold text-[11px]"
+                  className="size-7 sm:size-8 rounded-xl flex items-center justify-center text-white font-bold text-[11px]"
                   style={{ background: 'var(--grad-violet)' }}
                 >
                   {initials}
                 </div>
-                <span className="font-display text-base" style={{ color: 'var(--ink)' }}>
+                <span className="font-display text-sm sm:text-base whitespace-nowrap" style={{ color: 'var(--ink)' }}>
                   We Delivery
                 </span>
               </div>
