@@ -16,7 +16,7 @@ const roles = [
 export default function EquipePage() {
   const { success: toastSuccess, error: toastError } = useToast()
   const [members, setMembers] = useState<Member[]>([])
-  const [canManage, setCanManage] = useState(false)
+  const [canManage, setCanManage] = useState(true) // logado como owner/manager no sistema
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [editing, setEditing] = useState<Member | null>(null)
@@ -29,15 +29,20 @@ export default function EquipePage() {
 
   async function load() {
     setLoading(true)
-    const r = await fetch('/api/membros-equipe')
-    const b = await r.json()
-    if (r.ok) {
-      setMembers(b.membros || [])
-      setCanManage(true)
-    } else {
-      toastError('Erro ao carregar', b.error)
+    try {
+      const r = await fetch('/api/membros-equipe')
+      const b = await r.json()
+      if (r.ok) {
+        setMembers(b.membros || [])
+        setCanManage(true)
+      } else {
+        toastError('Erro ao carregar', b.error)
+      }
+    } catch (e: any) {
+      toastError('Erro de rede', e?.message || 'falha ao carregar')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   useEffect(() => { load() }, [])
