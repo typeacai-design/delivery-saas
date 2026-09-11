@@ -22,6 +22,7 @@ import ErrorBoundary from '@/components/error-boundary'
 import { createClient } from '@/lib/supabase/client'
 import GlobalSomPedidos from '@/components/global-som-pedidos'
 import { ToastProvider } from '@/components/toast'
+import { ConfirmSairModal } from '@/components/confirm-sair-modal'
 
 export default function DashboardLayout({
   children,
@@ -33,7 +34,10 @@ export default function DashboardLayout({
   const [authChecked, setAuthChecked] = useState(false)
   const [tenant, setTenant] = useState<any>(null)
   const [role, setRole] = useState('owner')
+  const [confirmSairOpen, setConfirmSairOpen] = useState(false)
   const sair = async () => { await createClient().auth.signOut(); localStorage.removeItem('wedelivery-auth'); window.location.replace('/') }
+  const perfisOperacionais = ['attendant', 'kitchen', 'motoboy', 'delivery']
+  const ehPerfilOperacional = perfisOperacionais.includes(role)
 
   useEffect(() => {
     let active = true
@@ -173,21 +177,57 @@ export default function DashboardLayout({
         </div>
       </div>
 
-      <nav className="app-bottom-nav">
-        <div className="grid grid-cols-5 gap-1 px-2 py-2">
-          {( role === 'attendant' ? navItems.filter(item => ['/dashboard','/pedidos','/clientes'].includes(item.href)) : ['kitchen', 'motoboy', 'delivery'].includes(role) ? navItems.filter(item => ['/dashboard','/pedidos'].includes(item.href)) : navItems).slice(0, 5).map((item) => (
+      {ehPerfilOperacional && (
+        <nav className="app-bottom-nav">
+          <div className="grid grid-cols-2 gap-2 px-3 py-2.5">
             <Link
-              key={item.href}
-              href={item.href}
-              className="flex flex-col items-center gap-1 py-1.5 rounded-xl"
-              style={{ color: 'var(--ink-muted)' }}
+              href="/pedidos"
+              aria-label="Pedidos"
+              className="flex flex-col items-center justify-center gap-1 py-2 rounded-2xl transition active:scale-95"
+              style={
+                pathname === '/pedidos' || pathname.startsWith('/pedidos/')
+                  ? {
+                      background:
+                        'linear-gradient(135deg, rgba(22,163,74,.18), rgba(22,163,74,.06))',
+                      border: '1px solid rgba(22,163,74,.30)',
+                      color: '#15803D',
+                      boxShadow: '0 8px 22px -10px rgba(22,163,74,.45)',
+                    }
+                  : {
+                      background: 'rgba(255,255,255,.6)',
+                      border: '1px solid var(--line)',
+                      color: 'var(--ink-muted)',
+                    }
+              }
             >
-              <item.icon className="w-4 h-4" strokeWidth={2} />
-              <span className="text-[10px] font-medium">{item.label}</span>
+              <ShoppingCart className="w-5 h-5" strokeWidth={pathname === '/pedidos' || pathname.startsWith('/pedidos/') ? 2.5 : 2} />
+              <span className="text-xs font-semibold">Pedidos</span>
             </Link>
-          ))}
-        </div>
-      </nav>
+
+            <button
+              type="button"
+              onClick={() => setConfirmSairOpen(true)}
+              aria-label="Sair"
+              className="flex flex-col items-center justify-center gap-1 py-2 rounded-2xl transition active:scale-95"
+              style={{
+                background: 'rgba(255,255,255,.6)',
+                border: '1px solid var(--line)',
+                color: 'var(--ink-muted)',
+              }}
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="text-xs font-semibold">Sair</span>
+            </button>
+          </div>
+        </nav>
+      )}
+
+      <ConfirmSairModal
+        open={confirmSairOpen}
+        onClose={() => setConfirmSairOpen(false)}
+        onConfirm={sair}
+        nome={tenant?.responsavel_nome || tenant?.nome}
+      />
     </div>
     </GlobalSomPedidos>
     </ToastProvider>
