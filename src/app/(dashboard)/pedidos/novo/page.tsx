@@ -4,7 +4,7 @@ import { flavorLabel } from '@/lib/flavor-pricing'
 import { chargedProductBase } from '@/lib/product-pricing'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import {
@@ -711,6 +711,8 @@ function ClienteModal({
 // ============================================================
 export default function NovoPedidoPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const sessaoMesaIdDaUrl = searchParams.get('sessao_mesa_id')
   const supabase = createClient()
   const { error: toastError, success: toastSuccess } = useToast()
 
@@ -773,6 +775,34 @@ export default function NovoPedidoPage() {
   useEffect(() => {
     loadDados()
   }, [])
+
+  // Se vier sessao_mesa_id da URL, vira modo mesa automaticamente
+  useEffect(() => {
+    if (!sessaoMesaIdDaUrl) return
+    let cancel = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('sessoes_mesa')
+        .select('id, mesa_numero, cliente_nome, cliente_whatsapp, status')
+        .eq('id', sessaoMesaIdDaUrl)
+        .maybeSingle()
+      if (cancel) return
+      if (error || !data) {
+        toastError('Sessão de mesa não encontrada')
+        return
+      }
+      if (data.status !== 'aberta') {
+        toastError('Essa mesa já está ' + data.status)
+        return
+      }
+      setTipoEntrega('mesa')
+      setMesaSessaoId(data.id)
+      setMesaNumero(data.mesa_numero || '')
+      setMesaClienteNome(data.cliente_nome || '')
+      setMesaClienteWhatsapp(data.cliente_whatsapp || '')
+    })()
+    return () => { cancel = true }
+  }, [sessaoMesaIdDaUrl, supabase, toastError])
 
   // Calcula troco
   useEffect(() => {
@@ -987,33 +1017,36 @@ export default function NovoPedidoPage() {
       const nomeCliente = clienteSelecionado?.nome || ''
       const telefoneCliente = clienteSelecionado?.telefone || ''
 
-      // Se nao tem cliente selecionado, cria um novo
-      if (!clienteId && nomeCliente && telefoneCliente) {
-        const { data: novo, error: erroNovo } = await supabase
-          .from('clientes')
-          .insert({
-            tenant_id: tenantId,
-            nome: nomeCliente,
-            telefone: telefoneCliente.replace(/\D/g, ''),
-            cpf: null,
-            data_nascimento: null,
-            endereco: endereco || null,
-            bairro: bairroSelecionado?.bairro || null,
-            // Coluna 'numero' não existe em clientes
-          })
-          .select()
-          .single()
-        if (erroNovo) throw erroNovo
-        clienteId = novo.id
+      // Em modo Mesa, nao exige cliente cadastrado: cria a sessao direto com nome/whatsapp
+      if (tipoEntrega !== 'mesa') {
+        // Se nao tem cliente selecionado, cria um novo
+        if (!clienteId && nomeCliente && telefoneCliente) {
+          const { data: novo, error: erroNovo } = await supabase
+            .from('clientes')
+            .insert({
+              tenant_id: tenantId,
+              nome: nomeCliente,
+              telefone: telefoneCliente.replace(/\D/g, ''),
+              cpf: null,
+              data_nascimento: null,
+              endereco: endereco || null,
+              bairro: bairroSelecionado?.bairro || null,
+              // Coluna 'numero' não existe em clientes
+            })
+            .select()
+            .single()
+          if (erroNovo) throw erroNovo
+          clienteId = novo.id
+        }
+
+        if (!clienteId) {
+          toastError('Selecione ou cadastre um cliente')
+          setLoading(false)
+          return
+        }
       }
 
-      if (!clienteId) {
-        toastError('Selecione ou cadastre um cliente')
-        setLoading(false)
-        return
-      }
-
-      // Se for mesa, criar sessão antes
+      // Se for mesa, criar sessão antes (ou reusar a que veio da URL)
       let sessaoMesaId: string | null = null
       if (tipoEntrega === 'mesa') {
         if (!mesaNumero.trim()) {
@@ -1021,19 +1054,24 @@ export default function NovoPedidoPage() {
           setLoading(false)
           return
         }
-        const sessaoRes = await fetch('/api/sessoes-mesa', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mesa_numero: mesaNumero.trim(),
-            cliente_nome: mesaClienteNome.trim() || `Mesa ${mesaNumero}`,
-            cliente_whatsapp: mesaClienteWhatsapp.trim() || null,
-          }),
-        })
-        const sessaoData = await sessaoRes.json()
-        if (!sessaoRes.ok) throw new Error(sessaoData.error || 'Erro ao abrir mesa')
-        sessaoMesaId = sessaoData.sessao?.id || null
-        if (!sessaoMesaId) throw new Error('Sessão da mesa não retornou ID')
+        if (mesaSessaoId) {
+          // Sessao ja existe (aberta via URL ou anteriormente) — reutiliza
+          sessaoMesaId = mesaSessaoId
+        } else {
+          const sessaoRes = await fetch('/api/sessoes-mesa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mesa_numero: mesaNumero.trim(),
+              cliente_nome: mesaClienteNome.trim() || `Mesa ${mesaNumero}`,
+              cliente_whatsapp: mesaClienteWhatsapp.trim() || null,
+            }),
+          })
+          const sessaoData = await sessaoRes.json()
+          if (!sessaoRes.ok) throw new Error(sessaoData.error || 'Erro ao abrir mesa')
+          sessaoMesaId = sessaoData.sessao?.id || null
+          if (!sessaoMesaId) throw new Error('Sessão da mesa não retornou ID')
+        }
       }
 
       const total = calcularTotal()
@@ -1057,17 +1095,17 @@ export default function NovoPedidoPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cliente_id: clienteId,
-          cliente_nome: tipoEntrega === 'mesa' ? mesaClienteNome.trim() || nomeCliente : nomeCliente,
-          cliente_whatsapp: tipoEntrega === 'mesa' ? mesaClienteWhatsapp.trim() || telefoneCliente : telefoneCliente,
+          cliente_id: tipoEntrega === 'mesa' ? null : clienteId,
+          cliente_nome: tipoEntrega === 'mesa' ? mesaClienteNome.trim() || `Mesa ${mesaNumero}` : nomeCliente,
+          cliente_whatsapp: tipoEntrega === 'mesa' ? mesaClienteWhatsapp.trim() || null : telefoneCliente,
           itens: itensParaApi,
           valor_subtotal: total - taxaEntrega,
           taxa_entrega: taxaEntrega,
           valor_desconto: ajusteValor > 0 ? ajusteValor : 0,
           valor_acrescimo: Math.max(0, -ajusteValor),
           valor_total: total,
-          forma_pagamento: formaPagamento,
-          troco_para: troco,
+          forma_pagamento: tipoEntrega === 'mesa' ? null : formaPagamento,
+          troco_para: tipoEntrega === 'mesa' ? null : troco,
           bairro_entrega: bairroSelecionado?.bairro || null,
           taxa_bairro: taxaEntrega,
           observacoes: observacoes,
@@ -1136,6 +1174,12 @@ export default function NovoPedidoPage() {
     setTipoAjuste('desconto')
     setValorAjuste(0)
     setMotivoAjuste('')
+    // Resetar sessao de mesa: proximo pedido vai exigir nova sessao
+    setMesaSessaoId(null)
+    setMesaNumero('')
+    setMesaClienteNome('')
+    setMesaClienteWhatsapp('')
+    setTipoEntrega('delivery')
   }
 
   const total = calcularTotal()
@@ -1226,7 +1270,8 @@ export default function NovoPedidoPage() {
             )}
           </div>
 
-          {/* Cliente */}
+          {/* Cliente (oculto em modo Mesa) */}
+          {tipoEntrega !== 'mesa' && (
           <div className="glass p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
@@ -1336,6 +1381,7 @@ export default function NovoPedidoPage() {
               </p>
             )}
           </div>
+          )}
 
           {/* Endereço (se delivery) */}
           {tipoEntrega === 'delivery' && (
@@ -1409,7 +1455,8 @@ export default function NovoPedidoPage() {
             </div>
           )}
 
-          {/* Pagamento */}
+          {/* Pagamento (oculto em Mesa — pergunta so ao fechar a mesa) */}
+          {tipoEntrega !== 'mesa' && (
           <div className="glass p-5">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-green-600" />
@@ -1450,6 +1497,7 @@ export default function NovoPedidoPage() {
               </>
             )}
           </div>
+          )}
 
           {/* Observações */}
           <div className="glass p-5">

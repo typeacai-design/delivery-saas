@@ -2551,6 +2551,14 @@ function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura 
     : 0
   const ehAberta = sessao.status === 'aberta'
 
+  // Modal de fechar mesa com captura de pagamento
+  const [fecharModalOpen, setFecharModalOpen] = useState(false)
+  const [fecharFormaPagamento, setFecharFormaPagamento] = useState<'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito'>('dinheiro')
+  const [fecharValorPago, setFecharValorPago] = useState('')
+  const [fecharLoading, setFecharLoading] = useState(false)
+  const valorPagoNum = parseFloat(fecharValorPago.replace(',', '.')) || 0
+  const trocoFechamento = fecharFormaPagamento === 'dinheiro' && valorPagoNum > valorAcumulado ? valorPagoNum - valorAcumulado : 0
+
   async function marcarEntregue(pedidoId: string) {
     const res = await fetch(`/api/pedidos/${pedidoId}/status`, {
       method: 'PATCH',
@@ -2563,13 +2571,30 @@ function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura 
     onRefresh()
   }
 
-  async function fecharMesa() {
-    if (!confirm(`Fechar a Mesa ${sessao.mesa_numero}?\n\nIsso arquiva a sessão. Os pedidos individuais continuam salvos para auditoria.`)) return
-    const res = await fetch(`/api/sessoes-mesa/${sessao.id}/fechar`, { method: 'POST' })
-    const data = await res.json()
-    if (!res.ok) return toastError('Erro', data.error || 'Falha ao fechar')
-    toastSuccess(`Mesa ${sessao.mesa_numero} fechada`)
-    onRefresh()
+  async function confirmarFechamentoMesa() {
+    setFecharLoading(true)
+    try {
+      const body: any = { forma_pagamento: fecharFormaPagamento }
+      if (fecharFormaPagamento === 'dinheiro') {
+        body.valor_pago = valorPagoNum || valorAcumulado
+        body.troco_para = trocoFechamento
+      }
+      const res = await fetch(`/api/sessoes-mesa/${sessao.id}/fechar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toastError('Erro', data.error || 'Falha ao fechar')
+        return
+      }
+      toastSuccess(`Mesa ${sessao.mesa_numero} fechada`, `Pagamento: ${data.forma_pagamento || '—'}`)
+      setFecharModalOpen(false)
+      onRefresh()
+    } finally {
+      setFecharLoading(false)
+    }
   }
 
   async function reabrirMesa() {
@@ -2689,7 +2714,10 @@ function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura 
         <div className="px-3 pb-3 grid grid-cols-3 gap-2">
           <button
             type="button"
-            onClick={fecharMesa}
+            onClick={() => {
+              setFecharValorPago(String(valorAcumulado.toFixed(2)).replace('.', ','))
+              setFecharModalOpen(true)
+            }}
             className="col-span-3 min-h-[40px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition"
             style={{ background: '#92400E', color: '#fff' }}
             title="Fechar mesa — arquiva a sessão"
@@ -2734,6 +2762,105 @@ function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura 
           >
             ↻ Reabrir mesa
           </button>
+        </div>
+      )}
+
+      {/* MODAL — Fechar Mesa com forma de pagamento */}
+      {fecharModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3"
+          style={{ background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)' }}
+          onClick={() => !fecharLoading && setFecharModalOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="fechar-mesa-title"
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-white p-5 sm:p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="fechar-mesa-title" className="text-lg font-bold mb-1 flex items-center gap-2">
+              🔒 Fechar Mesa {sessao.mesa_numero}
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Total da mesa: <strong className="text-gray-900">{formatCurrency(valorAcumulado)}</strong>
+            </p>
+
+            <label className="block text-xs font-semibold text-gray-700 mb-2">
+              Forma de pagamento
+            </label>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {([
+                { v: 'dinheiro', l: 'Dinheiro' },
+                { v: 'pix', l: 'PIX' },
+                { v: 'cartao_credito', l: 'Crédito' },
+                { v: 'cartao_debito', l: 'Débito' },
+              ] as const).map((opt) => {
+                const ativo = fecharFormaPagamento === opt.v
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => setFecharFormaPagamento(opt.v)}
+                    className={`px-3 py-2.5 rounded-xl text-sm font-medium border-2 transition ${
+                      ativo
+                        ? 'border-amber-700 bg-amber-50 text-amber-900'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {opt.l}
+                  </button>
+                )
+              })}
+            </div>
+
+            {fecharFormaPagamento === 'dinheiro' && (
+              <>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  Valor entregue pelo cliente
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={fecharValorPago}
+                  onChange={(e) => setFecharValorPago(e.target.value)}
+                  placeholder="0,00"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-amber-600 focus:ring-2 focus:ring-amber-100 outline-none mb-2"
+                />
+                {trocoFechamento > 0 && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+                    <p className="text-xs text-amber-800">Troco a devolver</p>
+                    <p className="font-bold text-amber-900 text-lg">{formatCurrency(trocoFechamento)}</p>
+                  </div>
+                )}
+                {valorPagoNum > 0 && valorPagoNum < valorAcumulado && (
+                  <p className="text-xs text-red-600 mb-3">
+                    Valor pago é menor que o total da mesa.
+                  </p>
+                )}
+              </>
+            )}
+
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setFecharModalOpen(false)}
+                disabled={fecharLoading}
+                className="flex-1 py-3 rounded-xl font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarFechamentoMesa}
+                disabled={fecharLoading || (fecharFormaPagamento === 'dinheiro' && valorPagoNum > 0 && valorPagoNum < valorAcumulado)}
+                className="flex-1 py-3 rounded-xl font-semibold text-white transition active:scale-95 disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #92400E, #B45309)' }}
+              >
+                {fecharLoading ? 'Fechando…' : 'Confirmar fechamento'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

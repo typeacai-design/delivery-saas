@@ -179,11 +179,11 @@ export default function DashboardLayout({
 
       {ehPerfilOperacional && (
         <nav className="app-bottom-nav">
-          <div className="grid grid-cols-2 gap-2 px-3 py-2.5">
+          <div className="grid grid-cols-2 gap-1 px-1.5 py-1">
             <Link
               href="/pedidos"
               aria-label="Pedidos"
-              className="flex flex-col items-center justify-center gap-1 py-2 rounded-2xl transition active:scale-95"
+              className="flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition active:scale-95"
               style={
                 pathname === '/pedidos' || pathname.startsWith('/pedidos/')
                   ? {
@@ -191,7 +191,6 @@ export default function DashboardLayout({
                         'linear-gradient(135deg, rgba(22,163,74,.18), rgba(22,163,74,.06))',
                       border: '1px solid rgba(22,163,74,.30)',
                       color: '#15803D',
-                      boxShadow: '0 8px 22px -10px rgba(22,163,74,.45)',
                     }
                   : {
                       background: 'rgba(255,255,255,.6)',
@@ -200,23 +199,23 @@ export default function DashboardLayout({
                     }
               }
             >
-              <ShoppingCart className="w-5 h-5" strokeWidth={pathname === '/pedidos' || pathname.startsWith('/pedidos/') ? 2.5 : 2} />
-              <span className="text-xs font-semibold">Pedidos</span>
+              <ShoppingCart className="w-4 h-4" strokeWidth={pathname === '/pedidos' || pathname.startsWith('/pedidos/') ? 2.5 : 2} />
+              <span className="text-[10px] font-medium leading-none">Pedidos</span>
             </Link>
 
             <button
               type="button"
               onClick={() => setConfirmSairOpen(true)}
               aria-label="Sair"
-              className="flex flex-col items-center justify-center gap-1 py-2 rounded-2xl transition active:scale-95"
+              className="flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition active:scale-95"
               style={{
                 background: 'rgba(255,255,255,.6)',
                 border: '1px solid var(--line)',
                 color: 'var(--ink-muted)',
               }}
             >
-              <LogOut className="w-5 h-5" />
-              <span className="text-xs font-semibold">Sair</span>
+              <LogOut className="w-4 h-4" />
+              <span className="text-[10px] font-medium leading-none">Sair</span>
             </button>
           </div>
         </nav>
