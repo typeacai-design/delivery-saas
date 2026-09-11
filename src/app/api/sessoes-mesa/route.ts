@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { MANAGEMENT_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
+import { SALES_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
  * Inclui pedidos vinculados (para a aba Mesas do lojista)
  */
 export async function GET(req: NextRequest) {
-  const auth = await authenticatedTenant(MANAGEMENT_ROLES)
+  const auth = await authenticatedTenant(SALES_ROLES)
   const authStatus = tenantAuthStatus(auth)
   if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão' }, { status: authStatus })
 
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
  * Body: { mesa_numero, cliente_nome, cliente_whatsapp?, observacoes? }
  */
 export async function POST(req: NextRequest) {
-  const auth = await authenticatedTenant(MANAGEMENT_ROLES)
+  const auth = await authenticatedTenant(SALES_ROLES)
   const authStatus = tenantAuthStatus(auth)
   if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão' }, { status: authStatus })
 
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
  * Atualiza status (reabrir, cancelar) ou dados da sessão
  */
 export async function PATCH(req: NextRequest) {
-  const auth = await authenticatedTenant(MANAGEMENT_ROLES)
+  const auth = await authenticatedTenant(SALES_ROLES)
   const authStatus = tenantAuthStatus(auth)
   if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão' }, { status: authStatus })
 
