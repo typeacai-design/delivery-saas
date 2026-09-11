@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await authenticatedTenant(SALES_ROLES)
   const authStatus = tenantAuthStatus(auth)
+  // Debug temporário para investigar erro 'Sem permissão' persistente
+  console.log('[sessoes-mesa][POST]', { tenantId: auth.tenantId, role: auth.role, userId: auth.user?.id, authStatus, allowed: SALES_ROLES })
   if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão' }, { status: authStatus })
 
   const { supabase, tenantId } = auth

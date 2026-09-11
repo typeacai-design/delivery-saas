@@ -1068,7 +1068,7 @@ export default function NovoPedidoPage() {
             }),
           })
           const sessaoData = await sessaoRes.json()
-          if (!sessaoRes.ok) throw new Error(sessaoData.error || 'Erro ao abrir mesa')
+          if (!sessaoRes.ok) throw new Error(`[sessoes-mesa] ${sessaoData.error || sessaoRes.status}`)
           sessaoMesaId = sessaoData.sessao?.id || null
           if (!sessaoMesaId) throw new Error('Sessão da mesa não retornou ID')
         }
@@ -1119,7 +1119,7 @@ export default function NovoPedidoPage() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Erro ao criar pedido')
+      if (!res.ok) throw new Error(`[pedidos/manual] ${data.error || res.status}`)
 
       const pedido = data
 
