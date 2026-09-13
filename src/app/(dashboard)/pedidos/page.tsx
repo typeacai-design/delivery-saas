@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star } from 'lucide-react'
+import { Clock, Check, Truck, X, Eye, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, RefreshCw, Activity, History, Utensils } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -424,8 +424,11 @@ export default function PedidosPage() {
   const [novosPedidosCount, setNovosPedidosCount] = useState(0)
   const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
-  const [filtroStatus, setFiltroStatus] = useState<string | null>('novo') // Padrão: novo
-  const [filtroData, setFiltroData] = useState<string>(new Date().toISOString().split('T')[0]) // Data atual como padrão
+  const [abaAtiva, setAbaAtiva] = useState<'fluxo' | 'historico' | 'mesas'>('fluxo') // Padrão: fluxo
+  const [filtroStatus, setFiltroStatus] = useState<string | null>('em_aberto') // Fluxo: em_aberto, Histórico: null
+  const [filtroData, setFiltroData] = useState<string>('') // Vazio por padrão
+  const [filtroDataAte, setFiltroDataAte] = useState<string>('')
+  const [filtroDataRapido, setFiltroDataRapido] = useState<'hoje' | 'ontem' | 'todos'>('hoje') // Toggle rápido Hoje/Ontem/Todos
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
   const [itensEditando, setItensEditando] = useState<any[]>([])
@@ -448,13 +451,14 @@ export default function PedidosPage() {
       setTenantIdAtual(tenantId)
 
       // 1. Carrega pedidos iniciais (excluir apagados)
+      const initialLimit = abaAtiva === 'historico' ? 200 : 50
       const { data } = await supabase
         .from('pedidos')
         .select('*')
         .eq('tenant_id', tenantId)
         .is('deleted_at', null)
         .order('data_criacao', { ascending: false })
-        .limit(50)
+        .limit(initialLimit)
 
       const pedidosData = data || []
       inicializarIds(pedidosData)
@@ -476,15 +480,16 @@ export default function PedidosPage() {
             event: 'INSERT',
             schema: 'public',
             table: 'pedidos',
-            filter: `tenant_id=eq.${tenantId}`,
           },
           (payload) => {
             const novoPedido = payload.new as Pedido
+            // Filtrar apenas pedidos do tenant atual
+            if (novoPedido.tenant_id !== tenantId) return
+            // Filtrar pedidos apagados
+            if (novoPedido.deleted_at) return
             setPedidos((prev) => {
-              // Filtrar pedidos apagados
-              const filtrados = prev.filter(p => !p.deleted_at)
-              if (filtrados.some(p => p.id === novoPedido.id)) return filtrados
-              const novosPedidos = [novoPedido, ...filtrados]
+              if (prev.some(p => p.id === novoPedido.id)) return prev
+              const novosPedidos = [novoPedido, ...prev]
               adicionarAoLoop(novoPedido.id)
               const count = novosPedidos.filter((p) => p.status === 'novo').length
               setNovosPedidosCount(count)
@@ -498,10 +503,11 @@ export default function PedidosPage() {
             event: 'UPDATE',
             schema: 'public',
             table: 'pedidos',
-            filter: `tenant_id=eq.${tenantId}`,
           },
           (payload) => {
             const atualizado = payload.new as Pedido
+            // Filtrar apenas pedidos do tenant atual
+            if (atualizado.tenant_id !== tenantId) return
             setPedidos((prev) => {
               // Se foi apagado, remover da lista
               if (atualizado.deleted_at) {
@@ -534,12 +540,15 @@ export default function PedidosPage() {
     const tenantId = await activeTenantId()
     if (!tenantId) { setLoading(false); return }
 
+    // Histórico carrega mais pedidos (200), Fluxo carrega apenas 50
+    const limit = abaAtiva === 'historico' ? 200 : 50
+
     const { data } = await supabase
       .from('pedidos')
       .select('*')
       .eq('tenant_id', tenantId)
       .order('data_criacao', { ascending: false })
-      .limit(50)
+      .limit(limit)
 
     const pedidosData = data || []
 
@@ -923,6 +932,18 @@ export default function PedidosPage() {
     carregarItensCache()
   }, [pedidos])
 
+  const [mesasInfo, setMesasInfo] = useState<any[]>([])
+
+  useEffect(() => {
+    const carregarMesas = async () => {
+      const tid = await activeTenantId()
+      if (!tid) return
+      const { data } = await supabase.from('mesas').select('*').eq('tenant_id', tid).eq('ativa', true).order('numero')
+      setMesasInfo(data || [])
+    }
+    carregarMesas()
+  }, [])
+
   // Carrega itens quando modal de edição abre
   useEffect(() => {
     if (modalEditarAberto && pedidoEditando) {
@@ -997,6 +1018,13 @@ export default function PedidosPage() {
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => { setLoading(true); loadPedidos(); }}
+              className="px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border bg-white border-gray-300 text-gray-600 hover:bg-gray-100"
+              title="Atualizar pedidos"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
               onClick={() => setSomAtivado(!somAtivado)}
               className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border ${
                 somAtivado
@@ -1018,94 +1046,207 @@ export default function PedidosPage() {
         </div>
       </div>
 
-      {/* Filtro de Data */}
-      <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border shadow-sm">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-600">📅 Filtrar por data:</label>
-          <input
-            type="date"
-            value={filtroData}
-            onChange={(e) => setFiltroData(e.target.value)}
-            className="form-input text-sm px-3 py-1.5"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setFiltroData(new Date(Date.now() - 86400000).toISOString().split('T')[0])}
-            className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-          >
-            Ontem
-          </button>
-          <button
-            onClick={() => setFiltroData(new Date().toISOString().split('T')[0])}
-            className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
-          >
-            Hoje
-          </button>
-          <button
-            onClick={() => { setFiltroData(''); setFiltroStatus('em_aberto'); }}
-            className={`px-2 py-1 text-xs rounded transition-colors ${!filtroData && filtroStatus === 'em_aberto' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 hover:bg-gray-200'}`}
-          >
-            🟣 Em aberto
-          </button>
-        </div>
+      {/* ABAS: Fluxo / Histórico / Mesas */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => { setAbaAtiva('fluxo'); setFiltroStatus('em_aberto') }}
+          className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border ${
+            abaAtiva === 'fluxo'
+              ? 'bg-blue-50 border-blue-300 text-blue-700'
+              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <Activity className="w-4 h-4" />
+          Fluxo
+        </button>
+        <button
+          onClick={() => { setAbaAtiva('historico'); setFiltroStatus(null); setFiltroData('') }}
+          className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border ${
+            abaAtiva === 'historico'
+              ? 'bg-purple-50 border-purple-300 text-purple-700'
+              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Histórico
+        </button>
+        <button
+          onClick={() => { setAbaAtiva('mesas'); setFiltroStatus(null) }}
+          className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border ${
+            abaAtiva === 'mesas'
+              ? 'bg-orange-50 border-orange-300 text-orange-700'
+              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <Utensils className="w-4 h-4" />
+          Mesas
+        </button>
       </div>
 
-      {/* Stats Bar - BOTOES PEQUENOS E CLICAVEIS */}
+      {/* Toggle rápido: Hoje / Ontem — visível em Fluxo e Mesas */}
+      {abaAtiva !== 'historico' && (
+        <div className="flex justify-center mb-4">
+          <div className="inline-flex bg-white rounded-2xl p-1 shadow-sm border border-gray-200">
+            <button
+              onClick={() => setFiltroDataRapido('hoje')}
+              className={`px-5 py-2 rounded-xl text-sm font-medium transition-all ${
+                filtroDataRapido === 'hoje'
+                  ? 'bg-green-600 text-white shadow-md'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Hoje
+            </button>
+            <button
+              onClick={() => setFiltroDataRapido('ontem')}
+              className={`px-5 py-2 rounded-xl text-sm font-medium transition-all ${
+                filtroDataRapido === 'ontem'
+                  ? 'bg-green-600 text-white shadow-md'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Ontem
+            </button>
+            <button
+              onClick={() => setFiltroDataRapido('todos')}
+              className={`px-5 py-2 rounded-xl text-sm font-medium transition-all ${
+                filtroDataRapido === 'todos'
+                  ? 'bg-green-600 text-white shadow-md'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Todos
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Filtro de Data - APENAS NO HISTÓRICO */}
+      {abaAtiva === 'historico' && (
+        <div className="flex items-center gap-3 mb-4 bg-white p-3 rounded-xl border shadow-sm">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-600">De:</label>
+            <input
+              type="date"
+              value={filtroData ? filtroData.split('T')[0] : ''}
+              onChange={(e) => setFiltroData(e.target.value ? `${e.target.value}` : '')}
+              className="form-input text-sm px-3 py-1.5"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-600">Até:</label>
+            <input
+              type="date"
+              value={filtroDataAte || ''}
+              onChange={(e) => setFiltroDataAte(e.target.value)}
+              className="form-input text-sm px-3 py-1.5"
+            />
+          </div>
+          <button
+            onClick={() => { setFiltroData(''); setFiltroDataAte('') }}
+            className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+          >
+            Limpar
+          </button>
+        </div>
+      )}
+
+      {/* Stats Bar - SUBSEÇÕES POR ABA */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        {/* Em Aberto - todos pendentes sem limite de data */}
-        {(() => {
-          const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
-          const count = pedidos.filter((p) => STATUS_EM_ABERTO.includes(p.status)).length
-          const isActive = filtroStatus === 'em_aberto'
-          return (
-            <button
-              key="em_aberto"
-              onClick={() => setFiltroStatus(isActive ? null : 'em_aberto')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-purple-100 text-purple-700 shadow-md border-purple-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-            >
-              <Clock className="w-3 h-3" />
-              <span>Em aberto</span>
-              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
-            </button>
-          )
-        })()}
+        {/* ABA FLUXO: Em Aberto + status em andamento */}
+        {abaAtiva === 'fluxo' && (
+          <>
+            {/* Em Aberto */}
+            {(() => {
+              const STATUS_EM_ABERTO = ['novo', 'preparando', 'pronto', 'saiu']
+              const count = pedidos.filter((p) => STATUS_EM_ABERTO.includes(p.status)).length
+              const isActive = filtroStatus === 'em_aberto'
+              return (
+                <button
+                  key="em_aberto"
+                  onClick={() => setFiltroStatus(isActive ? null : 'em_aberto')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-purple-100 text-purple-700 shadow-md border-purple-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <Clock className="w-3 h-3" />
+                  <span>Em aberto</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
 
-        {STATUS_LISTA.filter(s => s !== 'cancelado').map((status) => {
-          const count = pedidos.filter((p) => p.status === status).length
-          const config = STATUS_CONFIG[status]
-          const isActive = filtroStatus === status
-          return (
-            <button
-              key={status}
-              onClick={() => setFiltroStatus(isActive ? null : status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? config.bgColor + ' ' + config.color + ' shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-            >
-              <config.icon className="w-3 h-3" />
-              <span>{config.label}</span>
-              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
-            </button>
-          )
-        })}
+            {STATUS_LISTA.filter(s => s !== 'cancelado').map((status) => {
+              const count = pedidos.filter((p) => p.status === status).length
+              const config = STATUS_CONFIG[status]
+              const isActive = filtroStatus === status
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFiltroStatus(isActive ? null : status)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? config.bgColor + ' ' + config.color + ' shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <config.icon className="w-3 h-3" />
+                  <span>{config.label}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })}
+          </>
+        )}
 
-        {/* Cancelado - sempre por último */}
-        {(() => {
-          const status = 'cancelado'
-          const count = pedidos.filter((p) => p.status === status).length
-          const config = STATUS_CONFIG[status]
-          const isActive = filtroStatus === status
-          return (
-            <button
-              key={status}
-              onClick={() => setFiltroStatus(isActive ? null : status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? config.bgColor + ' ' + config.color + ' shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-            >
-              <config.icon className="w-3 h-3" />
-              <span>{config.label}</span>
-              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
-            </button>
-          )
-        })()}
+        {/* ABA HISTÓRICO: Concluídos + Cancelados */}
+        {abaAtiva === 'historico' && (
+          <>
+            {/* Concluídos - entregue + cancelado */}
+            {(() => {
+              const STATUS_CONCLUIDOS = ['entregue']
+              const count = pedidos.filter((p) => STATUS_CONCLUIDOS.includes(p.status)).length
+              const isActive = filtroStatus === 'concluidos'
+              return (
+                <button
+                  key="concluidos"
+                  onClick={() => setFiltroStatus(isActive ? null : 'concluidos')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-green-100 text-green-700 shadow-md border-green-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <Check className="w-3 h-3" />
+                  <span>Concluídos</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+
+            {/* Cancelados */}
+            {(() => {
+              const count = pedidos.filter((p) => p.status === 'cancelado').length
+              const isActive = filtroStatus === 'cancelado'
+              return (
+                <button
+                  key="cancelado-historico"
+                  onClick={() => setFiltroStatus(isActive ? null : 'cancelado')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-red-100 text-red-700 shadow-md border-red-300' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <X className="w-3 h-3" />
+                  <span>Cancelados</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{count}</span>
+                </button>
+              )
+            })()}
+
+            {/* Todos - sem filtro */}
+            {(() => {
+              const isActive = filtroStatus === null
+              return (
+                <button
+                  key="todos"
+                  onClick={() => setFiltroStatus(null)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${isActive ? 'bg-gray-200 text-gray-800 shadow-md border-gray-400' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <span>Todos</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${isActive ? 'bg-white/30' : 'bg-gray-100'}`}>{pedidos.length}</span>
+                </button>
+              )
+            })()}
+          </>
+        )}
       </div>
 
       {/* Pedidos filtrados ou todos */}
@@ -1115,42 +1256,170 @@ export default function PedidosPage() {
 
         let pedidosFiltrados = pedidos
 
-        // Filtro de status
-        if (filtroStatus === 'em_aberto') {
-          pedidosFiltrados = pedidos.filter(p => STATUS_EM_ABERTO.includes(p.status))
-        } else if (filtroStatus) {
-          pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
+        // Filtro de aba
+        if (abaAtiva === 'fluxo') {
+          // Fluxo: aplica filtro de status
+          if (filtroStatus === 'em_aberto') {
+            pedidosFiltrados = pedidos.filter(p => STATUS_EM_ABERTO.includes(p.status))
+          } else if (filtroStatus) {
+            pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
+          }
+        } else if (abaAtiva === 'mesas') {
+          // Mesas: só pedidos tipo_entrega='mesa'
+          pedidosFiltrados = pedidos.filter(p => p.tipo_entrega === 'mesa')
+        } else if (abaAtiva === 'historico') {
+          // Histórico: filtro de status
+          if (filtroStatus === 'concluidos') {
+            pedidosFiltrados = pedidos.filter(p => p.status === 'entregue')
+          } else if (filtroStatus === 'cancelado') {
+            pedidosFiltrados = pedidos.filter(p => p.status === 'cancelado')
+          } else if (!filtroStatus) {
+            pedidosFiltrados = pedidos.filter(p => p.status === 'entregue' || p.status === 'cancelado')
+          } else {
+            pedidosFiltrados = pedidos.filter(p => p.status === filtroStatus)
+          }
         }
-        // Se filtroStatus é null, mostra todos os pedidos
 
-        // Aplicar filtro de data APENAS se não for "em_aberto" e se filtroData estiver definido
-        const pedidosPorData = (filtroStatus === 'em_aberto' || !filtroData)
-          ? pedidosFiltrados
-          : pedidosFiltrados.filter(p => {
-              const dataPedido = new Date(p.data_criacao).toISOString().split('T')[0]
-              return dataPedido === filtroData
+        // Filtro de data RÁPIDO (Hoje / Ontem / Todos) — só nas abas Fluxo e Mesas
+        if (abaAtiva !== 'historico' && filtroDataRapido !== 'todos') {
+          const hoje = new Date()
+          hoje.setHours(0, 0, 0, 0)
+          const amanha = new Date(hoje)
+          amanha.setDate(amanha.getDate() + 1)
+          const ontem = new Date(hoje)
+          ontem.setDate(ontem.getDate() - 1)
+
+          if (filtroDataRapido === 'hoje') {
+            pedidosFiltrados = pedidosFiltrados.filter(p => {
+              const dataPedido = new Date(p.data_criacao)
+              return dataPedido >= hoje && dataPedido < amanha
             })
+          } else if (filtroDataRapido === 'ontem') {
+            pedidosFiltrados = pedidosFiltrados.filter(p => {
+              const dataPedido = new Date(p.data_criacao)
+              return dataPedido >= ontem && dataPedido < hoje
+            })
+          }
+        }
 
-        const statusConfig = filtroStatus && filtroStatus !== 'em_aberto' ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
+        // Filtro de data APENAS no histórico
+        if (abaAtiva === 'historico' && (filtroData || filtroDataAte)) {
+          pedidosFiltrados = pedidosFiltrados.filter(p => {
+            const dataPedido = p.data_criacao.split('T')[0]
+            const deMatch = !filtroData || dataPedido >= filtroData
+            const ateMatch = !filtroDataAte || dataPedido <= filtroDataAte
+            return deMatch && ateMatch
+          })
+        }
+
+        const statusConfig = filtroStatus && filtroStatus !== 'em_aberto' && filtroStatus !== 'concluidos' ? STATUS_CONFIG[filtroStatus as PedidoStatus] : null
+        const labelFiltro = filtroStatus === 'concluidos' ? 'Concluídos'
+                          : filtroStatus === 'cancelado' ? 'Cancelados'
+                          : abaAtiva === 'fluxo' ? (statusConfig?.label || 'Em aberto')
+                          : abaAtiva === 'mesas' ? 'Mesas'
+                          : 'Histórico'
+
+        // ====== RENDERIZAÇÃO ESPECIAL: ABA MESAS (agrupado por mesa) ======
+        if (abaAtiva === 'mesas') {
+          const labelDataRapido = filtroDataRapido === 'hoje' ? 'Hoje' : filtroDataRapido === 'ontem' ? 'Ontem' : null
+          const mesasAgrupadas: Record<string, { pedidos: any[], mesaInfo: any }> = {}
+
+          pedidosFiltrados.forEach((p: any) => {
+            const chave = p.mesa_id || 'sem-mesa'
+            if (!mesasAgrupadas[chave]) {
+              const mesa = mesasInfo.find((m: any) => m.id === p.mesa_id)
+              mesasAgrupadas[chave] = {
+                pedidos: [],
+                mesaInfo: mesa || { numero: p.mesa_id ? 'Mesa' : 'Sem mesa', nome: null }
+              }
+            }
+            mesasAgrupadas[chave].pedidos.push(p)
+          })
+
+          return (
+            <>
+              {labelDataRapido && (
+                <div className="mb-4 text-sm text-gray-500">
+                  📅 Período: <strong>{labelDataRapido}</strong> — {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''}
+                </div>
+              )}
+
+              {pedidosFiltrados.length === 0 ? (
+                <div className="bg-white rounded-xl border p-12 text-center">
+                  <Utensils className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum pedido de mesa</h3>
+                  <p className="hint">Crie um pedido do tipo "Mesa" para começar</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(mesasAgrupadas).map(([mesaId, grupo]) => (
+                    <div key={mesaId} className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3 text-white">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-bold text-lg flex items-center gap-2">
+                            <Utensils className="w-5 h-5" />
+                            Mesa {grupo.mesaInfo.numero}{grupo.mesaInfo.nome ? ` — ${grupo.mesaInfo.nome}` : ''}
+                          </h3>
+                          <span className="text-sm bg-white/20 px-2 py-0.5 rounded-full">
+                            {grupo.pedidos.length} pedido{grupo.pedidos.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-gray-100">
+                        {grupo.pedidos.map((pedido: any) => {
+                          const config = STATUS_CONFIG[pedido.status as PedidoStatus]
+                          const StatusIcon = config.icon
+                          const nextStatus = NEXT_STATUS[pedido.status as PedidoStatus]
+                          const isNovo = pedido.status === 'novo'
+                          return (
+                            <div key={pedido.id} className={`p-4 ${isNovo ? 'bg-orange-50/30' : ''}`}>
+                              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-base">{pedido.codigo || ('#' + pedido.id.slice(0, 8))}</span>
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.bgColor} ${config.color}`}>
+                                    <StatusIcon className="w-3 h-3" />
+                                    {config.label}
+                                  </span>
+                                </div>
+                                <span className="text-xs text-gray-500">🕐 {formatDate(pedido.data_criacao)}</span>
+                              </div>
+                              <div className="text-xs text-gray-600 mb-2">
+                                👤 {pedido.cliente_nome || 'Cliente'} · 💰 {formatCurrency(pedido.valor_total)}
+                              </div>
+                              {nextStatus && (
+                                <button
+                                  onClick={() => updateStatus(pedido, nextStatus)}
+                                  className="w-full px-3 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 active:scale-95"
+                                >
+                                  <ChevronRight className="w-4 h-4" />
+                                  Avançar para {STATUS_CONFIG[nextStatus].label}
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )
+        }
+
         return (
           <>
-            {filtroStatus && (
+            {(filtroStatus || abaAtiva === 'historico') && (
               <div className="mb-4 text-sm text-gray-500">
-                Mostrando <strong>{filtroStatus === 'em_aberto' ? 'Em aberto (todos)' : statusConfig?.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
-                <button onClick={() => { setFiltroStatus(null); setFiltroData(new Date().toISOString().split('T')[0]); }} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
-              </div>
-            )}
-
-            {filtroData && (
-              <div className="mb-4 text-sm text-gray-500">
-                📅 Data: <strong>{new Date(filtroData + 'T00:00:00').toLocaleDateString('pt-BR')}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
+                Mostrando <strong>{labelFiltro}</strong> ({pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''})
+                <button onClick={() => { setFiltroStatus(null); setFiltroData(''); setFiltroDataAte('') }} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
               </div>
             )}
 
       {/* Lista de Pedidos em GRID 3 COLUNAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {pedidosPorData.length > 0 ? (
-          pedidosPorData.map((pedido) => {
+        {pedidosFiltrados.length > 0 ? (
+          pedidosFiltrados.map((pedido) => {
             const config = STATUS_CONFIG[pedido.status]
             const StatusIcon = config.icon
             const nextStatus = NEXT_STATUS[pedido.status]

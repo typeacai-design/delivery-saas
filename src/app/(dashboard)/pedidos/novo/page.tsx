@@ -66,6 +66,8 @@ export default function NovoPedidoPage() {
 
   // Tipo de entrega
   const [tipoEntrega, setTipoEntrega] = useState<'delivery' | 'retirada' | 'mesa'>('delivery')
+  const [mesaId, setMesaId] = useState<string>('')
+  const [mesas, setMesas] = useState<any[]>([])
 
   // Cliente
   const [mostrarFormCliente, setMostrarFormCliente] = useState(false)
@@ -79,6 +81,18 @@ export default function NovoPedidoPage() {
     numero: '',
     complemento: ''
   })
+
+  // Carregar mesas quando selecionar tipo mesa
+  useEffect(() => {
+    const carregarMesas = async () => {
+      if (tipoEntrega !== 'mesa') return
+      const tid = await activeTenantId()
+      if (!tid) return
+      const { data } = await supabase.from('mesas').select('*').eq('tenant_id', tid).eq('ativa', true).order('numero')
+      setMesas(data || [])
+    }
+    carregarMesas()
+  }, [tipoEntrega])
 
   // Campos do pedido
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
@@ -116,6 +130,7 @@ export default function NovoPedidoPage() {
 
   const loadDados = async () => {
     const tenantId = await activeTenantId()
+    console.log('[pedidos/novo] loadDados - tenantId:', tenantId)
     if (!tenantId) return
 
     const [{ data: clientesData }, { data: produtosData }, { data: bairrosData }, { data: complementosData }, { data: catsComp }] = await Promise.all([
@@ -249,11 +264,17 @@ export default function NovoPedidoPage() {
       return
     }
 
+    if (tipoEntrega === 'mesa' && !mesaId) {
+      alert('Selecione a mesa')
+      return
+    }
+
     setLoading(true)
 
     try {
       const tenantId = await activeTenantId()
-      if (!tenantId) throw new Error('Não autenticado')
+      console.log('[pedidos/novo] tenantId:', tenantId)
+      if (!tenantId) throw new Error('Sem tenant — não autenticado ou sem acesso a loja')
 
       // Se não tem cliente selecionado, cadastra rápido
       let clienteId = clienteSelecionado?.id
@@ -306,6 +327,7 @@ export default function NovoPedidoPage() {
           troco: troco,
           observacoes: observacoes,
           tipo_entrega: tipoEntrega,
+          mesa_id: tipoEntrega === 'mesa' ? mesaId : null,
           bairro_entrega: bairroSelecionado?.bairro || null,
           taxa_bairro: taxaEntrega,
           endereco_entrega: endereco,
@@ -314,8 +336,10 @@ export default function NovoPedidoPage() {
         })
         .select()
         .single()
+      console.log('[pedidos/novo] INSERT pedido:', { pedidoError, pedidoId: pedido?.id })
 
       if (pedidoError) throw pedidoError
+      if (!pedido) throw new Error('Falha ao criar pedido')
 
       // Criar itens do pedido
       const itensParaInserir = itens.map(item => ({
@@ -335,12 +359,14 @@ export default function NovoPedidoPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pedido_id: pedido.id,
+          pedido_id: pedido!.id,
           tempo_preparo: 30,
           forma_pagamento: [formaPagamento],
         }),
       })
+      console.log('[pedidos/novo] whatsapp API status:', whatsappRes.status)
       const whatsappData = await whatsappRes.json()
+      console.log('[pedidos/novo] whatsapp API response:', whatsappData)
 
       setPedidoCriado(pedido)
       setWhatsappUrl(whatsappData.whatsapp_url || '')
@@ -430,6 +456,37 @@ export default function NovoPedidoPage() {
               </button>
             </div>
           </div>
+
+          {/* Seletor de Mesa (só aparece quando tipo = mesa) */}
+          {tipoEntrega === 'mesa' && (
+            <div className="glass p-5">
+              <h3 className="font-semibold flex items-center gap-2 mb-3">
+                <Table2 className="w-5 h-5 text-orange-600" />
+                Selecionar mesa
+              </h3>
+              {mesas.length === 0 ? (
+                <p className="text-sm text-gray-500">Nenhuma mesa cadastrada. Vá em Configurações → Mesas para cadastrar.</p>
+              ) : (
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {mesas.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setMesaId(m.id)}
+                      className={`p-3 rounded-xl border-2 text-center font-bold transition ${
+                        mesaId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 hover:border-orange-300'
+                      }`}
+                    >
+                      {m.numero}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!mesaId && mesas.length > 0 && (
+                <p className="text-xs text-amber-600 mt-2">⚠️ Selecione uma mesa para continuar</p>
+              )}
+            </div>
+          )}
 
           {/* Cliente */}
           <div className="glass p-5">
@@ -814,7 +871,7 @@ export default function NovoPedidoPage() {
           {/* Botão Finalizar */}
           <button
             onClick={criarPedido}
-            disabled={loading || itens.length === 0 || (tipoEntrega === 'delivery' && !bairroSelecionado)}
+            disabled={loading || itens.length === 0 || (tipoEntrega === 'delivery' && !bairroSelecionado) || (tipoEntrega === 'mesa' && !mesaId)}
             className="btn-primary w-full mt-6 py-4 text-lg disabled:opacity-50"
           >
             {loading ? (

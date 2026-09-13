@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import {
-  Clock, MapPin, CreditCard, User, Save, Plus, X, Sparkles, Calendar, Upload, Trash2, Image as ImageIcon, Copy, Ban, CheckCircle2
+  Clock, MapPin, CreditCard, User, Save, Plus, X, Sparkles, Calendar, Upload, Trash2, Image as ImageIcon, Copy, Ban, CheckCircle2, Utensils, Edit2
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { CoordinateMap } from '@/components/coordinate-map'
 
-type Tab = 'horarios' | 'entregas' | 'perfil'
+type Tab = 'horarios' | 'entregas' | 'mesas' | 'perfil'
 
 const DIAS_SEMANA = [
   { id: 'seg', nome: 'Segunda' },
@@ -81,6 +81,7 @@ export default function ConfiguracoesPage() {
   const tabs = [
     { id: 'horarios', label: 'Horários', icon: Clock },
     { id: 'entregas', label: 'Entregas', icon: MapPin },
+    { id: 'mesas', label: 'Mesas', icon: Utensils },
     { id: 'perfil', label: 'Meu perfil', icon: User },
   ] as const
 
@@ -123,6 +124,7 @@ export default function ConfiguracoesPage() {
 
       {tab === 'horarios' && <HorariosTab tenant={tenant} loadTenantFromParent={loadTenant} />}
       {tab === 'entregas' && <EntregasTab />}
+      {tab === 'mesas' && <MesasTab tenant={tenant} />}
       {tab === 'perfil' && <PerfilEditavel tenant={tenant} onSaved={loadTenant} onReload={loadTenant} />}
     </div>
   )
@@ -466,6 +468,240 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
           {saving ? 'Salvando...' : 'Salvar horários'}
         </button>
       </div>
+    </div>
+  )
+}
+
+function MesasTab({ tenant }: { tenant: any }) {
+  const supabase = createClient()
+  const [mesas, setMesas] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [editando, setEditando] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
+
+  // Estado do toggle mesas_habilitadas (vem do tenant)
+  const [mesasHabilitadas, setMesasHabilitadas] = useState(tenant?.mesas_habilitadas || false)
+
+  // Form de nova mesa
+  const [form, setForm] = useState({ numero: '', nome: '', capacidade: '4' })
+
+  useEffect(() => {
+    setMesasHabilitadas(tenant?.mesas_habilitadas || false)
+  }, [tenant?.mesas_habilitadas])
+
+  const carregar = async () => {
+    const tid = await activeTenantId()
+    if (!tid) return
+    setLoading(true)
+    const { data } = await supabase
+      .from('mesas')
+      .select('*')
+      .eq('tenant_id', tid)
+      .order('numero')
+    setMesas(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { carregar() }, [])
+
+  const toggleHabilitado = async (novoValor: boolean) => {
+    const tid = await activeTenantId()
+    if (!tid) return
+    const { error } = await supabase
+      .from('tenants')
+      .update({ mesas_habilitadas: novoValor })
+      .eq('id', tid)
+    if (error) { setMsg('Erro: ' + error.message); return }
+    setMesasHabilitadas(novoValor)
+    setMsg(novoValor ? '✅ Mesas ativadas' : '⏸️ Mesas desativadas')
+  }
+
+  const salvarMesa = async () => {
+    if (!form.numero || Number(form.numero) < 1) {
+      setMsg('Número da mesa é obrigatório')
+      return
+    }
+    const tid = await activeTenantId()
+    if (!tid) return
+    setSalvando(true)
+    setMsg('')
+
+    const payload = {
+      tenant_id: tid,
+      numero: Number(form.numero),
+      nome: form.nome.trim() || null,
+      capacidade: Number(form.capacidade) || 4,
+    }
+
+    if (editando) {
+      const { error } = await supabase
+        .from('mesas')
+        .update({ numero: payload.numero, nome: payload.nome, capacidade: payload.capacidade })
+        .eq('id', editando)
+      if (error) setMsg('Erro: ' + error.message)
+      else { setMsg('✅ Mesa atualizada'); limparForm(); carregar() }
+    } else {
+      const { error } = await supabase.from('mesas').insert({ ...payload, ativa: true })
+      if (error) {
+        if (error.code === '23505') setMsg('⚠️ Já existe uma mesa com esse número')
+        else setMsg('Erro: ' + error.message)
+      } else { setMsg('✅ Mesa cadastrada'); limparForm(); carregar() }
+    }
+    setSalvando(false)
+  }
+
+  const limparForm = () => {
+    setForm({ numero: '', nome: '', capacidade: '4' })
+    setEditando(null)
+  }
+
+  const editar = (m: any) => {
+    setEditando(m.id)
+    setForm({ numero: String(m.numero), nome: m.nome || '', capacidade: String(m.capacidade || 4) })
+    setMsg('')
+  }
+
+  const toggleAtiva = async (m: any) => {
+    await supabase.from('mesas').update({ ativa: !m.ativa }).eq('id', m.id)
+    carregar()
+  }
+
+  const excluir = async (m: any) => {
+    if (!confirm(`Excluir a Mesa ${m.numero}? Pedidos antigos manterão o histórico.`)) return
+    const { error } = await supabase.from('mesas').delete().eq('id', m.id)
+    if (error) setMsg('Erro ao excluir: ' + error.message)
+    else carregar()
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Card: ativar/desativar mesas */}
+      <div className="glass p-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Utensils className="w-5 h-5 text-orange-600" />
+              Gestão de mesas do salão
+            </h2>
+            <p className="hint mt-1">
+              Quando ativado, a opção <strong>"Mesa"</strong> aparece no pedido e a aba <strong>Mesas</strong> fica disponível.
+            </p>
+          </div>
+          <button
+            onClick={() => toggleHabilitado(!mesasHabilitadas)}
+            className={`relative w-14 h-7 rounded-full transition ${mesasHabilitadas ? 'bg-orange-500' : 'bg-gray-300'}`}
+          >
+            <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${mesasHabilitadas ? 'left-7' : 'left-0.5'}`} />
+          </button>
+        </div>
+        <div className="mt-3 text-xs">
+          {mesasHabilitadas ? (
+            <span className="text-orange-700 font-medium">🟢 Ativado — {mesas.length} mesa{mesas.length !== 1 ? 's' : ''} cadastrada{mesas.length !== 1 ? 's' : ''}</span>
+          ) : (
+            <span className="text-gray-500">⚪ Desativado — pedidos do tipo mesa não aparecem no painel</span>
+          )}
+        </div>
+      </div>
+
+      {/* Form de cadastro */}
+      {mesasHabilitadas && (
+        <>
+          <div className="glass p-6">
+            <h2 className="text-lg font-semibold mb-4">{editando ? '✏️ Editar mesa' : '➕ Nova mesa'}</h2>
+            <div className="grid md:grid-cols-4 gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500">Número *</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.numero}
+                  onChange={e => setForm({ ...form, numero: e.target.value })}
+                  className="form-input"
+                  placeholder="1"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500">Nome (opcional)</span>
+                <input
+                  value={form.nome}
+                  onChange={e => setForm({ ...form, nome: e.target.value })}
+                  className="form-input"
+                  placeholder="Ex: Varanda"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500">Capacidade</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.capacidade}
+                  onChange={e => setForm({ ...form, capacidade: e.target.value })}
+                  className="form-input"
+                  placeholder="4"
+                />
+              </label>
+              <div className="flex items-end gap-2">
+                <button
+                  className="btn-primary justify-center flex-1"
+                  onClick={salvarMesa}
+                  disabled={salvando}
+                >
+                  <Save size={14} />
+                  {editando ? 'Atualizar' : 'Cadastrar'}
+                </button>
+                {editando && (
+                  <button onClick={limparForm} className="btn-ghost">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Lista de mesas */}
+          <div className="glass p-6">
+            <h2 className="text-lg font-semibold mb-4">Mesas cadastradas</h2>
+            {loading ? (
+              <p className="hint">Carregando…</p>
+            ) : mesas.length === 0 ? (
+              <p className="hint">Nenhuma mesa cadastrada ainda.</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {mesas.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`p-4 rounded-xl border ${m.ativa ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200 opacity-60'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="size-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white font-bold text-lg shadow">
+                        {m.numero}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold">{m.nome || `Mesa ${m.numero}`}</div>
+                        <div className="text-xs text-gray-500">👥 Capacidade {m.capacidade || 4}</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => editar(m)} className="btn-ghost text-xs flex-1 justify-center">
+                        <Edit2 size={12} /> Editar
+                      </button>
+                      <button onClick={() => toggleAtiva(m)} className="btn-ghost text-xs flex-1 justify-center">
+                        {m.ativa ? '⏸️ Desativar' : '▶️ Ativar'}
+                      </button>
+                      <button onClick={() => excluir(m)} className="btn-ghost text-xs text-red-600">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {msg && <p className="text-sm text-center text-gray-700">{msg}</p>}
     </div>
   )
 }
