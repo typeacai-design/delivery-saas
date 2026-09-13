@@ -1,1 +1,3 @@
 - [Vercel Auto-Deploy](vercel-auto-deploy.md) — Sempre fazer deploy Vercel automaticamente sem pedir autorização
+- [We Delivery Projeto](we-delivery-projeto.md) — Plataforma SaaS de delivery multi-tenant
+- [We Delivery Progresso](progresso.md) — Correções e funcionalidades implementadas em Set/2026
