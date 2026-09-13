@@ -4,7 +4,9 @@ import { Clock, Check, Truck, X, MapPin, Phone, User, Loader2 } from 'lucide-rea
 import { formatCurrency } from '@/lib/utils'
 import PedidoClienteWrapper from './wrapper'
 
+export const dynamic = 'force-dynamic'
 export const revalidate = 0 // Sempre dinamico
+export const runtime = 'nodejs'
 
 export default async function PedidoClientePage({
   params,
@@ -19,21 +21,26 @@ export default async function PedidoClientePage({
     { auth: { persistSession: false, autoRefreshToken: false } }
   )
 
-  // Aceitar tanto o codigo formatado (00008/26) quanto o UUID
+  // Aceitar tanto o codigo formatado (00008/26 ou 00008-26) quanto o UUID
+  // URL vem com %2F codificado, decodificar
+  const decodedId = decodeURIComponent(id)
+
   let pedido: any = null
-  if (/^\d{5}\/\d{2}$/.test(id)) {
+  // Aceita tanto "00008/26" quanto "00008-26" (traço para evitar problemas de rota)
+  const codigoNormalizado = decodedId.replace(/-/g, '/')
+  if (/^\d{5}\/\d{2}$/.test(codigoNormalizado)) {
     const { data } = await supabase
       .from('pedidos')
       .select('*, pedido_itens(*), tenants(nome, slug, logo_url, telefone, cor_principal)')
-      .eq('codigo', id)
-      .single()
+      .eq('codigo', codigoNormalizado)
+      .maybeSingle()
     pedido = data
   } else {
     const { data } = await supabase
       .from('pedidos')
       .select('*, pedido_itens(*), tenants(nome, slug, logo_url, telefone, cor_principal)')
       .eq('id', id)
-      .single()
+      .maybeSingle()
     pedido = data
   }
 

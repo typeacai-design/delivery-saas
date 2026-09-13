@@ -11,13 +11,13 @@ import {
 
 type FormState = {
   categoria_id: string
-  categoria_produto_id: string
   nome: string
   descricao: string
   imagem_url: string
   imagem_path: string
   preco: string
   preco_riscado: string
+  exibir_preco_a_partir_de: boolean
   ordem: string
   codigo_externo: string
   // Pontos
@@ -44,19 +44,21 @@ type FormState = {
   quantidade_estoque: string
   // Complementos
   complemento_ids: string[]
+  sabores_grupo_id: string
+  sabores_maximo: number
   // Matéria-prima (vinculada ao produto com qtd por unidade)
   ingredientes: Array<{ insumo_id: string; quantidade: string }>
 }
 
 const FORM_VAZIO: FormState = {
   categoria_id: '',
-  categoria_produto_id: '',
   nome: '',
   descricao: '',
   imagem_url: '',
   imagem_path: '',
   preco: '',
   preco_riscado: '',
+  exibir_preco_a_partir_de: false,
   ordem: '',
   codigo_externo: '',
   pontos: '',
@@ -77,6 +79,8 @@ const FORM_VAZIO: FormState = {
   controlar_estoque: false,
   quantidade_estoque: '',
   complemento_ids: [],
+  sabores_grupo_id: '',
+  sabores_maximo: 2,
   ingredientes: [],
 }
 
@@ -101,13 +105,12 @@ const ETIQUETAS_OPCOES = [
 type Props = {
   produto?: any
   categorias: any[]
-  categoriasProduto?: any[]
   todosProdutos?: any[] // para validar ordem duplicada
   onClose: () => void
   onSaved: () => void
 }
 
-export default function ProdutoFormModal({ produto, categorias, categoriasProduto = [], todosProdutos = [], onClose, onSaved }: Props) {
+export default function ProdutoFormModal({ produto, categorias, todosProdutos = [], onClose, onSaved }: Props) {
   // Calcula custo do produto baseado nos ingredientes vinculados.
   // Reaproveita os `insumos` (carregados via loadInsumos) e `form.ingredientes`.
   const custoCalculado = () => {
@@ -123,9 +126,11 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
   const [form, setForm] = useState<FormState>(FORM_VAZIO)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [dividirSabores, setDividirSabores] = useState(Boolean(produto?.sabores_grupo_id))
   const [complementos, setComplementos] = useState<any[]>([])
   const [categoriasComp, setCategoriasComp] = useState<any[]>([])
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>('')
+  const [buscaComplemento, setBuscaComplemento] = useState<string>('')
   const [slug, setSlug] = useState<string>('')
   const [insumos, setInsumos] = useState<any[]>([])
   const supabase = createClient()
@@ -170,7 +175,10 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
       setForm({
         ...FORM_VAZIO,
         ...produto,
+        sabores_grupo_id: produto.sabores_grupo_id || "",
+        sabores_maximo: produto.sabores_maximo || 2,
         preco: produto.preco != null ? String(produto.preco) : '',
+        exibir_preco_a_partir_de: produto.exibir_preco_a_partir_de === true,
         preco_riscado: produto.preco_riscado != null ? String(produto.preco_riscado) : '',
         ordem: produto.ordem != null ? String(produto.ordem) : '',
         pontos: produto.pontos != null ? String(produto.pontos) : '',
@@ -196,7 +204,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
     if (!tenantId) return
     const { data } = await supabase
       .from('complementos')
-      .select('id, nome, preco, categoria_id')
+      .select('id, nome, preco, categoria_id, controlar_estoque')
       .eq('tenant_id', tenantId)
       .eq('ativo', true)
       .order('nome')
@@ -226,6 +234,15 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
   }
 
   const salvar = async () => {
+    const sabores = complementos.filter(c => c.categoria_id === form.sabores_grupo_id)
+    if (dividirSabores && (!form.sabores_grupo_id || sabores.length < form.sabores_maximo)) {
+      setErro('Escolha uma lista com ao menos o limite de sabores ativos configurado.')
+      return
+    }
+    if (dividirSabores && sabores.some(c => c.controlar_estoque)) {
+      setErro('A lista de sabores não pode conter itens com controle de estoque nesta versão.')
+      return
+    }
     if (!form.nome.trim() || !form.preco || !form.categoria_id) {
       setErro('Preencha nome, preço e categoria.')
       return
@@ -255,11 +272,11 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
 
     const payload = {
       categoria_id: form.categoria_id,
-      categoria_produto_id: form.categoria_produto_id || null,
       nome: form.nome,
       descricao: form.descricao || null,
       preco: parseFloat(form.preco),
       preco_riscado: num(form.preco_riscado),
+      exibir_preco_a_partir_de: form.exibir_preco_a_partir_de === true,
       imagem_url: form.imagem_url || null,
       imagem_path: form.imagem_path || null,
       tempo_preparo_min: form.tempo_preparo_min,
@@ -282,6 +299,8 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
       limite_vendas_turno: intOrZero(form.limite_vendas_turno),
       controlar_estoque: form.controlar_estoque,
       quantidade_estoque: intOrZero(form.quantidade_estoque),
+      sabores_grupo_id: dividirSabores ? form.sabores_grupo_id : null,
+      sabores_maximo: form.sabores_maximo === 3 ? 3 : 2,
     }
 
     let produtoId = produto?.id
@@ -320,8 +339,10 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
         return
       }
       const atuais = new Set((vinculosAtuais || []).map((v: any) => v.complemento_id))
-      const desejados = new Set(form.complemento_ids)
-      const adicionar = form.complemento_ids.filter((id) => !atuais.has(id))
+      const mudouListaSabores = dividirSabores && produto?.sabores_grupo_id && produto.sabores_grupo_id !== form.sabores_grupo_id
+      const idsAnteriores = new Set(complementos.filter(c => mudouListaSabores && c.categoria_id === produto.sabores_grupo_id).map(c => c.id))
+      const desejados = new Set([...form.complemento_ids.filter(id => !idsAnteriores.has(id)), ...(dividirSabores ? sabores.map(c => c.id as string) : [])])
+      const adicionar = [...desejados].filter((id) => !atuais.has(id))
       const remover = [...atuais].filter((id) => !desejados.has(id))
 
       if (adicionar.length > 0) {
@@ -406,9 +427,19 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
     }))
   }
 
-  const complementoFiltrado = categoriaFiltro
-    ? complementos.filter((c) => c.categoria_id === categoriaFiltro)
-    : complementos
+  // Filtrar complementos por categoria E busca
+  const complementoFiltrado = complementos.filter((c) => {
+    // Filtro por categoria
+    if (categoriaFiltro && c.categoria_id !== categoriaFiltro) return false
+    // Filtro por busca de nome
+    if (buscaComplemento && buscaComplemento.trim().length > 0) {
+      const termo = buscaComplemento.trim().toLowerCase()
+      const nome = (c.nome || '').toLowerCase()
+      const desc = (c.descricao || '').toLowerCase()
+      if (!nome.includes(termo) && !desc.includes(termo)) return false
+    }
+    return true
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-center p-4 sm:p-6 overflow-y-auto" style={{ background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(4px)' }}>
@@ -465,19 +496,6 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
                 </select>
               </Field>
 
-              <Field label="Categoria" hint="(atalho no cardápio)">
-                <select
-                  value={form.categoria_produto_id}
-                  onChange={(e) => setForm({ ...form, categoria_produto_id: e.target.value })}
-                  className="form-input"
-                >
-                  <option value="">Sem categoria</option>
-                  {categoriasProduto.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.nome}</option>
-                  ))}
-                </select>
-              </Field>
-
               <Field label="Ordem dentro do grupo" hint="(opcional)">
                 <input
                   type="number"
@@ -513,6 +531,32 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
                     placeholder="Vazio = sem promoção"
                     className="form-input pl-10"
                   />
+                </div>
+              </Field>
+
+              <Field
+                label="Exibir como 'A partir de'"
+                hint="O preço informado é uma referência. O pedido cobra somente os adicionais selecionados."
+              >
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.exibir_preco_a_partir_de}
+                    onClick={() => setForm({ ...form, exibir_preco_a_partir_de: !form.exibir_preco_a_partir_de })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      form.exibir_preco_a_partir_de ? 'bg-green-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        form.exibir_preco_a_partir_de ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    {form.exibir_preco_a_partir_de ? 'Ativado' : 'Desativado'}
+                  </span>
                 </div>
               </Field>
 
@@ -621,91 +665,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
             </div>
           </CardSection>
 
-          {/* ====== CARD 5: Regras (metade, fracionar, adicional) ====== */}
-          <CardSection title="Regras de venda">
-            <ToggleLinha
-              label="Adicional de pedido"
-              hint="Item vendido como extra (ex: cobertura, borda)"
-              checked={form.eh_adicional}
-              onChange={(v) => setForm({ ...form, eh_adicional: v })}
-            />
-
-            <ToggleLinha
-              label="Pode ser metade?"
-              hint="Permite escolher como metade (ex: pizza)"
-              checked={form.pode_ser_metade}
-              onChange={(v) => setForm({ ...form, pode_ser_metade: v })}
-            />
-            {form.pode_ser_metade && (
-              <Field label="Qual a metade?" hint="(texto explicativo)">
-                <input
-                  value={form.texto_metade}
-                  onChange={(e) => setForm({ ...form, texto_metade: e.target.value })}
-                  placeholder="Ex: Metade de pizza"
-                  className="form-input"
-                />
-              </Field>
-            )}
-
-            <ToggleLinha
-              label="Fracionar item"
-              hint="Permite fracionar em duas metades diferentes"
-              checked={form.fracionar_item}
-              onChange={(v) => setForm({ ...form, fracionar_item: v })}
-            />
-          </CardSection>
-
-          {/* ====== CARD 6: Dias da semana ====== */}
-          <CardSection title="Dias ativos deste item">
-            <p className="text-sm text-gray-500 mb-3 -mt-1">
-              <span className="inline-block size-3 rounded align-middle mr-1" style={{ background: 'var(--green)' }} /> verde = ativo
-              <span className="inline-block size-3 rounded align-middle mx-1 ml-3 bg-gray-300" /> cinza = inativo
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {DIAS_SEMANA.map((d) => {
-                const ativo = form.dias_disponiveis.includes(d.id)
-                return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => toggleDia(d.id)}
-                    className="px-5 py-2.5 rounded-lg text-sm font-semibold transition"
-                    style={
-                      ativo
-                        ? { background: 'var(--green)', color: 'white' }
-                        : { background: '#E5E7EB', color: '#6B7280' }
-                    }
-                  >
-                    {d.label}
-                  </button>
-                )
-              })}
-            </div>
-          </CardSection>
-
-          {/* ====== CARD 7: Horário ====== */}
-          <CardSection title="Horário disponível">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Início">
-                <input
-                  type="time"
-                  value={form.horario_inicio}
-                  onChange={(e) => setForm({ ...form, horario_inicio: e.target.value })}
-                  className="form-input"
-                />
-              </Field>
-              <Field label="Fim">
-                <input
-                  type="time"
-                  value={form.horario_fim}
-                  onChange={(e) => setForm({ ...form, horario_fim: e.target.value })}
-                  className="form-input"
-                />
-              </Field>
-            </div>
-          </CardSection>
-
-          {/* ====== CARD 8: Limites de venda ====== */}
+          {/* ====== CARD 6: Limites de venda ====== */}
           <CardSection title="Limites de venda">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Vendidos diariamente" hint="(vazio = sem limite)">
@@ -739,7 +699,7 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
             </div>
           </CardSection>
 
-          {/* ====== CARD 9: Estoque ====== */}
+          {/* ====== CARD 7: Estoque ====== */}
           <CardSection title="Controle de estoque" icon={Box}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button
@@ -785,6 +745,32 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
           </CardSection>
 
           {/* ====== CARD 10: Complementos ====== */}
+          <CardSection title="Divisão em sabores" icon={Layers}>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={dividirSabores}
+                onChange={e => setDividirSabores(e.target.checked)} />
+              Permitir escolher mais de um sabor neste produto
+            </label>
+            <p className="text-sm text-gray-600 mt-3">Configure os sabores aqui e salve o produto para disponibilizar a escolha no cardápio e nos pedidos manuais.</p>
+            {dividirSabores && <div className="mt-4 space-y-3">
+              <Field label="Lista de sabores">
+                <select className="form-input" value={form.sabores_grupo_id || ''} onChange={e => setForm(f => ({ ...f, sabores_grupo_id: e.target.value }))}>
+                  <option value="">Selecione uma lista de complementos</option>
+                  {categoriasComp.map(cat => <option key={cat.id} value={cat.id}>{cat.nome}{cat.descricao?.trim() ? ` — ${cat.descricao.trim()}` : ''}</option>)}
+                </select>
+              </Field>
+              {produto?.sabores_grupo_id && produto.sabores_grupo_id !== form.sabores_grupo_id && <p className="text-sm text-amber-700">Ao trocar a lista, os vínculos da lista anterior de sabores serão substituídos. Outros adicionais serão preservados.</p>}
+              <Field label="Quantidade máxima de sabores">
+                <select className="form-input" value={form.sabores_maximo || 2} onChange={e => setForm(f => ({ ...f, sabores_maximo: Number(e.target.value) }))}>
+                  <option value={2}>Até 2 sabores</option><option value={3}>Até 3 sabores</option>
+                </select>
+              </Field>
+              <p className="text-sm text-gray-600">Cadastre em Complementos o preço da pizza inteira de cada sabor para este tamanho. Todos os sabores ativos desta lista serão vinculados ao salvar. O cliente escolhe primeiro a quantidade e depois os sabores.</p>
+              <p className="text-sm text-gray-600">O preço da pizza será a média dos sabores escolhidos; o preço base deste produto não será somado. Bordas e outros adicionais continuam cobrados integralmente. Use listas diferentes quando os tamanhos tiverem preços diferentes.</p>
+              <div className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900">Exemplo: (R$ 30,00 + R$ 36,00) ÷ 2 sabores = R$ 33,00. Produtos com variações e sabores com estoque controlado não são compatíveis nesta versão.</div>
+            </div>}
+            {!dividirSabores && produto?.sabores_grupo_id && <p className="text-sm text-amber-700 mt-3">Ao salvar sem divisão, este produto voltará ao preço base mais a soma dos complementos vinculados. Revise os preços e vínculos antes de salvar. Pedidos existentes permanecem como foram vendidos.</p>}
+          </CardSection>
           <CardSection title="Complementos vinculados" icon={Layers}>
             <p className="text-sm text-gray-500 mb-3 -mt-1">
               Clique em uma lista para vincular todos os complementos de uma vez, ou selecione individualmente.
@@ -832,21 +818,32 @@ export default function ProdutoFormModal({ produto, categorias, categoriasProdut
             )}
 
             <div className="flex items-center gap-2 mb-3">
+              {/* Busca por nome */}
               <div className="relative flex-1">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={buscaComplemento}
+                  onChange={(e) => setBuscaComplemento(e.target.value)}
+                  placeholder="Buscar complemento..."
+                  className="form-input pl-9 w-full"
+                />
+              </div>
+              {/* Filtro por categoria */}
+              <div className="relative">
                 <select
                   value={categoriaFiltro}
                   onChange={(e) => setCategoriaFiltro(e.target.value)}
-                  className="form-input pl-9"
+                  className="form-input"
                 >
-                  <option value="">Todas as categorias</option>
+                  <option value="">Todas</option>
                   {categoriasComp.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.nome}{c.descricao ? ` — ${c.descricao}` : ''}</option>
+                    <option key={c.id} value={c.id}>{c.nome}</option>
                   ))}
                 </select>
               </div>
               <span className="text-xs text-gray-500 whitespace-nowrap">
-                {form.complemento_ids.length} selecionado(s)
+                {form.complemento_ids.length} sel.
               </span>
             </div>
 

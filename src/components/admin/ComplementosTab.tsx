@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
+import { useToast } from '@/components/toast'
 import { formatCurrency } from '@/lib/utils'
 import {
   Plus, Edit, Trash2, Search, X, Save, Upload, Image as ImageIcon,
@@ -40,6 +41,7 @@ type Complemento = {
   ativo: boolean
 }
 export default function ComplementosTab() {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [listas, setListas] = useState<Lista[]>([])
   const [complementos, setComplementos] = useState<Complemento[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,15 +80,59 @@ export default function ComplementosTab() {
     setLoading(false)
   }
 
+  const normalizar = (texto: string) => {
+    if (!texto) return ''
+    return texto
+      .toString()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+  }
+
+  // Normalizar texto para busca
+  const textoNormalizado = (texto: string) => {
+    if (!texto) return ''
+    return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+  }
+
   const compsPorLista = (listaId: string) => {
-    return complementos.filter((c) => c.categoria_id === listaId)
+    return complementos.filter((c) => {
+      if (c.categoria_id !== listaId) return false
+      // Busca: qualquer quantidade de caracteres, busca no nome E descrição
+      if (busca && busca.trim().length > 0) {
+        const termo = textoNormalizado(busca.trim())
+        const nome = textoNormalizado(c.nome || '')
+        const desc = textoNormalizado(c.descricao || '')
+        return nome.includes(termo) || desc.includes(termo)
+      }
+      return true
+    })
   }
 
   const listasFiltradas = listas.filter((l) => {
     if (filtroGrupo && l.id !== filtroGrupo) return false
     if (filtroStatus === 'ativos' && !l.ativo) return false
     if (filtroStatus === 'inativos' && l.ativo) return false
-    if (busca && !l.nome.toLowerCase().includes(busca.toLowerCase())) return false
+
+    // Se há busca, mostrar lista se nome/desc correspondem OU se contém complementos que correspondem
+    if (busca && busca.trim().length > 0) {
+      const termo = textoNormalizado(busca.trim())
+      const nomeMatch = textoNormalizado(l.nome || '').includes(termo)
+      const descMatch = textoNormalizado(l.descricao || '').includes(termo)
+
+      // Se a busca corresponde ao nome da lista, mostrar
+      if (nomeMatch || descMatch) return true
+
+      // Se a lista contém complementos que correspondem, mostrar
+      const compsDaLista = complementos.filter(c => c.categoria_id === l.id)
+      const temComplementoMatch = compsDaLista.some(c => {
+        const nome = textoNormalizado(c.nome || '')
+        const desc = textoNormalizado(c.descricao || '')
+        return nome.includes(termo) || desc.includes(termo)
+      })
+      return temComplementoMatch
+    }
     return true
   })
 
@@ -108,6 +154,8 @@ export default function ComplementosTab() {
           Criar Lista de complemento
         </button>
       </div>
+
+      <p className="text-sm text-gray-600 px-1">Para pizzas divididas, cadastre o preço da pizza inteira de cada sabor nesta lista. A divisão e o máximo de sabores são configurados no produto. Use uma lista por tamanho quando os preços forem diferentes.</p>
 
       {/* Filtros */}
       <div className="bg-white rounded-2xl border p-4 flex flex-wrap gap-3" style={{ borderColor: '#E5E7EB' }}>
@@ -134,7 +182,7 @@ export default function ComplementosTab() {
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Busca por nome/etiqueta"
+            placeholder="Busca por nome/descrição"
             className="form-input pl-9"
           />
         </div>
@@ -651,6 +699,7 @@ function ListaModal({ lista, listas, onClose, onSaved }: any) {
    MODAL: Complemento
    =========================================================== */
 function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, todosComplementos }: any) {
+  const { error: toastError } = useToast()
   const [form, setForm] = useState({
     nome: comp?.nome || '',
     categoria_id: comp?.categoria_id || defaultCategoriaId,
@@ -730,7 +779,7 @@ function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, 
         tenant_id: tid,
       })
       if (error) {
-        alert('Erro ao salvar complemento: ' + error.message)
+        toastError('Erro ao salvar complemento', error.message)
         setSalvando(false)
         return
       }

@@ -45,3 +45,9 @@ next-env.d.ts
 /artifacts/rls-047/
 
 .env*
+
+# Local browser/SQL validation evidence (never publish)
+/.local-validation/
+
+# Local encrypted credentials; never commit or deploy.
+.credentials/

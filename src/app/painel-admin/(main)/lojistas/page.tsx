@@ -5,6 +5,7 @@ import { Store, Search, Plus, AlertTriangle, Mail, Key, Eye, Ban, CheckCircle, T
 import { InputField, SelectField, SearchableSelect } from '@/components/form-field'
 import { ESTADOS } from '@/lib/cidades-brasil'
 import { adminFetch } from '@/lib/admin-fetch'
+import { useToast } from '@/components/toast'
 
 const CATEGORIAS = [
   'Açaiteria', 'Pizzaria', 'Hamburgueria', 'Lanchonete', 'Restaurante',
@@ -29,6 +30,7 @@ function formatCpf(v: string) {
 }
 
 export default function LojistasPage() {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [tenants, setTenants] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -89,7 +91,7 @@ export default function LojistasPage() {
   const handleAprovar = async (tenant: any) => {
     if (!confirm(`Aprovar o cadastro de "${tenant.nome}"?\n\nEle(a) poderá fazer login imediatamente após a aprovação.`)) return
     await atualizarStatus(tenant.id, { status: 'active' })
-    alert('Lojista aprovado com sucesso!')
+    toastSuccess(`Lojista "${tenant.nome}" aprovado!`)
   }
 
   const handleSuspender = async (tenant: any) => {
@@ -218,7 +220,7 @@ export default function LojistasPage() {
             const response = await adminFetch(`/api/admin/tenants?id=${selectedTenant.id}`, { method: 'DELETE' })
             if (!response.ok) {
               const payload = await response.json().catch(() => ({}))
-              alert(payload.error || 'Não foi possível excluir o lojista.')
+              toastError(payload.error || 'Não foi possível excluir o lojista')
               return
             }
             setShowModal(false)
@@ -591,6 +593,7 @@ function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReat
    MODAL: NOVO LOJISTA
    ================================================ */
 function ModalNovoLojista({ onClose, onSuccess }: any) {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [loading, setLoading] = useState(false)
   const [cidades, setCidades] = useState<string[]>([])
   const [error, setError] = useState('')
@@ -643,7 +646,7 @@ function ModalNovoLojista({ onClose, onSuccess }: any) {
         setLoading(false)
         return
       }
-      alert(`✅ Lojista "${form.nome}" criado!\n\nEle já pode fazer login com o email e senha definidos.\n\nEmail: ${form.email}\nSenha: ${form.password}`)
+      toastSuccess(`Lojista "${form.nome}" criado!`, `${form.email} - Senha: ${form.password}`)
       onSuccess()
     } catch (e: any) {
       setError(e.message || 'Erro de rede')

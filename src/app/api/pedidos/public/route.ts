@@ -1,3 +1,6 @@
+import { FlavorValidationError, validateFlavorItem } from '@/lib/flavor-order-server'
+import { savedItemTotal } from '@/lib/product-pricing'
+import { chargedProductBase } from '@/lib/product-pricing'
 import { NextResponse as NextResponseBase } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { bearerToken, hashAccessToken, isValidCpf, normalizeCpf, rateLimited, tokenMatches } from '@/lib/customer-identity'
@@ -38,7 +41,7 @@ export async function GET(request: Request) {
     const { data: tenant } = await admin.from('tenants').select('id').eq('slug', slug).single()
     if (!tenant) return NextResponse.json({ error: 'Não foi possível consultar os pedidos' }, { status: 404, headers: { 'Cache-Control': 'no-store' } })
     const hash = hashAccessToken(token)
-    const { data, error } = await admin.from('pedidos').select('id,codigo,status,created_at,valor_total,tipo_entrega,forma_pagamento,pedido_itens(nome,quantidade,valor_unitario,variante_nome,complementos)').eq('tenant_id', tenant.id).eq('cliente_acesso_token_hash', hash).order('created_at', { ascending: false }).limit(50)
+    const { data, error } = await admin.from('pedidos').select('id,codigo,status,created_at,valor_total,tipo_entrega,forma_pagamento,endereco_entrega,numero_entrega,bairro_entrega,complemento_entrega,pedido_itens(nome,quantidade,valor_unitario,variante_nome,complementos)').eq('tenant_id', tenant.id).eq('cliente_acesso_token_hash', hash).order('created_at', { ascending: false }).limit(50)
     if (error) throw error
     return NextResponse.json({ pedidos: data || [] }, { headers: { 'Cache-Control': 'no-store' } })
   } catch { return NextResponse.json({ error: 'Não foi possível consultar os pedidos' }, { status: 500, headers: { 'Cache-Control': 'no-store' } }) }
@@ -82,7 +85,7 @@ export async function POST(request: Request) {
       taxa_entrega,
       valor_desconto,
       valor_total,
-      forma_pagamento,
+      formas_pagamento,
       troco_para,
       bairro_entrega,
       taxa_bairro,
@@ -113,7 +116,7 @@ export async function POST(request: Request) {
     // 1) Valida tenant
     const { data: tenant, error: tenantErr } = await admin
       .from('tenants')
-      .select('id, status, config, slug, latitude, longitude')
+      .select('id, status, config, slug, latitude, longitude, sabores_ativo')
       .eq('slug', tenant_slug)
       .single()
 
@@ -125,19 +128,25 @@ export async function POST(request: Request) {
     }
 
     // 2) Verifica loja aberta
+    // Override manual tem prioridade sobre o horario:
+    //   - cfg.loja_aberta === false → forca fechada (mesmo dentro do horario)
+    //   - cfg.loja_aberta === true  → forca aberta (mesmo fora do horario)
+    //   - undefined/null            → segue a tabela de horarios
     const cfg = (tenant.config || {}) as any
     if (cfg.loja_aberta === false) {
       return NextResponse.json({ error: 'Loja está fechada no momento' }, { status: 403 })
     }
-    const horario = checkHorarioAberto(cfg.horarios_dias)
-    if (!horario.aberto) {
-      return NextResponse.json({ error: `Loja fechada — ${horario.motivo}` }, { status: 403 })
+    if (cfg.loja_aberta !== true) {
+      const horario = checkHorarioAberto(cfg.horarios_dias)
+      if (!horario.aberto) {
+        return NextResponse.json({ error: `Loja fechada — ${horario.motivo}` }, { status: 403 })
+      }
     }
 
     // 3) Valor mínimo
     // Reconstroi precos e vinculos no servidor; valores do navegador nao sao confiaveis.
     const produtoIdsValidacao = [...new Set(itens.map((i: any) => i.produto_id).filter(Boolean))] as string[]
-    const { data: produtosDb } = await admin.from('produtos').select('id,nome,preco,ativo').eq('tenant_id', tenant.id).in('id', produtoIdsValidacao)
+    const { data: produtosDb } = await admin.from('produtos').select('id,nome,preco,ativo,exibir_preco_a_partir_de,sabores_grupo_id,sabores_maximo').eq('tenant_id', tenant.id).in('id', produtoIdsValidacao)
     if (!produtosDb || produtosDb.length !== produtoIdsValidacao.length || produtosDb.some((p: any) => !p.ativo)) return NextResponse.json({ error: 'Produto indisponivel' }, { status: 400 })
     const varianteIds = itens.map((i: any) => i.variante_id).filter(Boolean)
     const complementoIds = itens.flatMap((i: any) => (i.complementos || []).map((c: any) => c.id)).filter(Boolean)
@@ -145,7 +154,7 @@ export async function POST(request: Request) {
       varianteIds.length ? admin.from('variantes').select('id,produto_id,nome,preco_adicional').in('id', varianteIds) : Promise.resolve({ data: [] }),
       complementoIds.length ? admin.from('complementos').select('id,nome,preco,ativo,categoria_id,qtd_max,controlar_estoque,quantidade_estoque').eq('tenant_id', tenant.id).in('id', complementoIds) : Promise.resolve({ data: [] }),
       admin.from('produto_complementos').select('produto_id,complemento_id').in('produto_id', produtoIdsValidacao),
-      admin.from('categorias_complementos').select('id,qtd_minima,qtd_maxima,max_selecoes,obrigatorio').eq('tenant_id', tenant.id).eq('ativo', true),
+      admin.from('categorias_complementos').select('id,qtd_minima,qtd_maxima').eq('tenant_id', tenant.id).eq('ativo', true),
     ])
     const todosComplementoIds = (vinculosDb || []).map((v: any) => v.complemento_id)
     const { data: categoriasDosComplementos } = todosComplementoIds.length
@@ -163,6 +172,12 @@ export async function POST(request: Request) {
     let subtotalCalculado = 0
     for (const item of itens) {
       const produto: any = produtosMap.get(item.produto_id)
+      const flavorItem = await validateFlavorItem(admin, tenant.id, tenant.sabores_ativo === true, produto, item)
+      if (flavorItem) {
+        itensValidados.push({ ...flavorItem, observacao: String(item.observacao || '').slice(0, 500) || null })
+        subtotalCalculado += savedItemTotal(flavorItem)
+        continue
+      }
       const quantidade = Math.max(1, Math.min(99, Number(item.quantidade) || 1))
       const variante: any = item.variante_id ? variantesMap.get(item.variante_id) : null
       if (item.variante_id && (!variante || variante.produto_id !== produto.id)) return NextResponse.json({ error: 'Variacao invalida' }, { status: 400 })
@@ -186,13 +201,13 @@ export async function POST(request: Request) {
         if (qtd < minimo || qtd > maximo) return NextResponse.json({ error: 'Complementos fora dos limites da lista' }, { status: 400 })
       }
       const adicional = selecionados.reduce((s, c) => s + c.valor * c.quantidade, 0)
-      subtotalCalculado += (Number(produto.preco) + Number(variante?.preco_adicional || 0) + adicional) * quantidade
-      itensValidados.push({ produto_id: produto.id, nome: produto.nome, quantidade, valor_unitario: Number(produto.preco), variante_id: variante?.id || null, variante_nome: variante?.nome || null, complementos: selecionados, observacao: String(item.observacao || '').slice(0, 500) || null })
+      subtotalCalculado += (chargedProductBase(produto, variante?.preco_adicional) + adicional) * quantidade
+      itensValidados.push({ produto_id: produto.id, nome: produto.nome, quantidade, valor_unitario: chargedProductBase(produto), variante_id: variante?.id || null, variante_nome: variante?.nome || null, complementos: selecionados, observacao: String(item.observacao || '').slice(0, 500) || null })
     }
     subtotalCalculado = Math.round(subtotalCalculado * 100) / 100
     const pagamentosCfg = cfg.formas_pagamento_aceitas
     const pagamentosAtivos = Array.isArray(cfg.formas_pagamento) ? cfg.formas_pagamento : pagamentosCfg && typeof pagamentosCfg === 'object' ? Object.entries(pagamentosCfg).filter(([, v]) => v).map(([k]) => k) : ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito']
-    if (!pagamentosAtivos.includes(forma_pagamento)) return NextResponse.json({ error: 'Forma de pagamento desabilitada' }, { status: 400 })
+
     let taxaCalculada = 0
     if (tipo_entrega === 'delivery') {
       if (!endereco_entrega || !numero_entrega) return NextResponse.json({ error: 'Endereco e numero sao obrigatorios' }, { status: 400 })
@@ -294,7 +309,19 @@ export async function POST(request: Request) {
     }
     const valorDescontoTotal = Math.min(subtotalCalculado, descontoAniversario + descontoCupom)
     const valorTotalFinal = Math.max(0, Math.round((subtotalCalculado + taxaCalculada - valorDescontoTotal) * 100) / 100)
-    if (forma_pagamento === 'dinheiro' && troco_para && Number(troco_para) < valorTotalFinal) {
+
+    // Validar múltiplas formas de pagamento (após calcular valorTotalFinal)
+    const formasSelecionadas = body.formas_pagamento || []
+    if (!formasSelecionadas.length) return NextResponse.json({ error: 'Nenhuma forma de pagamento selecionada' }, { status: 400 })
+    for (const fp of formasSelecionadas) {
+      if (!pagamentosAtivos.includes(fp.forma)) return NextResponse.json({ error: `Forma de pagamento '${fp.forma}' desabilitada` }, { status: 400 })
+    }
+    const totalPago = formasSelecionadas.reduce((sum: number, fp: any) => sum + Number(fp.valor || 0), 0)
+    if (Math.abs(totalPago - valorTotalFinal) > 0.01) return NextResponse.json({ error: 'Valor total dos pagamentos não corresponde ao valor do pedido' }, { status: 400 })
+
+    // Validar troco se dinheiro foi selecionado
+    const temDinheiro = formasSelecionadas.some((fp: any) => fp.forma === 'dinheiro')
+    if (temDinheiro && troco_para && Number(troco_para) < valorTotalFinal) {
       return NextResponse.json({ error: 'O valor para troco deve ser maior ou igual ao total' }, { status: 400 })
     }
 
@@ -320,7 +347,7 @@ export async function POST(request: Request) {
       p_token_hash: clienteTokenHash,
       p_idempotency_hash: hashAccessToken(`${tenant.id}:${String(idempotencyKey)}`),
       p_cliente: { nome: cliente_nome, telefone: whatsappLimpo, endereco: endereco_entrega || '', data_nascimento: aniversarioIso, cpf: cliente_cpf ? normalizeCpf(cliente_cpf) : '' },
-      p_pedido: { valor_subtotal: subtotalCalculado, taxa_entrega: taxaCalculada, valor_desconto: valorDescontoTotal, valor_total: valorTotalFinal, forma_pagamento, troco_para: troco_para || '', bairro_entrega: bairro_entrega || '', endereco_entrega: endereco_entrega || '', numero_entrega: numero_entrega || '', complemento_entrega: complemento_entrega || '', tipo_entrega, observacoes: observacoes || '', cupom_aplicado: cupomValidado || '' },
+      p_pedido: { valor_subtotal: subtotalCalculado, taxa_entrega: taxaCalculada, valor_desconto: valorDescontoTotal, valor_total: valorTotalFinal, formas_pagamento: formasSelecionadas, troco_para: troco_para || '', bairro_entrega: bairro_entrega || '', endereco_entrega: endereco_entrega || '', numero_entrega: numero_entrega || '', complemento_entrega: complemento_entrega || '', tipo_entrega, observacoes: observacoes || '', cupom_aplicado: cupomValidado || '' },
       p_itens: itensValidados,
       p_ignorar_estoque: venderSemEstoque,
     })
@@ -357,6 +384,7 @@ export async function POST(request: Request) {
       cliente_whatsapp: whatsappLimpo,
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error: any) {
+    if (error instanceof FlavorValidationError) return NextResponse.json({ error: error.message }, { status: 400 })
     console.error('Erro ao criar pedido público:', error)
     return NextResponse.json({ error: error.message || 'Erro ao criar pedido' }, { status: 500 })
   }

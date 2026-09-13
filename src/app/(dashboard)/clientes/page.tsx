@@ -42,32 +42,54 @@ const TAGS_RAPIDAS = [
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([])
+  const [duplicadosOcultos, setDuplicadosOcultos] = useState(0)
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtroTag, setFiltroTag] = useState('')
-  const [filtroAtivo, setFiltroAtivo] = useState('todos')
+  const [filtroAtivo, setFiltroAtivo] = useState('ativos')
+  const [refreshKey, setRefreshKey] = useState(0)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Cliente | null>(null)
   const supabase = createClient()
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [refreshKey])
+
+  // Recarregar quando o usuario volta para a aba (limpa cache do navegador)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadData()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
 
   const loadData = async () => {
     const tenantId = await activeTenantId()
     if (!tenantId) { setLoading(false); return }
     const tid = tenantId
 
-    // Buscar clientes e pontos em paralelo
-    const [{ data, error }, { data: pontosData }] = await Promise.all([
+    // Esconde registros historicos marcados como duplicados pela
+    // migration 066 (sufixo [dup-AAAAMMDDHH24MI] no nome). Auditoria
+    // preservada no banco; so nao exibimos no CRM do lojista.
+    const [{ data, error }, { data: pontosData }, { count: dupCount }] = await Promise.all([
       supabase
         .from('clientes')
         .select('*')
         .eq('tenant_id', tid)
+        .eq('ativo', true)
+        .not('nome', 'ilike', '%[dup-%')
         .order('ultimo_pedido_em', { ascending: false, nullsFirst: false }),
       supabase
         .from('cliente_pontos')
         .select('cliente_id, pontos_saldo')
         .eq('tenant_id', tid),
+      supabase
+        .from('clientes')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tid)
+        .ilike('nome', '%[dup-%'),
     ])
 
     if (!error && data) {
@@ -83,6 +105,7 @@ export default function ClientesPage() {
       }))
       setClientes(clientesComPontos)
     }
+    setDuplicadosOcultos(dupCount || 0)
     setLoading(false)
   }
 
@@ -163,6 +186,18 @@ export default function ClientesPage() {
           </button>
         </div>
       </div>
+
+      {duplicadosOcultos > 0 && (
+        <div
+          className="mb-4 rounded-xl border px-4 py-3 text-sm flex items-center gap-2"
+          style={{ background: '#FFFBEB', borderColor: '#FCD34D', color: '#92400E' }}
+        >
+          <span>⚠️</span>
+          <span>
+            <strong>{duplicadosOcultos}</strong> {duplicadosOcultos === 1 ? 'cliente duplicado foi ocultado' : 'clientes duplicados foram ocultados'} e unificados com o registro principal.
+          </span>
+        </div>
+      )}
 
       {/* Cards resumo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">

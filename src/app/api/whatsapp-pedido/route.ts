@@ -1,5 +1,7 @@
 import { ALL_TENANT_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
 import { NextResponse } from 'next/server'
+import { flavorLabel, parseComplements } from '@/lib/flavor-pricing'
+import { savedItemTotal } from '@/lib/product-pricing'
 
 interface PedidoComDados {
   id: string
@@ -40,8 +42,9 @@ function gerarMensagemPedido(pedido: PedidoComDados, loja: any): string {
   const itens = (pedido.itens || pedido.produtos || []).map((item: any) => {
     const qtd = item.quantidade
     const nome = item.nome
-    const valor = item.valor_unitario || item.valor
-    return `${qtd}x ${nome} — R$ ${Number(valor * qtd).toFixed(2).replace('.', ',')}`
+    const valor = savedItemTotal({ ...item, valor_unitario: item.valor_unitario ?? item.valor ?? 0 }) / qtd
+    const composicao = parseComplements(item.complementos).map(c => `\n    ${c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade || 1}x ${c.nome}`}`).join('')
+    return `${qtd}x ${nome} — R$ ${Number(valor * qtd).toFixed(2).replace('.', ',')}${composicao}`
   })
 
   const linhas: string[] = []
@@ -99,7 +102,7 @@ export async function POST(request: Request) {
     // Buscar itens
     const { data: itens } = await supabase
       .from('pedido_itens')
-      .select('nome, quantidade, valor_unitario')
+      .select('nome, quantidade, valor_unitario, complementos')
       .eq('pedido_id', pedido_id)
 
     // Buscar tenant (loja)

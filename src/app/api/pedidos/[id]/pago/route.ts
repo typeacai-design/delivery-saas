@@ -57,9 +57,9 @@ export async function PATCH(request: Request) {
           tipo: 'entrada',
           descricao: `Pedido #${pedido.codigo || pedido_id.slice(0, 8)}`,
           valor: pedido.valor_total,
-          data: new Date().toISOString(),
+          data: new Date().toISOString().split('T')[0], // campo date: YYYY-MM-DD
           categoria: 'venda',
-          pedido_id: pedido_id,
+          referencia_id: pedido_id,
           forma_pagamento: formaPagamento,
         })
 
@@ -72,7 +72,7 @@ export async function PATCH(request: Request) {
       await supabase
         .from('movimentacoes_financeiras')
         .delete()
-        .eq('pedido_id', pedido_id)
+        .eq('referencia_id', pedido_id)
         .eq('tenant_id', tenantId)
     }
 

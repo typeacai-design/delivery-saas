@@ -5,6 +5,10 @@ metadata:
   type: project
 ---
 
+## Estado atual - 2026-09-09
+
+As atualizacoes de preco a partir de e divisao em sabores foram publicadas. Consulte [PROGRESSO_WE_DELIVERY.md](PROGRESSO_WE_DELIVERY.md) para o checkpoint atual, evidencias, limites e orientacoes de retomada. Os registros historicos abaixo permanecem preservados.
+
 # Fornalha — Delivery SaaS
 
 ## Visão Geral
@@ -70,3 +74,8 @@ src/
 
 ## Estado Atual
 MVP funcional em produção. Próximos passos pendentes definidos com Rick.
+
+
+## 2026-09-09 - Reference-price correction
+
+Fix deployed after explicit authorization: wedelivery.site now uses dpl_7NehPjynkyVYmZKKN5NCiSvTXESi (code f16b5ba, baseline 4aaafe6). Verified on mobile and desktop; no database changes. See docs/sessions/2026-09/2026-09-09-preco-a-partir-de.md.

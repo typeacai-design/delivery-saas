@@ -1,5 +1,7 @@
+const { localSupabaseValue } = require('./local-credentials')
+
 function required(name) {
-  const value = process.env[name]?.trim()
+  const value = process.env[name]?.trim() || localSupabaseValue(name)
   if (!value) throw new Error(`Variável obrigatória ausente: ${name}`)
   return value
 }

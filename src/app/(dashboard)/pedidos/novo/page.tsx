@@ -1,12 +1,23 @@
 'use client'
+import { ProdutoModal as MontagemSabores } from '@/components/checkout-flow'
+import { flavorLabel } from '@/lib/flavor-pricing'
+import { chargedProductBase } from '@/lib/product-pricing'
 
-import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
-import { ArrowLeft, ShoppingBag, MapPin, CreditCard, Plus, Trash2, Check, MessageCircle, User, Phone, Calendar, Home, Store, Table2, Save, X } from 'lucide-react'
+import {
+  ArrowLeft, ShoppingBag, MapPin, CreditCard, Plus, Trash2, Check, MessageCircle,
+  User, Phone, Home, Store, Table2, Save, X, Search, ChevronLeft, ChevronRight,
+  Minus, Edit3, Clock, ImageIcon, Loader2
+} from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { useToast } from '@/components/toast'
 
+// ============================================================
+// TIPOS
+// ============================================================
 interface Cliente {
   id: string
   nome: string
@@ -23,16 +34,63 @@ interface Produto {
   id: string
   nome: string
   preco: number
+  sabores_grupo_id?: string | null
+  sabores_maximo?: number
+  exibir_preco_a_partir_de?: boolean
+  imagem_url?: string
+  descricao?: string
+  tempo_preparo_min?: number
+  variantes?: Variante[]
+  listas?: ListaComplemento[]
+}
+
+interface Variante {
+  id: string
+  nome: string
+  preco_adicional: number
+}
+
+interface ListaComplemento {
+  id: string
+  nome: string
+  qtd_minima?: number
+  qtd_maxima?: number
+  max_um_de_cada?: boolean
+  complementos: Complemento[]
+}
+
+interface Complemento {
+  id: string
+  nome: string
+  preco: number
   imagem_url?: string
 }
 
 interface ItemPedido {
+  id: string
+  sabores_quantidade?: number
   produto_id: string
   nome: string
   quantidade: number
   valor_unitario: number
-  complementos?: any[]
+  variante_id?: string
+  variante_nome?: string
+  variante_preco?: number
+  complementos: ItemComplemento[]
   observacao?: string
+  imagem_url?: string
+}
+
+interface ItemComplemento {
+  tipo?: string
+  grupo_id?: string
+  fracao_denominador?: number
+  preco_integral?: number
+  regra_preco?: string
+  id: string
+  nome: string
+  quantidade: number
+  valor: number
 }
 
 interface Bairro {
@@ -42,23 +100,626 @@ interface Bairro {
   prazo_min?: number
 }
 
-interface Complemento {
+interface CategoriaComplemento {
   id: string
   nome: string
-  preco: number
-  categoria_id: string
 }
 
+// ============================================================
+// UTILITÁRIOS
+// ============================================================
+function formatPhone(v: string) {
+  const c = (v || '').replace(/\D/g, '').slice(0, 11)
+  return c.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3').trim()
+}
+
+function formatCpf(v: string) {
+  const c = (v || '').replace(/\D/g, '').slice(0, 11)
+  return c.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+}
+
+function normalizeCpf(v: string) {
+  return (v || '').replace(/\D/g, '').slice(0, 11)
+}
+
+function gerarId() {
+  return Math.random().toString(36).slice(2, 10)
+}
+
+// ============================================================
+// COMPONENTE: Seletor de Bairro com Pesquisa
+// ============================================================
+function BairroSelector({
+  bairros,
+  selecionado,
+  onSelect,
+  label = 'Bairro'
+}: {
+  bairros: Bairro[]
+  selecionado: Bairro | null
+  onSelect: (b: Bairro | null) => void
+  label?: string
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [busca, setBusca] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  const filtrados = useMemo(() => {
+    if (!busca) return bairros
+    const termo = busca.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    return bairros.filter(b =>
+      b.bairro.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(termo)
+    )
+  }, [bairros, busca])
+
+  useEffect(() => {
+    function handleClickFora(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setAberto(false)
+        setBusca('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickFora)
+    return () => document.removeEventListener('mousedown', handleClickFora)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="block text-xs font-medium text-gray-500 mb-1.5">{label} *</label>
+      <button
+        type="button"
+        onClick={() => { setAberto(!aberto); if (!aberto) setBusca('') }}
+        className="w-full py-3 px-4 border border-gray-200 rounded-xl text-left bg-white hover:border-green-400 transition-colors flex items-center justify-between"
+      >
+        <span className={selecionado ? 'text-gray-900' : 'text-gray-400'}>
+          {selecionado ? `${selecionado.bairro}` : 'Selecione o bairro...'}
+        </span>
+        <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${aberto ? 'rotate-90' : ''}`} />
+      </button>
+
+      {aberto && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          {/* Barra de pesquisa */}
+          <div className="relative border-b">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar bairro..."
+              className="w-full py-3 pl-10 pr-4 outline-none text-sm bg-white"
+              autoFocus
+            />
+            {busca && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setBusca('') }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+          </div>
+
+          {/* Lista de bairros */}
+          <div className="max-h-64 overflow-y-auto">
+            {filtrados.length === 0 ? (
+              <div className="p-4 text-center text-sm text-gray-500">
+                Nenhum bairro encontrado
+              </div>
+            ) : (
+              filtrados.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => {
+                    onSelect(b)
+                    setAberto(false)
+                    setBusca('')
+                  }}
+                  className={`w-full p-3 text-left hover:bg-gray-50 flex justify-between items-center transition-colors ${
+                    selecionado?.id === b.id ? 'bg-green-50' : ''
+                  }`}
+                >
+                  <span className="font-medium text-gray-900">{b.bairro}</span>
+                  <span className="text-green-600 font-semibold text-sm">{formatCurrency(b.taxa)}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// COMPONENTE: Modal de Produto com Complementos por Etapas
+// ============================================================
+function ProdutoModal({
+  isOpen,
+  onClose,
+  produto,
+  listas,
+  onAdd,
+  initialItem,
+  onReplace,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  produto: Produto | null
+  listas: ListaComplemento[]
+  onAdd: (item: Omit<ItemPedido, 'id'>) => void
+  initialItem?: ItemPedido | null
+  onReplace?: (itemId: string, item: Omit<ItemPedido, 'id'>) => void
+}) {
+  const [quantidade, setQuantidade] = useState(1)
+  const [complementosSelecionados, setComplementosSelecionados] = useState<Record<string, number>>({})
+  const [observacao, setObservacao] = useState('')
+  const [etapa, setEtapa] = useState(0)
+
+  useEffect(() => {
+    if (isOpen && produto) {
+      setQuantidade(initialItem?.quantidade || 1)
+      setObservacao(initialItem?.observacao || '')
+      setEtapa(0)
+      // Restaurar complementos já selecionados
+      const comps: Record<string, number> = {}
+      ;(initialItem?.complementos || []).forEach(c => {
+        comps[c.id] = c.quantidade
+      })
+      setComplementosSelecionados(comps)
+    }
+  }, [isOpen, produto, initialItem])
+
+  if (!isOpen || !produto) return null
+
+  const listaAtual = listas[etapa]
+  const totalListas = listas.length
+  const qtdNaLista = listaAtual?.complementos?.reduce((s, c) => s + (complementosSelecionados[c.id] || 0), 0) || 0
+  const minimoLista = Number(listaAtual?.qtd_minima ?? 0)
+  const maximoLista = Number(listaAtual?.qtd_maxima ?? 99)
+
+  const precoComplementos = Object.entries(complementosSelecionados).reduce((acc, [id, qtd]) => {
+    const comp = listaAtual?.complementos.find(c => c.id === id)
+    const allComps = listas.flatMap(l => l.complementos)
+    const c = allComps.find(x => x.id === id) || comp
+    return acc + (c?.preco || 0) * qtd
+  }, 0)
+  const total = (chargedProductBase(produto) + precoComplementos) * quantidade
+
+  function toggleComplemento(comp: Complemento) {
+    setComplementosSelecionados(prev => {
+      const maxItem = listaAtual?.max_um_de_cada ? 1 : 99
+      const atual = prev[comp.id] || 0
+      if (atual > 0) {
+        const novo = { ...prev }
+        delete novo[comp.id]
+        return novo
+      } else if (qtdNaLista < maximoLista) {
+        return { ...prev, [comp.id]: 1 }
+      }
+      return prev
+    })
+  }
+
+  function alterarQuantidade(comp: Complemento, delta: number) {
+    setComplementosSelecionados(prev => {
+      const atual = prev[comp.id] || 0
+      const maxItem = listaAtual?.max_um_de_cada ? 1 : 99
+      const proximo = Math.max(0, Math.min(maxItem, atual + delta))
+      if (qtdNaLista + delta > maximoLista && delta > 0) return prev
+      const novo = { ...prev }
+      if (proximo) novo[comp.id] = proximo
+      else delete novo[comp.id]
+      return novo
+    })
+  }
+
+  function podeAvancar() {
+    return qtdNaLista >= minimoLista
+  }
+
+  function avancar() {
+    if (podeAvancar()) {
+      if (etapa < totalListas - 1) {
+        setEtapa(e => e + 1)
+      } else {
+        adicionarAoPedido()
+      }
+    }
+  }
+
+  function voltar() {
+    if (etapa > 0) setEtapa(e => e - 1)
+  }
+
+  function adicionarAoPedido() {
+    const comps: ItemComplemento[] = Object.entries(complementosSelecionados)
+      .filter(([_, qtd]) => qtd > 0)
+      .flatMap(([id, qtd]) => {
+        const allComps = listas.flatMap(l => l.complementos)
+        const c = allComps.find(x => x.id === id)
+        if (!c) return []
+        return [{
+          id,
+          nome: c.nome,
+          quantidade: qtd,
+          valor: c.preco
+        }]
+      })
+
+    if (!produto) return
+
+    const item: Omit<ItemPedido, 'id'> = {
+      produto_id: produto.id,
+      nome: produto.nome,
+      quantidade,
+      valor_unitario: chargedProductBase(produto),
+      complementos: comps,
+      observacao: observacao.trim() || undefined,
+      imagem_url: produto.imagem_url
+    }
+
+    if (initialItem && onReplace) {
+      onReplace(initialItem.id, item)
+    } else {
+      onAdd(item)
+    }
+
+    onClose()
+  }
+
+  const todasListasObrigatorias = listas.every(l => (l.qtd_minima ?? 0) > 0)
+  const ultimaEtapa = etapa === totalListas - 1
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
+      <div className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md rounded-3xl z-50 shadow-2xl bg-white flex flex-col max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="relative p-4 border-b">
+          {totalListas > 0 && (
+            <button
+              onClick={etapa === 0 ? onClose : voltar}
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              {etapa === 0 ? <X className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            </button>
+          )}
+          <div className="text-center">
+            {produto.imagem_url ? (
+              <img src={produto.imagem_url} alt={produto.nome} className="w-20 h-20 mx-auto rounded-2xl object-contain bg-gray-50" />
+            ) : (
+              <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center">
+                <ImageIcon className="w-8 h-8 text-green-600" />
+              </div>
+            )}
+            <h2 className="text-xl font-bold text-center mt-2">{produto.nome}</h2>
+            {produto.descricao && (
+              <p className="text-sm text-gray-500 mt-1">{produto.descricao}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Progresso das etapas */}
+        {totalListas > 0 && (
+          <div className="px-4 py-2 border-b bg-gray-50">
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+              <span>Etapa {etapa + 1} de {totalListas}</span>
+              <span>{qtdNaLista}/{maximoLista}</span>
+            </div>
+            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-green-500 transition-all"
+                style={{ width: `${((etapa) / totalListas) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Conteúdo */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {totalListas > 0 && listaAtual ? (
+            <>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">{listaAtual.nome}</h3>
+              <p className="text-xs text-gray-500 mb-4">
+                {minimoLista > 0 && `Obrigatório - mínimo ${minimoLista}`}
+                {!minimoLista && 'Opcional'}
+                {maximoLista < 99 && ` • Máximo ${maximoLista}`}
+              </p>
+
+              <div className="space-y-2">
+                {listaAtual.complementos.map((comp) => {
+                  const qtd = complementosSelecionados[comp.id] || 0
+                  return (
+                    <div
+                      key={comp.id}
+                      className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                        qtd > 0 ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {comp.imagem_url && (
+                          <img src={comp.imagem_url} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                        )}
+                        <div>
+                          <span className="font-medium block text-sm">{comp.nome}</span>
+                          <span className="text-green-600 text-sm">
+                            {comp.preco === 0 ? 'Grátis' : `+ ${formatCurrency(comp.preco)}`}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {qtd > 0 ? (
+                          <>
+                            <button
+                              onClick={() => alterarQuantidade(comp, -1)}
+                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="font-bold w-6 text-center">{qtd}</span>
+                            <button
+                              onClick={() => alterarQuantidade(comp, 1)}
+                              disabled={qtdNaLista >= maximoLista}
+                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => toggleComplemento(comp)}
+                            disabled={qtdNaLista >= maximoLista}
+                            className="px-4 py-2 rounded-full border-2 border-green-500 text-green-600 font-semibold text-sm hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Adicionar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p>Este produto não possui complementos</p>
+            </div>
+          )}
+
+          {/* Observação */}
+          <div className="mt-6">
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">Observação</label>
+            <textarea
+              value={observacao}
+              onChange={(e) => setObservacao(e.target.value)}
+              placeholder="Ex: Sem cebola, ponto da carne..."
+              rows={2}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm resize-none focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t p-4 space-y-4">
+          {/* Quantidade */}
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-sm">Quantidade</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setQuantidade(q => Math.max(1, q - 1))}
+                className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+              >
+                <Minus className="w-5 h-5" />
+              </button>
+              <span className="font-bold text-xl w-8 text-center">{quantidade}</span>
+              <button
+                onClick={() => setQuantidade(q => q + 1)}
+                className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Total */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Total</span>
+            <span className="text-xl font-bold text-green-600">{formatCurrency(total)}</span>
+          </div>
+
+          {/* Botão adicionar */}
+          {totalListas > 0 ? (
+            <button
+              onClick={avancar}
+              disabled={!podeAvancar()}
+              className="w-full py-4 rounded-2xl font-bold text-white text-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              {ultimaEtapa ? (
+                <>
+                  <Check className="w-5 h-5" />
+                  Adicionar ao Pedido
+                </>
+              ) : (
+                <>
+                  Próximo
+                  <ChevronRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={adicionarAoPedido}
+              className="w-full py-4 rounded-2xl font-bold text-white text-lg bg-green-600 hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+            >
+              <Check className="w-5 h-5" />
+              Adicionar ao Pedido
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ============================================================
+// COMPONENTE: Modal Cadastro de Cliente
+// ============================================================
+function ClienteModal({
+  isOpen,
+  onClose,
+  onSave,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onSave: (cliente: { nome: string; telefone: string; cpf?: string }) => void
+}) {
+  const [nome, setNome] = useState('')
+  const [telefone, setTelefone] = useState('')
+  const [cpf, setCpf] = useState('')
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      setNome('')
+      setTelefone('')
+      setCpf('')
+      setErro('')
+    }
+  }, [isOpen])
+
+  function handleTelefone(v: string) {
+    const c = v.replace(/\D/g, '').slice(0, 11)
+    const formatado = c.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3').trim()
+    setTelefone(formatado)
+  }
+
+  function handleCpf(v: string) {
+    const c = v.replace(/\D/g, '').slice(0, 11)
+    const formatado = c.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+    setCpf(formatado)
+  }
+
+  function handleSalvar() {
+    if (!nome.trim()) {
+      setErro('Nome é obrigatório')
+      return
+    }
+    if (telefone.replace(/\D/g, '').length < 10) {
+      setErro('Telefone inválido')
+      return
+    }
+    onSave({ nome: nome.trim(), telefone: telefone.replace(/\D/g, ''), cpf: cpf.replace(/\D/g, '') || undefined })
+    onClose()
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
+      <div className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md rounded-3xl z-50 shadow-2xl bg-white overflow-hidden">
+        {/* Header */}
+        <div className="p-4 border-b flex items-center justify-between">
+          <h2 className="text-lg font-bold">Novo Cliente</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Formulário */}
+        <div className="p-6 space-y-5">
+          {/* Nome */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Nome <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={nome}
+                onChange={(e) => { setNome(e.target.value); setErro('') }}
+                placeholder="Nome completo"
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Telefone */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Telefone <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="tel"
+                value={telefone}
+                onChange={(e) => { handleTelefone(e.target.value); setErro('') }}
+                placeholder="(00) 00000-0000"
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* CPF */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              CPF <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              value={cpf}
+              onChange={(e) => handleCpf(e.target.value)}
+              placeholder="000.000.000-00"
+              maxLength={14}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
+            />
+          </div>
+
+          {/* Erro */}
+          {erro && (
+            <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg">{erro}</p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-xl font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSalvar}
+            className="flex-1 py-3 rounded-xl font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+          >
+            <Save className="w-4 h-4" />
+            Cadastrar
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ============================================================
+// PÁGINA PRINCIPAL
+// ============================================================
 export default function NovoPedidoPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const sessaoMesaIdDaUrl = searchParams.get('sessao_mesa_id')
   const supabase = createClient()
+  const { error: toastError, success: toastSuccess } = useToast()
 
   const [loading, setLoading] = useState(false)
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [bairros, setBairros] = useState<Bairro[]>([])
-  const [complementos, setComplementos] = useState<Complemento[]>([])
-  const [categoriasComplementos, setCategoriasComplementos] = useState<any[]>([])
   const [itens, setItens] = useState<ItemPedido[]>([])
   const [pedidoCriado, setPedidoCriado] = useState<any>(null)
   const [whatsappUrl, setWhatsappUrl] = useState('')
@@ -66,56 +727,82 @@ export default function NovoPedidoPage() {
 
   // Tipo de entrega
   const [tipoEntrega, setTipoEntrega] = useState<'delivery' | 'retirada' | 'mesa'>('delivery')
-  const [mesaId, setMesaId] = useState<string>('')
-  const [mesas, setMesas] = useState<any[]>([])
+  const [mesaNumero, setMesaNumero] = useState('')
+  const [mesaSessaoId, setMesaSessaoId] = useState<string | null>(null)
+  const [mesaClienteNome, setMesaClienteNome] = useState('')
+  const [mesaClienteWhatsapp, setMesaClienteWhatsapp] = useState('')
 
-  // Cliente
-  const [mostrarFormCliente, setMostrarFormCliente] = useState(false)
-  const [novoCliente, setNovoCliente] = useState({
-    nome: '',
-    telefone: '',
-    cpf: '',
-    data_nascimento: '',
-    endereco: '',
-    bairro: '',
-    numero: '',
-    complemento: ''
-  })
-
-  // Carregar mesas quando selecionar tipo mesa
-  useEffect(() => {
-    const carregarMesas = async () => {
-      if (tipoEntrega !== 'mesa') return
-      const tid = await activeTenantId()
-      if (!tid) return
-      const { data } = await supabase.from('mesas').select('*').eq('tenant_id', tid).eq('ativa', true).order('numero')
-      setMesas(data || [])
-    }
-    carregarMesas()
-  }, [tipoEntrega])
-
-  // Campos do pedido
+  // Cliente selecionado
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
+  const [buscaCliente, setBuscaCliente] = useState('')
+  const [mostrarListaClientes, setMostrarListaClientes] = useState(false)
+
+  // Lista filtrada de clientes para a busca
+  const clientesFiltrados = useMemo(() => {
+    if (!buscaCliente.trim()) return clientes
+    const b = buscaCliente.toLowerCase()
+    return clientes.filter(c =>
+      (c.nome || '').toLowerCase().includes(b) ||
+      (c.telefone || '').includes(b)
+    )
+  }, [clientes, buscaCliente])
+
+  // Endereço
   const [bairroSelecionado, setBairroSelecionado] = useState<Bairro | null>(null)
   const [endereco, setEndereco] = useState('')
   const [numero, setNumero] = useState('')
   const [complemento, setComplemento] = useState('')
+
+  // Pagamento
   const [formaPagamento, setFormaPagamento] = useState<string>('dinheiro')
   const [valorPago, setValorPago] = useState('')
   const [troco, setTroco] = useState(0)
+
+  // Observações
   const [observacoes, setObservacoes] = useState('')
-  const [ajusteValor, setAjusteValor] = useState<number>(0) // positivo = desconto, negativo = acréscimo
+  const [tipoAjuste, setTipoAjuste] = useState<'desconto' | 'acrescimo'>('desconto')
+  const [valorAjuste, setValorAjuste] = useState<number>(0)
   const [motivoAjuste, setMotivoAjuste] = useState('')
 
-  // Modal de complementos
-  const [itemSelecionandoComps, setItemSelecionandoComps] = useState<string | null>(null)
-  const [complementosSelecionados, setComplementosSelecionados] = useState<Complemento[]>([])
-  const [categoriaFiltroComp, setCategoriaFiltroComp] = useState('')
+  // Modals
+  const [mostrarModalCliente, setMostrarModalCliente] = useState(false)
+  const [mostrarModalProduto, setMostrarModalProduto] = useState(false)
+  const [saboresAtivo, setSaboresAtivo] = useState(false)
+  const [produtoSelecionado, setProdutoSelecionado] = useState<Produto | null>(null)
+  const [itemEditando, setItemEditando] = useState<ItemPedido | null>(null)
 
-  // Busca clientes, produtos e bairros
+  // Carregar dados
   useEffect(() => {
     loadDados()
   }, [])
+
+  // Se vier sessao_mesa_id da URL, vira modo mesa automaticamente
+  useEffect(() => {
+    if (!sessaoMesaIdDaUrl) return
+    let cancel = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('sessoes_mesa')
+        .select('id, mesa_numero, cliente_nome, cliente_whatsapp, status')
+        .eq('id', sessaoMesaIdDaUrl)
+        .maybeSingle()
+      if (cancel) return
+      if (error || !data) {
+        toastError('Sessão de mesa não encontrada')
+        return
+      }
+      if (data.status !== 'aberta') {
+        toastError('Essa mesa já está ' + data.status)
+        return
+      }
+      setTipoEntrega('mesa')
+      setMesaSessaoId(data.id)
+      setMesaNumero(data.mesa_numero || '')
+      setMesaClienteNome(data.cliente_nome || '')
+      setMesaClienteWhatsapp(data.cliente_whatsapp || '')
+    })()
+    return () => { cancel = true }
+  }, [sessaoMesaIdDaUrl, supabase, toastError])
 
   // Calcula troco
   useEffect(() => {
@@ -132,135 +819,192 @@ export default function NovoPedidoPage() {
     const tenantId = await activeTenantId()
     console.log('[pedidos/novo] loadDados - tenantId:', tenantId)
     if (!tenantId) return
+    const { data: lojaSabores } = await supabase.from('tenants').select('sabores_ativo').eq('id', tenantId).single()
+    setSaboresAtivo(lojaSabores?.sabores_ativo === true)
 
-    const [{ data: clientesData }, { data: produtosData }, { data: bairrosData }, { data: complementosData }, { data: catsComp }] = await Promise.all([
-      supabase.from('clientes').select('*').eq('tenant_id', tenantId).order('nome'),
-      supabase.from('produtos').select('id, nome, preco, imagem_url').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
+    // Primeiro: buscar produtos, complementos, categorias e clientes (sem dependências)
+    const [
+      { data: clientesData },
+      { data: produtosData },
+      { data: bairrosData },
+      { data: complementosData },
+      { data: listasData },
+    ] = await Promise.all([
+      supabase.from('clientes').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
+      supabase.from('produtos').select('id, nome, preco, imagem_url, descricao, tempo_preparo_min, exibir_preco_a_partir_de, sabores_grupo_id, sabores_maximo').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
       supabase.from('enderecos_entrega').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('bairro'),
-      supabase.from('complementos').select('id, nome, preco, categoria_id').eq('tenant_id', tenantId).eq('ativo', true).order('nome'),
-      supabase.from('categorias_complementos').select('id, nome, descricao_interna').eq('tenant_id', tenantId).eq('ativo', true).order('ordem')
+      // Complementos com categoria_id
+      supabase.from('complementos').select('id, nome, preco, imagem_url, categoria_id, ordem, controlar_estoque').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
+      // Categorias de complementos (mesma tabela usada pelo cardápio público)
+      supabase.from('categorias_complementos').select('id, nome, qtd_minima, qtd_maxima, max_um_de_cada, ordem').eq('tenant_id', tenantId).eq('ativo', true).order('ordem'),
     ])
 
+    const idsProdutos = (produtosData || []).map((p: any) => p.id)
+
+    // Segundo: buscar relações e variantes (depende dos ids dos produtos)
+    const [{ data: produtoComplementosData }, { data: variantesData }] = await Promise.all([
+      supabase.from('produto_complementos').select('produto_id, complemento_id').in('produto_id', idsProdutos),
+      supabase.from('variantes').select('*').in('produto_id', idsProdutos),
+    ])
+
+    // Mapear variantes para cada produto
+    const produtosComVariantes = (produtosData || []).map((p: any) => ({
+      ...p,
+      variantes: (variantesData || []).filter((v: any) => v.produto_id === p.id)
+    }))
+
+    // Mapear complementos por produto (igual ao cardápio público)
+    const complementosPorProduto: Record<string, any[]> = {}
+    ;(produtoComplementosData || []).forEach((pc: any) => {
+      const complemento = (complementosData || []).find((c: any) => c.id === pc.complemento_id)
+      if (complemento) {
+        if (!complementosPorProduto[pc.produto_id]) {
+          complementosPorProduto[pc.produto_id] = []
+        }
+        complementosPorProduto[pc.produto_id].push(complemento)
+      }
+    })
+
+    // Agrupar complementos por produto e categoria (igual ao cardápio público)
+    const listasPorProduto: Record<string, ListaComplemento[]> = {}
+    Object.entries(complementosPorProduto).forEach(([produtoId, comps]) => {
+      const idsCategorias = new Set((comps as any[]).map((c: any) => c.categoria_id).filter(Boolean))
+      listasPorProduto[produtoId] = (listasData || [])
+        .filter((l: any) => idsCategorias.has(l.id))
+        .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+        .map((l: any) => ({
+          id: l.id,
+          nome: l.nome,
+          qtd_minima: l.qtd_minima,
+          qtd_maxima: l.qtd_maxima,
+          max_um_de_cada: l.max_um_de_cada,
+          complementos: (comps as any[])
+            .filter((c: any) => c.categoria_id === l.id)
+            .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+        }))
+
+      // Complementos sem categoria vão para um grupo "Adicionais"
+      const semCategoria = (comps as any[]).filter((c: any) => !c.categoria_id)
+        .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+      if (semCategoria.length) {
+        listasPorProduto[produtoId].push({
+          id: 'avulsos',
+          nome: 'Adicionais',
+          qtd_minima: 0,
+          qtd_maxima: 99,
+          max_um_de_cada: false,
+          complementos: semCategoria
+        })
+      }
+    })
+
+    const produtosFinais = produtosComVariantes.map((p: any) => ({
+      ...p,
+      listas: listasPorProduto[p.id] || []
+    }))
+
     setClientes(clientesData || [])
-    setProdutos(produtosData || [])
+    setProdutos(produtosFinais.filter((p: any) => !p.sabores_grupo_id || lojaSabores?.sabores_ativo === true).map((p: any) => {
+      if (!p.sabores_grupo_id) return p
+      const sabores = p.listas.find((l: any) => l.id === p.sabores_grupo_id)?.complementos || []
+      return {...p, preco: sabores.length ? Math.min(...sabores.map((c: any) => Number(c.preco))) : p.preco, exibir_preco_a_partir_de: true}
+    }))
     setBairros(bairrosData || [])
-    setComplementos(complementosData || [])
-    setCategoriasComplementos(catsComp || [])
   }
 
-  const cadastrarCliente = async () => {
-    if (!novoCliente.nome.trim() || !novoCliente.telefone.trim()) {
-      alert('Nome e telefone são obrigatórios')
-      return
-    }
-
-    const tenantId = await activeTenantId()
-    if (!tenantId) return
-
-    setLoading(true)
+  const cadastrarCliente = async (cliente: { nome: string; telefone: string; cpf?: string }) => {
     try {
-      const { data, error } = await supabase
+      const tenantId = await activeTenantId()
+      if (!tenantId) return
+
+      const telefoneLimpo = cliente.telefone.replace(/\D/g, '')
+      // Inserir direto no banco para obter o UUID real
+      const { data: novo, error } = await supabase
         .from('clientes')
         .insert({
           tenant_id: tenantId,
-          nome: novoCliente.nome,
-          telefone: novoCliente.telefone.replace(/\D/g, ''),
-          cpf: novoCliente.cpf || null,
-          data_nascimento: novoCliente.data_nascimento || null,
-          endereco: novoCliente.endereco || null,
-          bairro: novoCliente.bairro || null,
-          numero: novoCliente.numero || null,
-          complemento: novoCliente.complemento || null,
+          nome: cliente.nome,
+          telefone: telefoneLimpo,
+          cpf: cliente.cpf || null,
+          data_nascimento: null,
+          endereco: endereco || null,
+          bairro: bairroSelecionado?.bairro || null,
+          // Coluna 'numero' não existe em clientes — vai em 'endereco' ou 'observacoes'
         })
         .select()
         .single()
-
-      if (error) throw error
-
-      setClientes([...clientes, data])
-      setClienteSelecionado(data)
-      setMostrarFormCliente(false)
-      setNovoCliente({ nome: '', telefone: '', cpf: '', data_nascimento: '', endereco: '', bairro: '', numero: '', complemento: '' })
-    } catch (error: any) {
-      alert('Erro ao cadastrar: ' + error.message)
-    } finally {
-      setLoading(false)
+      if (error || !novo) {
+        toastError('Erro ao cadastrar cliente', error?.message)
+        return
+      }
+      // Atualiza lista local com o cliente que tem UUID real
+      setClientes(prev => [...prev, novo as Cliente])
+      setClienteSelecionado(novo as Cliente)
+    } catch (err: any) {
+      toastError('Erro ao cadastrar cliente', err.message)
     }
   }
 
-  const adicionarItem = (produto: Produto) => {
-    setItens([...itens, {
-      produto_id: produto.id,
-      nome: produto.nome,
-      quantidade: 1,
-      valor_unitario: produto.preco,
-      complementos: [],
-      observacao: ''
-    }])
+  const abrirSelecaoProduto = (produto: Produto) => {
+    setProdutoSelecionado(produto)
+    setItemEditando(null)
+    setMostrarModalProduto(true)
   }
 
-  const atualizarQuantidade = (produtoId: string, quantidade: number) => {
+  const adicionarItem = (item: Omit<ItemPedido, 'id'>) => {
+    const novoItem: ItemPedido = { ...item, id: gerarId() }
+    setItens([...itens, novoItem])
+  }
+
+  const editarItem = (item: ItemPedido) => {
+    const produto = produtos.find(p => p.id === item.produto_id)
+    if (produto) {
+      setProdutoSelecionado(produto)
+      setItemEditando(item)
+      setMostrarModalProduto(true)
+    }
+  }
+
+  const substituirItem = (itemId: string, novoItem: Omit<ItemPedido, 'id'>) => {
+    setItens(itens.map(i => i.id === itemId ? { ...novoItem, id: itemId } : i))
+  }
+
+  const atualizarQuantidade = (itemId: string, quantidade: number) => {
     if (quantidade <= 0) {
-      setItens(itens.filter(i => i.produto_id !== produtoId))
+      setItens(itens.filter(i => i.id !== itemId))
     } else {
-      setItens(itens.map(i =>
-        i.produto_id === produtoId ? { ...i, quantidade } : i
-      ))
+      setItens(itens.map(i => i.id === itemId ? { ...i, quantidade } : i))
     }
   }
 
-  const removerItem = (produtoId: string) => {
-    setItens(itens.filter(i => i.produto_id !== produtoId))
+  const removerItem = (itemId: string) => {
+    setItens(itens.filter(i => i.id !== itemId))
   }
 
-  const abrirComplementos = (item: ItemPedido) => {
-    setItemSelecionandoComps(item.produto_id)
-    // Carrega complementos já selecionados do item
-    setComplementosSelecionados(item.complementos ?? [])
-  }
-
-  const toggleComplemento = (comp: Complemento) => {
-    const jaTem = complementosSelecionados.find(c => c.id === comp.id)
-    if (jaTem) {
-      setComplementosSelecionados(complementosSelecionados.filter(c => c.id !== comp.id))
-    } else {
-      setComplementosSelecionados([...complementosSelecionados, comp])
-    }
-  }
-
-  const salvarComplementos = () => {
-    if (!itemSelecionandoComps) return
-    setItens(itens.map(i =>
-      i.produto_id === itemSelecionandoComps
-        ? { ...i, complementos: complementosSelecionados }
-        : i
-    ))
-    setItemSelecionandoComps(null)
-    setComplementosSelecionados([])
-  }
-
-  const calcularTotalComplementos = (comps: Complemento[], qtd: number) => {
-    return comps.reduce((acc, c) => acc + Number(c.preco), 0) * qtd
+  const calcularTotalComplementos = (comps: ItemComplemento[], qtd: number) => {
+    return comps.reduce((acc, c) => acc + c.valor * c.quantidade, 0) * qtd
   }
 
   const calcularTotal = () => {
     const subtotal = itens.reduce((acc, item) => {
-      const valorComps = calcularTotalComplementos(item.complementos || [], item.quantidade)
+      const valorComps = calcularTotalComplementos(item.complementos, item.quantidade)
       return acc + (item.valor_unitario * item.quantidade) + valorComps
     }, 0)
     const taxa = tipoEntrega === 'delivery' && bairroSelecionado ? Number(bairroSelecionado.taxa) : 0
-    // ajuste: positivo = desconto, negativo = acréscimo
-    return subtotal + taxa - ajusteValor
+    return subtotal + taxa - (tipoAjuste === 'desconto' ? valorAjuste : -valorAjuste)
   }
+
+  // Helper: ajusteValor calculado (positivo = desconto, negativo = acréscimo)
+  const ajusteValor = tipoAjuste === 'desconto' ? valorAjuste : -valorAjuste
 
   const criarPedido = async () => {
     if (itens.length === 0) {
-      alert('Adicione pelo menos um item ao pedido')
+      toastError('Adicione pelo menos um item ao pedido')
       return
     }
 
     if (tipoEntrega === 'delivery' && !bairroSelecionado) {
-      alert('Selecione o bairro de entrega')
+      toastError('Selecione o bairro de entrega')
       return
     }
 
@@ -276,83 +1020,115 @@ export default function NovoPedidoPage() {
       console.log('[pedidos/novo] tenantId:', tenantId)
       if (!tenantId) throw new Error('Sem tenant — não autenticado ou sem acesso a loja')
 
-      // Se não tem cliente selecionado, cadastra rápido
       let clienteId = clienteSelecionado?.id
-      if (!clienteId && novoCliente.nome && novoCliente.telefone) {
-        const { data: novo, error: erroNovo } = await supabase
-          .from('clientes')
-          .insert({
-            tenant_id: tenantId,
-            nome: novoCliente.nome,
-            telefone: novoCliente.telefone.replace(/\D/g, ''),
-            cpf: novoCliente.cpf || null,
-            data_nascimento: novoCliente.data_nascimento || null,
-            endereco: endereco || null,
-            bairro: bairroSelecionado?.bairro || null,
-            numero: numero || null,
-            complemento: complemento || null,
-          })
-          .select()
-          .single()
-        if (erroNovo) throw erroNovo
-        clienteId = novo.id
+      const nomeCliente = clienteSelecionado?.nome || ''
+      const telefoneCliente = clienteSelecionado?.telefone || ''
+
+      // Em modo Mesa, nao exige cliente cadastrado: cria a sessao direto com nome/whatsapp
+      if (tipoEntrega !== 'mesa') {
+        // Se nao tem cliente selecionado, cria um novo
+        if (!clienteId && nomeCliente && telefoneCliente) {
+          const { data: novo, error: erroNovo } = await supabase
+            .from('clientes')
+            .insert({
+              tenant_id: tenantId,
+              nome: nomeCliente,
+              telefone: telefoneCliente.replace(/\D/g, ''),
+              cpf: null,
+              data_nascimento: null,
+              endereco: endereco || null,
+              bairro: bairroSelecionado?.bairro || null,
+              // Coluna 'numero' não existe em clientes
+            })
+            .select()
+            .single()
+          if (erroNovo) throw erroNovo
+          clienteId = novo.id
+        }
+
+        if (!clienteId) {
+          toastError('Selecione ou cadastre um cliente')
+          setLoading(false)
+          return
+        }
       }
 
-      if (!clienteId) {
-        alert('Selecione ou cadastre um cliente')
-        setLoading(false)
-        return
+      // Se for mesa, criar sessão antes (ou reusar a que veio da URL)
+      let sessaoMesaId: string | null = null
+      if (tipoEntrega === 'mesa') {
+        if (!mesaNumero.trim()) {
+          toastError('Informe o número da mesa')
+          setLoading(false)
+          return
+        }
+        if (mesaSessaoId) {
+          // Sessao ja existe (aberta via URL ou anteriormente) — reutiliza
+          sessaoMesaId = mesaSessaoId
+        } else {
+          const sessaoRes = await fetch('/api/sessoes-mesa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mesa_numero: mesaNumero.trim(),
+              cliente_nome: mesaClienteNome.trim() || `Mesa ${mesaNumero}`,
+              cliente_whatsapp: mesaClienteWhatsapp.trim() || null,
+            }),
+          })
+          const sessaoData = await sessaoRes.json()
+          if (!sessaoRes.ok) throw new Error(`[sessoes-mesa] ${sessaoData.error || sessaoRes.status}`)
+          sessaoMesaId = sessaoData.sessao?.id || null
+          if (!sessaoMesaId) throw new Error('Sessão da mesa não retornou ID')
+        }
       }
 
       const total = calcularTotal()
       const pago = parseFloat(valorPago) || total
       const taxaEntrega = tipoEntrega === 'delivery' && bairroSelecionado ? Number(bairroSelecionado.taxa) : 0
 
-      const cliente = clienteSelecionado || { nome: novoCliente.nome, telefone: novoCliente.telefone }
-
-      // Criar pedido
-      const { data: pedido, error: pedidoError } = await supabase
-        .from('pedidos')
-        .insert({
-          tenant_id: tenantId,
-          cliente_id: clienteId,
-          cliente_nome: cliente.nome,
-          cliente_whatsapp: cliente.telefone.replace(/\D/g, ''),
-          status: 'novo',
-          valor_total: total,
-          valor_subtotal: total - taxaEntrega,
-          taxa_entrega: taxaEntrega,
-          forma_pagamento: [formaPagamento],
-          valor_pago: [pago],
-          troco: troco,
-          observacoes: observacoes,
-          tipo_entrega: tipoEntrega,
-          mesa_id: tipoEntrega === 'mesa' ? mesaId : null,
-          bairro_entrega: bairroSelecionado?.bairro || null,
-          taxa_bairro: taxaEntrega,
-          endereco_entrega: endereco,
-          numero_entrega: numero,
-          complemento_entrega: complemento,
-        })
-        .select()
-        .single()
-      console.log('[pedidos/novo] INSERT pedido:', { pedidoError, pedidoId: pedido?.id })
-
-      if (pedidoError) throw pedidoError
-      if (!pedido) throw new Error('Falha ao criar pedido')
-
-      // Criar itens do pedido
-      const itensParaInserir = itens.map(item => ({
-        pedido_id: pedido.id,
+      // Mapear itens para o formato esperado pela API
+      const itensParaApi = itens.map(item => ({
         produto_id: item.produto_id,
         nome: item.nome,
         quantidade: item.quantidade,
         valor_unitario: item.valor_unitario,
-        complementos: item.complementos || [],
+        valor_total: item.valor_unitario * item.quantidade + (item.complementos?.reduce((s, c) => s + c.valor * c.quantidade, 0) || 0) * item.quantidade,
+        complementos: item.complementos,
+        sabores_quantidade: item.sabores_quantidade,
         observacao: item.observacao || null,
       }))
 
-      await supabase.from('pedido_itens').insert(itensParaInserir)
+      // Criar pedido via API (bypassa RLS com service_role)
+      const res = await fetch('/api/pedidos/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: tipoEntrega === 'mesa' ? null : clienteId,
+          cliente_nome: tipoEntrega === 'mesa' ? mesaClienteNome.trim() || `Mesa ${mesaNumero}` : nomeCliente,
+          cliente_whatsapp: tipoEntrega === 'mesa' ? mesaClienteWhatsapp.trim() || null : telefoneCliente,
+          itens: itensParaApi,
+          valor_subtotal: total - taxaEntrega,
+          taxa_entrega: taxaEntrega,
+          valor_desconto: ajusteValor > 0 ? ajusteValor : 0,
+          valor_acrescimo: Math.max(0, -ajusteValor),
+          valor_total: total,
+          forma_pagamento: tipoEntrega === 'mesa' ? null : formaPagamento,
+          troco_para: tipoEntrega === 'mesa' ? null : troco,
+          bairro_entrega: bairroSelecionado?.bairro || null,
+          taxa_bairro: taxaEntrega,
+          observacoes: observacoes,
+          tipo_entrega: tipoEntrega,
+          tipo_pedido: tipoEntrega === 'mesa' ? 'mesa' : tipoEntrega === 'retirada' ? 'retirada' : 'delivery',
+          sessao_mesa_id: sessaoMesaId,
+          endereco,
+          numero,
+          complemento,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(`[pedidos/manual] ${data.error || res.status}`)
+
+      const pedido = data
 
       // Gerar mensagem WhatsApp
       const whatsappRes = await fetch('/api/whatsapp-pedido', {
@@ -370,11 +1146,15 @@ export default function NovoPedidoPage() {
 
       setPedidoCriado(pedido)
       setWhatsappUrl(whatsappData.whatsapp_url || '')
+      toastSuccess(
+        'Pedido criado com sucesso!',
+        `Total: ${formatCurrency(pedido.valor_total)}`
+      )
       setWhatsappMsg(whatsappData.mensagem || '')
 
     } catch (error: any) {
       console.error(error)
-      alert('Erro ao criar pedido: ' + error.message)
+      toastError('Erro ao criar pedido', error.message)
     } finally {
       setLoading(false)
     }
@@ -390,7 +1170,8 @@ export default function NovoPedidoPage() {
     setWhatsappMsg('')
     setItens([])
     setClienteSelecionado(null)
-    setNovoCliente({ nome: '', telefone: '', cpf: '', data_nascimento: '', endereco: '', bairro: '', numero: '', complemento: '' })
+    setBuscaCliente('')
+    setMostrarListaClientes(false)
     setBairroSelecionado(null)
     setEndereco('')
     setNumero('')
@@ -399,16 +1180,22 @@ export default function NovoPedidoPage() {
     setValorPago('')
     setTroco(0)
     setObservacoes('')
-    setAjusteValor(0)
+    setTipoAjuste('desconto')
+    setValorAjuste(0)
     setMotivoAjuste('')
+    // Resetar sessao de mesa: proximo pedido vai exigir nova sessao
+    setMesaSessaoId(null)
+    setMesaNumero('')
+    setMesaClienteNome('')
+    setMesaClienteWhatsapp('')
+    setTipoEntrega('delivery')
   }
 
   const total = calcularTotal()
-  const totalComplementos = itens.reduce((acc, item) => acc + calcularTotalComplementos(item.complementos ?? [], item.quantidade), 0)
+  const totalComplementos = itens.reduce((acc, item) => acc + calcularTotalComplementos(item.complementos, item.quantidade), 0)
 
-  const complementosAgrupados = categoriaFiltroComp
-    ? complementos.filter(c => c.categoria_id === categoriaFiltroComp)
-    : complementos
+  // Listas de complementos do produto selecionado
+  const listasDoProduto = produtoSelecionado?.listas || []
 
   return (
     <div>
@@ -455,40 +1242,45 @@ export default function NovoPedidoPage() {
                 <span className="text-xs font-medium">Mesa</span>
               </button>
             </div>
+
+            {/* Campos extras para Mesa */}
+            {tipoEntrega === 'mesa' && (
+              <div className="mt-3 p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3">
+                <div className="flex items-center gap-2 text-amber-900 text-sm font-medium">
+                  🍽️ <span>Pedido de mesa</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Nº da mesa"
+                    className="form-input"
+                    value={mesaNumero}
+                    onChange={(e) => setMesaNumero(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Nome do cliente"
+                    className="form-input"
+                    value={mesaClienteNome}
+                    onChange={(e) => setMesaClienteNome(e.target.value)}
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="WhatsApp (opcional)"
+                  className="form-input"
+                  value={mesaClienteWhatsapp}
+                  onChange={(e) => setMesaClienteWhatsapp(e.target.value)}
+                />
+                <p className="hint text-xs">
+                  O pedido vai pra cozinha normalmente. Pra adicionar mais itens depois, abra o card da mesa na aba "Mesas" em Pedidos.
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Seletor de Mesa (só aparece quando tipo = mesa) */}
-          {tipoEntrega === 'mesa' && (
-            <div className="glass p-5">
-              <h3 className="font-semibold flex items-center gap-2 mb-3">
-                <Table2 className="w-5 h-5 text-orange-600" />
-                Selecionar mesa
-              </h3>
-              {mesas.length === 0 ? (
-                <p className="text-sm text-gray-500">Nenhuma mesa cadastrada. Vá em Configurações → Mesas para cadastrar.</p>
-              ) : (
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                  {mesas.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setMesaId(m.id)}
-                      className={`p-3 rounded-xl border-2 text-center font-bold transition ${
-                        mesaId === m.id ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 hover:border-orange-300'
-                      }`}
-                    >
-                      {m.numero}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {!mesaId && mesas.length > 0 && (
-                <p className="text-xs text-amber-600 mt-2">⚠️ Selecione uma mesa para continuar</p>
-              )}
-            </div>
-          )}
-
-          {/* Cliente */}
+          {/* Cliente (oculto em modo Mesa) */}
+          {tipoEntrega !== 'mesa' && (
           <div className="glass p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
@@ -496,66 +1288,109 @@ export default function NovoPedidoPage() {
                 Cliente
               </h3>
               <button
-                onClick={() => setMostrarFormCliente(!mostrarFormCliente)}
+                onClick={() => setMostrarModalCliente(true)}
                 className="text-xs text-green-600 hover:underline flex items-center gap-1"
               >
                 <Plus className="w-3 h-3" />
-                {mostrarFormCliente ? 'Fechar' : 'Novo cliente'}
+                Novo cliente
               </button>
             </div>
 
-            {mostrarFormCliente ? (
-              <div className="space-y-3">
-                <input placeholder="Nome *" value={novoCliente.nome} onChange={e => setNovoCliente({...novoCliente, nome: e.target.value})} className="w-full" />
-                <input placeholder="Telefone *" value={novoCliente.telefone} onChange={e => setNovoCliente({...novoCliente, telefone: e.target.value})} className="w-full" />
-                <input placeholder="CPF" value={novoCliente.cpf} onChange={e => setNovoCliente({...novoCliente, cpf: e.target.value})} className="w-full" />
-                <input type="date" placeholder="Nascimento" value={novoCliente.data_nascimento} onChange={e => setNovoCliente({...novoCliente, data_nascimento: e.target.value})} className="w-full" />
-                <button onClick={cadastrarCliente} disabled={loading} className="btn-primary w-full justify-center text-sm">
-                  <Save className="w-4 h-4" /> {loading ? 'Salvando...' : 'Salvar Cliente'}
-                </button>
-              </div>
-            ) : (
-              <>
-                <select
-                  value={clienteSelecionado?.id || ''}
-                  onChange={(e) => {
-                    const cliente = clientes.find(c => c.id === e.target.value)
-                    setClienteSelecionado(cliente || null)
-                    if (cliente) {
-                      setNovoCliente({
-                        nome: cliente.nome,
-                        telefone: cliente.telefone,
-                        cpf: cliente.cpf || '',
-                        data_nascimento: cliente.data_nascimento || '',
-                        endereco: cliente.endereco || '',
-                        bairro: cliente.bairro || '',
-                        numero: cliente.numero || '',
-                        complemento: cliente.complemento || ''
-                      })
-                    }
+            {/* Busca de cliente */}
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar cliente por nome ou telefone..."
+                value={buscaCliente}
+                onChange={(e) => {
+                  setBuscaCliente(e.target.value)
+                  setMostrarListaClientes(true)
+                }}
+                onFocus={() => setMostrarListaClientes(true)}
+                className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
+              />
+              {buscaCliente && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuscaCliente('')
+                    setClienteSelecionado(null)
                   }}
-                  className="w-full mb-3"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  <option value="">Selecione um cliente...</option>
-                  {clientes.map(cliente => (
-                    <option key={cliente.id} value={cliente.id}>
-                      {cliente.nome} - {cliente.telefone}
-                    </option>
-                  ))}
-                </select>
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
 
-                {clienteSelecionado && (
-                  <div className="p-3 bg-green-50 rounded-lg text-sm">
-                    <p className="font-medium">{clienteSelecionado.nome}</p>
+            {/* Info do cliente selecionado */}
+            {clienteSelecionado && (
+              <div className="p-3 bg-green-50 rounded-xl text-sm border border-green-200">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold text-green-900">{clienteSelecionado.nome}</p>
                     <p className="text-gray-600">{clienteSelecionado.telefone}</p>
                     {clienteSelecionado.endereco && (
-                      <p className="text-gray-500">{clienteSelecionado.endereco}, {clienteSelecionado.numero}</p>
+                      <p className="text-gray-500 text-xs mt-1">{clienteSelecionado.endereco}, {clienteSelecionado.numero}</p>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setClienteSelecionado(null)}
+                    className="text-gray-400 hover:text-red-500 p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Lista suspensa de resultados */}
+            {!clienteSelecionado && mostrarListaClientes && clientesFiltrados.length > 0 && (
+              <div className="mt-2 border border-gray-200 rounded-xl bg-white shadow-lg max-h-60 overflow-y-auto">
+                {clientesFiltrados.slice(0, 50).map(cliente => (
+                  <button
+                    key={cliente.id}
+                    type="button"
+                    onClick={() => {
+                      setClienteSelecionado(cliente)
+                      setMostrarListaClientes(false)
+                      setBuscaCliente('')
+                    }}
+                    className="w-full px-3 py-2.5 text-left hover:bg-green-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0 transition-colors"
+                  >
+                    <div className="size-9 rounded-full bg-green-100 text-green-700 grid place-items-center text-xs font-bold shrink-0">
+                      {(cliente.nome || 'C').split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-900 truncate">{cliente.nome}</p>
+                      <p className="text-xs text-gray-500">{cliente.telefone}</p>
+                    </div>
+                  </button>
+                ))}
+                {clientesFiltrados.length > 50 && (
+                  <p className="p-3 text-xs text-center text-gray-500 border-t">
+                    +{clientesFiltrados.length - 50} resultado(s). Refine a busca para ver mais.
+                  </p>
                 )}
-              </>
+              </div>
+            )}
+
+            {/* Mensagem quando nao encontra */}
+            {!clienteSelecionado && mostrarListaClientes && buscaCliente && clientesFiltrados.length === 0 && (
+              <div className="mt-2 p-3 text-sm text-center text-gray-500 border border-dashed border-gray-300 rounded-xl">
+                Nenhum cliente encontrado para "{buscaCliente}"
+              </div>
+            )}
+
+            {!clienteSelecionado && !mostrarListaClientes && !buscaCliente && (
+              <p className="text-xs text-gray-400 text-center mt-2">
+                Digite o nome ou telefone para buscar
+              </p>
             )}
           </div>
+          )}
 
           {/* Endereço (se delivery) */}
           {tipoEntrega === 'delivery' && (
@@ -565,62 +1400,63 @@ export default function NovoPedidoPage() {
                 Endereço de Entrega
               </h3>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Bairro *</label>
-                  <select
-                    value={bairroSelecionado?.id || ''}
-                    onChange={(e) => {
-                      const b = bairros.find(b => b.id === e.target.value)
-                      setBairroSelecionado(b || null)
-                    }}
-                    className="w-full"
-                  >
-                    <option value="">Selecione o bairro...</option>
-                    {bairros.map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.bairro} - {formatCurrency(b.taxa)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="space-y-4">
+                {/* Bairro com pesquisa */}
+                <BairroSelector
+                  bairros={bairros}
+                  selecionado={bairroSelecionado}
+                  onSelect={setBairroSelecionado}
+                  label="Bairro"
+                />
 
+                {/* Endereço */}
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Endereço</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Rua / Avenida</label>
                   <input
-                    placeholder="Rua,avenida..."
+                    type="text"
                     value={endereco}
-                    onChange={e => setEndereco(e.target.value)}
-                    className="w-full"
+                    onChange={(e) => setEndereco(e.target.value)}
+                    placeholder="Nome da rua"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                {/* Número e Complemento */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Número</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Número</label>
                     <input
-                      placeholder="123"
+                      type="text"
                       value={numero}
-                      onChange={e => setNumero(e.target.value)}
-                      className="w-full"
+                      onChange={(e) => setNumero(e.target.value)}
+                      placeholder="123"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Complemento</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Complemento</label>
                     <input
-                      placeholder="Apto, casa..."
+                      type="text"
                       value={complemento}
-                      onChange={e => setComplemento(e.target.value)}
-                      className="w-full"
+                      onChange={(e) => setComplemento(e.target.value)}
+                      placeholder="Apto, casa..."
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
                     />
                   </div>
                 </div>
 
+                {/* Info da taxa */}
                 {bairroSelecionado && (
-                  <div className="p-3 bg-amber-50 rounded-lg">
-                    <p className="text-sm">Taxa de entrega: <strong>{formatCurrency(bairroSelecionado.taxa)}</strong></p>
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Taxa de entrega:</span>
+                      <span className="font-bold text-amber-800">{formatCurrency(bairroSelecionado.taxa)}</span>
+                    </div>
                     {bairroSelecionado.prazo_min && (
-                      <p className="text-xs text-gray-500">Prazo: ~{bairroSelecionado.prazo_min} min</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        <Clock className="w-3 h-3 inline mr-1" />
+                        Prazo: ~{bairroSelecionado.prazo_min} min
+                      </p>
                     )}
                   </div>
                 )}
@@ -628,7 +1464,8 @@ export default function NovoPedidoPage() {
             </div>
           )}
 
-          {/* Pagamento */}
+          {/* Pagamento (oculto em Mesa — pergunta so ao fechar a mesa) */}
+          {tipoEntrega !== 'mesa' && (
           <div className="glass p-5">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-green-600" />
@@ -637,8 +1474,8 @@ export default function NovoPedidoPage() {
 
             <select
               value={formaPagamento}
-              onChange={e => setFormaPagamento(e.target.value)}
-              className="w-full mb-3"
+              onChange={(e) => setFormaPagamento(e.target.value)}
+              className="w-full mb-3 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
             >
               <option value="dinheiro">Dinheiro</option>
               <option value="pix">PIX</option>
@@ -653,28 +1490,33 @@ export default function NovoPedidoPage() {
                   step="0.01"
                   placeholder="Valor pago pelo cliente"
                   value={valorPago}
-                  onChange={e => setValorPago(e.target.value)}
-                  className="w-full"
+                  onChange={(e) => setValorPago(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
                 />
                 {troco > 0 && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mt-2">
-                    <p className="text-sm text-amber-800">Troco para: <strong>{formatCurrency(parseFloat(valorPago))}</strong></p>
-                    <p className="font-semibold text-amber-900">Voltar: {formatCurrency(troco)}</p>
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl mt-3">
+                    <p className="text-sm text-amber-800">
+                      Troco para: <strong>{formatCurrency(parseFloat(valorPago))}</strong>
+                    </p>
+                    <p className="font-bold text-amber-900 text-lg mt-1">
+                      Voltar: {formatCurrency(troco)}
+                    </p>
                   </div>
                 )}
               </>
             )}
           </div>
+          )}
 
           {/* Observações */}
           <div className="glass p-5">
-            <h3 className="font-semibold mb-3">Observações</h3>
+            <h3 className="font-semibold mb-3">Observações do Pedido</h3>
             <textarea
               value={observacoes}
-              onChange={e => setObservacoes(e.target.value)}
+              onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Ex: Sem cebola, ponto da carne..."
               rows={2}
-              className="w-full"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm resize-none focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
             />
           </div>
         </div>
@@ -685,7 +1527,7 @@ export default function NovoPedidoPage() {
             <h3 className="font-semibold mb-4">Produtos</h3>
 
             {produtos.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-12 text-gray-500">
                 <p>Nenhum produto cadastrado</p>
                 <p className="text-sm">Cadastre produtos no Cardápio primeiro</p>
               </div>
@@ -694,19 +1536,27 @@ export default function NovoPedidoPage() {
                 {produtos.map(produto => (
                   <button
                     key={produto.id}
-                    onClick={() => adicionarItem(produto)}
-                    className="p-3 border rounded-xl text-left hover:border-green-500 hover:bg-green-50 transition-all"
+                    onClick={() => abrirSelecaoProduto(produto)}
+                    className="p-3 border border-gray-200 rounded-xl text-left hover:border-green-500 hover:bg-green-50 transition-all"
                   >
-                    {produto.imagem_url && (
+                    {produto.imagem_url ? (
                       <img src={produto.imagem_url} alt={produto.nome} className="w-full h-24 object-cover rounded-lg mb-2" />
+                    ) : (
+                      <div className="w-full h-24 bg-gray-100 rounded-lg mb-2 flex items-center justify-center">
+                        <ImageIcon className="w-8 h-8 text-gray-300" />
+                      </div>
                     )}
                     <div className="flex justify-between items-start">
-                      <span className="font-medium text-sm">{produto.nome}</span>
-                      <Plus className="w-4 h-4 text-green-600" />
+                      <span className="font-medium text-sm line-clamp-2">{produto.nome}</span>
                     </div>
                     <p className="text-green-600 font-semibold text-sm mt-1">
                       {formatCurrency(produto.preco)}
                     </p>
+                    {produto.listas && produto.listas.length > 0 && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        + {produto.listas.length} grupo{produto.listas.length > 1 ? 's' : ''} de complementos
+                      </p>
+                    )}
                   </button>
                 ))}
               </div>
@@ -717,61 +1567,94 @@ export default function NovoPedidoPage() {
               <h4 className="font-semibold mb-3">Itens do Pedido ({itens.length})</h4>
 
               {itens.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
+                <div className="text-center py-12 text-gray-400">
                   <ShoppingBag className="w-12 h-12 mx-auto mb-3 opacity-30" />
                   <p>Adicione produtos ao pedido</p>
+                  <p className="text-sm">Clique em um produto para personalizá-lo</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {itens.map(item => (
-                    <div key={item.produto_id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <div className="flex-1">
-                        <p className="font-medium">{item.nome}</p>
-                        <p className="text-sm text-gray-500">
-                          {formatCurrency(item.valor_unitario)} cada
-                          {(item.complementos?.length ?? 0) > 0 && (
-                            <span className="text-green-600 ml-1">
-                              + {formatCurrency(calcularTotalComplementos(item.complementos ?? [], 1))} em complementos
-                            </span>
+                  {itens.map(item => {
+                    const valorComplementos = calcularTotalComplementos(item.complementos, item.quantidade)
+                    const valorTotal = (item.valor_unitario * item.quantidade) + valorComplementos
+
+                    return (
+                      <div key={item.id} className="p-4 bg-gray-50 rounded-xl">
+                        <div className="flex gap-3">
+                          {/* Imagem */}
+                          {item.imagem_url && (
+                            <img src={item.imagem_url} alt={item.nome} className="w-16 h-16 rounded-lg object-cover shrink-0" />
                           )}
-                        </p>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-semibold">{item.nome}</p>
+                                <p className="text-sm text-gray-500">
+                                  {formatCurrency(item.sabores_quantidade ? item.valor_unitario + item.complementos.reduce((sum, c) => sum + c.valor * c.quantidade, 0) : item.valor_unitario)} cada
+                                </p>
+                              </div>
+                              <p className="font-bold text-green-600 shrink-0">
+                                {formatCurrency(valorTotal)}
+                              </p>
+                            </div>
+
+                            {/* Complementos */}
+                            {item.complementos.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {item.complementos.map(c => (
+                                  <p key={c.id} className="text-xs text-gray-500">
+                                    {c.tipo === 'sabor' ? flavorLabel(c) : `+ ${c.quantidade}x ${c.nome}`}
+                                    {c.valor > 0 && ` (${formatCurrency(c.valor * c.quantidade)})`}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Observação */}
+                            {item.observacao && (
+                              <p className="text-xs text-gray-400 mt-1 italic">
+                                Obs: {item.observacao}
+                              </p>
+                            )}
+
+                            {/* Ações */}
+                            <div className="flex items-center gap-2 mt-3">
+                              <button
+                                onClick={() => atualizarQuantidade(item.id, item.quantidade - 1)}
+                                className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-200"
+                              >
+                                <Minus className="w-4 h-4" />
+                              </button>
+                              <span className="font-bold w-6 text-center">{item.quantidade}</span>
+                              <button
+                                onClick={() => atualizarQuantidade(item.id, item.quantidade + 1)}
+                                className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-200"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={() => editarItem(item)}
+                                className="ml-auto px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 flex items-center gap-1"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                Editar
+                              </button>
+
+                              <button
+                                onClick={() => removerItem(item.id)}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => atualizarQuantidade(item.produto_id, item.quantidade - 1)}
-                          className="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-gray-200"
-                        >
-                          -
-                        </button>
-                        <span className="font-semibold w-6 text-center">{item.quantidade}</span>
-                        <button
-                          onClick={() => atualizarQuantidade(item.produto_id, item.quantidade + 1)}
-                          className="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-gray-200"
-                        >
-                          +
-                        </button>
-                      </div>
-
-                      <p className="font-semibold text-green-600 w-20 text-right">
-                        {formatCurrency(item.valor_unitario * item.quantidade + calcularTotalComplementos(item.complementos ?? [], item.quantidade))}
-                      </p>
-
-                      <button
-                        onClick={() => abrirComplementos(item)}
-                        className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
-                      >
-                        + Comp.
-                      </button>
-
-                      <button
-                        onClick={() => removerItem(item.produto_id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -782,9 +1665,9 @@ export default function NovoPedidoPage() {
                 <h4 className="font-semibold mb-3">Ajuste de Valor</h4>
                 <div className="flex items-center gap-3">
                   <select
-                    value={ajusteValor >= 0 ? 'desconto' : 'acrescimo'}
-                    onChange={e => setAjusteValor(e.target.value === 'desconto' ? Math.abs(ajusteValor) || 0 : -(Math.abs(ajusteValor) || 0))}
-                    className="form-input w-32"
+                    value={tipoAjuste}
+                    onChange={e => setTipoAjuste(e.target.value as 'desconto' | 'acrescimo')}
+                    className="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:border-green-500 outline-none"
                   >
                     <option value="desconto">Desconto</option>
                     <option value="acrescimo">Acréscimo</option>
@@ -793,24 +1676,21 @@ export default function NovoPedidoPage() {
                     type="number"
                     step="0.01"
                     min="0"
-                    value={Math.abs(ajusteValor) || ''}
-                    onChange={e => {
-                      const val = parseFloat(e.target.value) || 0
-                      setAjusteValor(ajusteValor < 0 ? -val : val)
-                    }}
+                    value={valorAjuste || ''}
+                    onChange={e => setValorAjuste(parseFloat(e.target.value) || 0)}
                     placeholder="0,00"
-                    className="form-input w-28"
+                    className="px-4 py-2 border border-gray-200 rounded-xl text-sm w-28 focus:border-green-500 outline-none"
                   />
                   <input
                     type="text"
                     value={motivoAjuste}
                     onChange={e => setMotivoAjuste(e.target.value)}
                     placeholder="Motivo (opcional)"
-                    className="form-input flex-1"
+                    className="px-4 py-2 border border-gray-200 rounded-xl text-sm flex-1 focus:border-green-500 outline-none"
                   />
-                  {ajusteValor !== 0 && (
+                  {valorAjuste !== 0 && (
                     <button
-                      onClick={() => { setAjusteValor(0); setMotivoAjuste('') }}
+                      onClick={() => { setValorAjuste(0); setMotivoAjuste('') }}
                       className="text-red-500 hover:bg-red-50 p-2 rounded-lg"
                       title="Limpar ajuste"
                     >
@@ -818,11 +1698,11 @@ export default function NovoPedidoPage() {
                     </button>
                   )}
                 </div>
-                {ajusteValor !== 0 && (
-                  <p className={`text-sm mt-2 ${ajusteValor > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {ajusteValor > 0
-                      ? `Desconto de ${formatCurrency(ajusteValor)} aplicado`
-                      : `Acréscimo de ${formatCurrency(Math.abs(ajusteValor))} aplicado`}
+                {valorAjuste !== 0 && (
+                  <p className={`text-sm mt-2 ${tipoAjuste === 'desconto' ? 'text-green-600' : 'text-red-600'}`}>
+                    {tipoAjuste === 'desconto'
+                      ? `Desconto de ${formatCurrency(valorAjuste)} aplicado`
+                      : `Acréscimo de ${formatCurrency(valorAjuste)} aplicado`}
                     {motivoAjuste && <span className="text-gray-500"> — {motivoAjuste}</span>}
                   </p>
                 )}
@@ -886,107 +1766,59 @@ export default function NovoPedidoPage() {
         </div>
       </div>
 
-      {/* Modal de Complementos */}
-      {itemSelecionandoComps && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[80vh] overflow-auto">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-semibold">Selecionar Complementos</h3>
-              <button onClick={() => setItemSelecionandoComps(null)} className="p-2 hover:bg-gray-100 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Modal de Cliente */}
+      <ClienteModal
+        isOpen={mostrarModalCliente}
+        onClose={() => setMostrarModalCliente(false)}
+        onSave={cadastrarCliente}
+      />
 
-            <div className="p-4">
-              {/* Filtro por categoria */}
-              <div className="mb-4">
-                <select
-                  value={categoriaFiltroComp}
-                  onChange={e => setCategoriaFiltroComp(e.target.value)}
-                  className="w-full"
-                >
-                  <option value="">Todas as categorias</option>
-                  {categoriasComplementos.map(c => (
-                    <option key={c.id} value={c.id}>{c.nome}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Lista de complementos */}
-              <div className="space-y-2">
-                {complementosAgrupados.map(comp => {
-                  const cat = categoriasComplementos.find(c => c.id === comp.categoria_id)
-                  const selecionado = complementosSelecionados.find(c => c.id === comp.id)
-                  return (
-                    <button
-                      key={comp.id}
-                      onClick={() => toggleComplemento(comp)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition ${
-                        selecionado
-                          ? 'bg-green-50 border-2 border-green-500'
-                          : 'bg-white border border-gray-200 hover:border-green-300'
-                      }`}
-                    >
-                      <div className={`size-6 rounded-md flex items-center justify-center ${selecionado ? 'bg-green-500' : 'border-2 border-gray-300'}`}>
-                        {selecionado && <Check className="w-4 h-4 text-white" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">{comp.nome}</p>
-                        {cat && (
-                          <p className="text-xs text-gray-500">{cat.nome}</p>
-                        )}
-                      </div>
-                      <p className="font-semibold text-green-600">{formatCurrency(Number(comp.preco))}</p>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {complementosSelecionados.length > 0 && (
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm font-medium">Selecionados:</p>
-                  <p className="text-sm text-gray-600">
-                    {complementosSelecionados.map(c => c.nome).join(', ')}
-                  </p>
-                  <p className="text-sm font-semibold text-green-600 mt-1">
-                    Total: {formatCurrency(complementosSelecionados.reduce((acc, c) => acc + Number(c.preco), 0))}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 border-t">
-              <button onClick={salvarComplementos} className="btn-primary w-full justify-center">
-                <Check className="w-4 h-4" /> Salvar Complementos
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal de Produto */}
+      {produtoSelecionado?.sabores_grupo_id ? <MontagemSabores
+        isOpen={mostrarModalProduto}
+        onClose={() => { setMostrarModalProduto(false); setProdutoSelecionado(null); setItemEditando(null) }}
+        produto={produtoSelecionado}
+        variantes={produtoSelecionado.variantes || []}
+        listas={listasDoProduto}
+        complementos={listasDoProduto.flatMap(l => l.complementos)}
+        saboresAtivo={saboresAtivo}
+        paletaCor="#16a34a"
+        onAddToCart={adicionarItem}
+        initialItem={itemEditando}
+        onReplaceItem={substituirItem}
+      /> : <ProdutoModal
+        isOpen={mostrarModalProduto}
+        onClose={() => { setMostrarModalProduto(false); setProdutoSelecionado(null); setItemEditando(null) }}
+        produto={produtoSelecionado}
+        listas={listasDoProduto}
+        onAdd={adicionarItem}
+        initialItem={itemEditando || undefined}
+        onReplace={substituirItem}
+      />}
 
       {/* Tela de Sucesso */}
       {pedidoCriado && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-strong rounded-3xl p-8 w-full max-w-lg text-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }}>
+          <div className="rounded-3xl p-8 w-full max-w-lg text-center shadow-2xl" style={{ background: '#FFFFFF' }}>
             <div className="size-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #16A34A, #22C55E)' }}>
               <Check size={36} className="text-white" />
             </div>
-            <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--ink)' }}>
+            <h2 className="text-2xl font-bold mb-2 text-gray-900">
               Pedido #{pedidoCriado.id.split('-')[0].toUpperCase()} criado!
             </h2>
-            <p className="hint mb-6">{clienteSelecionado?.nome || novoCliente.nome} • {formatCurrency(pedidoCriado.valor_total)}</p>
+            <p className="text-gray-500 mb-6">{clienteSelecionado?.nome} • {formatCurrency(pedidoCriado.valor_total)}</p>
 
             {whatsappMsg && (
-              <div className="glass-soft p-4 rounded-2xl text-left mb-6" style={{ background: 'rgba(37,211,102,.06)', border: '1px solid rgba(37,211,102,.25)' }}>
-                <div className="text-xs font-semibold mb-2" style={{ color: '#25D162' }}>📱 Mensagem WhatsApp</div>
-                <pre className="text-xs whitespace-pre-wrap break-all font-mono" style={{ color: 'var(--ink-muted)', maxHeight: 200, overflowY: 'auto' }}>
+              <div className="p-4 rounded-2xl text-left mb-6" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <div className="text-xs font-semibold mb-2" style={{ color: '#16A34A' }}>📱 Mensagem WhatsApp</div>
+                <pre className="text-xs whitespace-pre-wrap break-all font-mono text-gray-700" style={{ maxHeight: 200, overflowY: 'auto' }}>
                   {whatsappMsg}
                 </pre>
               </div>
             )}
 
             <div className="flex gap-3">
-              <button onClick={copiarMsg} className="flex-1 btn-ghost justify-center">
+              <button onClick={copiarMsg} className="flex-1 px-4 py-3 rounded-2xl font-medium border border-gray-300 hover:bg-gray-50 transition">
                 📋 Copiar mensagem
               </button>
               {whatsappUrl && (
@@ -997,7 +1829,7 @@ export default function NovoPedidoPage() {
               )}
             </div>
 
-            <button onClick={novoPedido} className="mt-4 text-sm hint hover:underline">
+            <button onClick={novoPedido} className="mt-4 text-sm text-gray-500 hover:text-gray-900 hover:underline">
               ← Lançar outro pedido
             </button>
           </div>

@@ -1,8 +1,10 @@
 'use client'
+import { createFlavorSnapshot, flavorLabel } from '@/lib/flavor-pricing'
+import { chargedProductBase } from '@/lib/product-pricing'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { X, Plus, Minus, ShoppingCart, Clock, MapPin, User, Phone, CreditCard, Calendar, MessageSquare, ChevronDown, Tag, Loader2, Check, AlertCircle, Trash2 } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { X, Plus, Minus, ShoppingCart, Clock, MapPin, User, Phone, CreditCard, Calendar, MessageSquare, ChevronDown, Tag, Loader2, Check, AlertCircle, Trash2, Search } from 'lucide-react'
+import { formatCurrency, ordenarComplementos } from '@/lib/utils'
 import { formatBirthdayInput, isValidBirthday, birthdayToIso } from '@/lib/checkout-date'
 import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
 
@@ -12,6 +14,7 @@ import { gerarMensagemWhatsApp } from '@/lib/whatsapp/template'
 export interface CartItem {
   id: string
   produto_id: string
+  sabores_quantidade?: number
   nome: string
   quantidade: number
   valor_unitario: number
@@ -21,9 +24,15 @@ export interface CartItem {
   complementos: CartComplemento[]
   tempo_preparo_min?: number
   observacao?: string
+  pontos?: number
 }
 
 export interface CartComplemento {
+  tipo?: string
+  grupo_id?: string
+  fracao_denominador?: number
+  preco_integral?: number
+  regra_preco?: string
   id: string
   nome: string
   quantidade: number
@@ -88,7 +97,7 @@ function validCpf(v: string) {
 }
 
 function gerarSlug(texto: string) {
-  return texto.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  return texto.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
 }
 function keepFocusInside(dialog: HTMLElement, event: KeyboardEvent) { if(event.key!=='Tab')return;const items=[...dialog.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]')];if(!items.length)return;const first=items[0],last=items[items.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()} }
 
@@ -177,11 +186,12 @@ export function CheckoutDrawer({
     if (correspondente) setBairroSelecionado(correspondente)
   }, [cliente.bairro, bairroSelecionado, enderecos])
 
-  // Forma de pagamento selecionada
-  const [formaPagamento, setFormaPagamento] = useState<string>('')
+  // Forma de pagamento selecionada (múltiplas)
+  const [formasPagamentoSelecionadas, setFormasPagamentoSelecionadas] = useState<{ forma: string; valor: number }[]>([])
 
   // Troco para
   const [trocoPara, setTrocoPara] = useState('')
+  const [precisaTroco, setPrecisaTroco] = useState(false)
 
   // Cupom
   const [cupomCodigo, setCupomCodigo] = useState('')
@@ -276,7 +286,11 @@ export function CheckoutDrawer({
 
   const podeFinalizar = () => {
     if (carrinhoLocal.length === 0) return false
-    if (!formaPagamento) return false
+    if (formasPagamentoSelecionadas.length === 0) return false
+    // Validar que a soma dos valores >= total
+    const totalPago = formasPagamentoSelecionadas.reduce((sum, fp) => sum + fp.valor, 0)
+    if (totalPago < total) return false
+    if (precisaTroco && !trocoPara) return false
     if (valorMinimoPedido && subtotal < valorMinimoPedido) return false
     return true
   }
@@ -310,6 +324,32 @@ export function CheckoutDrawer({
       setCupomLoading(false)
     }
   }
+
+  // ============================================================
+  // Recalcula os valores das formas de pagamento sempre que o total
+  // muda por causa de cupom, taxa, bairro etc. Mantém a proporção
+  // entre as formas já escolhidas; se nenhuma forma está selecionada,
+  // não faz nada. Não recalcula se a soma já bate com o total.
+  // ============================================================
+  useEffect(() => {
+    if (formasPagamentoSelecionadas.length === 0) return
+    const somaAtual = formasPagamentoSelecionadas.reduce((s: number, fp: any) => s + Number(fp.valor || 0), 0)
+    if (Math.abs(somaAtual - total) < 0.01) return
+    if (somaAtual <= 0) return
+    const fator = total / somaAtual
+    const redistribuido = formasPagamentoSelecionadas.map((fp: any) => ({
+      ...fp,
+      valor: Math.round(fp.valor * fator * 100) / 100,
+    }))
+    // Ajuste de centavos: a diferença residual vai pra primeira forma
+    const novaSoma = redistribuido.reduce((s: number, fp: any) => s + Number(fp.valor || 0), 0)
+    const diff = Math.round((total - novaSoma) * 100) / 100
+    if (Math.abs(diff) > 0) {
+      redistribuido[0].valor = Math.round((redistribuido[0].valor + diff) * 100) / 100
+    }
+    setFormasPagamentoSelecionadas(redistribuido)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total])
 
   // ============================================================
   // FINALIZAR PEDIDO
@@ -366,14 +406,20 @@ export function CheckoutDrawer({
           variante_id: item.variante_id || null,
           variante_nome: item.variante_nome || null,
           complementos: item.complementos,
+          sabores_quantidade: item.sabores_quantidade,
           observacao: item.observacao || '',
+          pontos: item.pontos || 0,
         })),
         valor_subtotal: subtotal,
         taxa_entrega: taxaEntregaAplicada,
         valor_desconto: descontoCupom,
         valor_total: total,
-        forma_pagamento: formaPagamento,
-        troco_para: formaPagamento === 'dinheiro' && trocoPara ? parseFloat(trocoPara) : null,
+        // Múltiplas formas de pagamento
+        formas_pagamento: formasPagamentoSelecionadas.map(fp => ({
+          forma: fp.forma,
+          valor: fp.valor
+        })),
+        troco_para: precisaTroco && trocoPara ? parseFloat(trocoPara) : null,
         bairro_entrega: bairroSelecionado?.bairro || '',
         taxa_bairro: taxaEntregaAplicada,
         endereco_entrega: cliente.endereco,
@@ -419,17 +465,26 @@ export function CheckoutDrawer({
   // ENVIAR WHATSAPP
   // ============================================================
   function enviarWhatsApp(pedido?: any) {
+    // Formatar pagamentos múltiplos para exibição
+    const pagamentosTexto = formasPagamentoSelecionadas
+      .map(fp => {
+        const formaNome = formasPagamento.find(f => f.id === fp.forma)?.nome || fp.forma
+        return `${formaNome}: ${formatCurrency(fp.valor)}`
+      })
+      .join(', ')
+
     const mensagemUnificada = gerarMensagemWhatsApp({
       pedidoId: pedido?.id || String(Date.now()),
       pedidoCodigo: pedido?.codigo || null,
+      tenantSlug,
       tenantNome, clienteNome: cliente.nome,
       clienteWhatsapp: cliente.whatsapp,
       itens: carrinhoLocal.map(item => ({ nome: item.nome, quantidade: item.quantidade,
         valor_unitario: item.valor_unitario + (item.variante_preco || 0), variante_nome: item.variante_nome,
         complementos: item.complementos, observacao: item.observacao })),
       subtotal, taxaEntrega: taxaEntregaAplicada, desconto: pedido?.valor_desconto ?? descontoCupom,
-      total: pedido?.valor_total ?? total, formaPagamento,
-      trocoPara: trocoPara ? Number(trocoPara) : undefined,
+      total: pedido?.valor_total ?? total, formaPagamento: pagamentosTexto,
+      trocoPara: precisaTroco && trocoPara ? Number(trocoPara) : undefined,
       endereco: tipoRecebimento === 'retirada' ? tenantEndereco : cliente.endereco,
       numero: tipoRecebimento === 'retirada' ? '' : cliente.numero,
       complemento: tipoRecebimento === 'retirada' ? undefined : cliente.complemento,
@@ -464,7 +519,7 @@ export function CheckoutDrawer({
           setPedidoFinalizado(null)
           // Mantém o cadastro local do cliente para a próxima compra.
           setBairroSelecionado(null)
-          setFormaPagamento('')
+          setFormasPagamentoSelecionadas([])
           setCupomAplicado(null)
           setObservacaoPedido('')
         }}
@@ -576,10 +631,12 @@ export function CheckoutDrawer({
           {step === 'pagamento' && (
             <PagamentoView
               formasPagamento={formasPagamento}
-              formaPagamento={formaPagamento}
-              setFormaPagamento={setFormaPagamento}
+              formasSelecionadas={formasPagamentoSelecionadas}
+              setFormasSelecionadas={setFormasPagamentoSelecionadas}
               trocoPara={trocoPara}
               setTrocoPara={setTrocoPara}
+              precisaTroco={precisaTroco}
+              setPrecisaTroco={setPrecisaTroco}
               total={total}
               cupomCodigo={cupomCodigo}
               setCupomCodigo={setCupomCodigo}
@@ -595,8 +652,10 @@ export function CheckoutDrawer({
               taxaEntrega={taxaEntregaAplicada}
               descontoCupom={descontoCupom}
               onContinuar={() => {
-                if (!formaPagamento) { alert('Selecione a forma de pagamento'); return }
-                if (formaPagamento === 'dinheiro' && trocoPara && Number(trocoPara) < total) { alert('O valor para troco deve ser maior ou igual ao total'); return }
+                if (formasPagamentoSelecionadas.length === 0) { alert('Selecione pelo menos uma forma de pagamento'); return }
+                const totalPago = formasPagamentoSelecionadas.reduce((sum, fp) => sum + fp.valor, 0)
+                if (totalPago < total) { alert('A soma dos valores pagos deve ser maior ou igual ao total'); return }
+                if (precisaTroco && !trocoPara) { alert('Informe o valor para troco'); return }
                 setStep('aniversario')
               }}
             />
@@ -714,7 +773,7 @@ function CarrinhoView({ itens, onUpdateQuantity, onRemoveItem, onEditItem, onCon
                 {item.complementos.length > 0 && (
                   <div className="mt-1">
                     {item.complementos.map((c: any) => (
-                      <p key={c.id} className="text-xs text-gray-500">+ {c.quantidade}x {c.nome}</p>
+                      <p key={c.id} className="text-xs text-gray-500">{c.tipo === 'sabor' ? flavorLabel(c) : `+ ${c.quantidade}x ${c.nome}`}</p>
                     ))}
                   </div>
                 )}
@@ -811,6 +870,18 @@ function ClienteView({ cliente, setCliente, onContinuar }: any) {
 }
 
 function AniversarioView({ cliente, setCliente, onContinuar }: any) {
+  const handleContinuar = () => {
+    if (cliente.aniversario && !isValidBirthday(cliente.aniversario)) {
+      alert('Informe uma data válida no formato DD/MM/AAAA ou deixe vazio')
+      return
+    }
+    if (cliente.cpf && !validCpf(cliente.cpf)) {
+      alert('Informe um CPF válido ou deixe vazio')
+      return
+    }
+    onContinuar()
+  }
+
   return (
     <div className="p-4 space-y-4">
       <div>
@@ -822,7 +893,7 @@ function AniversarioView({ cliente, setCliente, onContinuar }: any) {
         <p className="text-xs text-gray-500 mt-1">Use DD/MM/AAAA ou deixe em branco.</p>
       </div>
       <div><label className="block text-sm font-medium mb-1.5">CPF — opcional</label><input inputMode="numeric" value={formatCpf(cliente.cpf||'')} onChange={e=>setCliente({...cliente,cpf:normalizeCpf(e.target.value)})} placeholder="CPF — opcional" maxLength={14} className="w-full py-3 px-4 border rounded-xl outline-none"/></div>
-      <button type="button" onClick={()=>{if(cliente.aniversario&&!isValidBirthday(cliente.aniversario)){alert('Informe uma data válida no formato DD/MM/AAAA ou deixe vazio');return}if(cliente.cpf&&!validCpf(cliente.cpf)){alert('Informe um CPF válido ou deixe vazio');return}onContinuar()}} className="wd-primary-action w-full py-4 rounded-2xl text-white font-bold text-lg">Continuar</button>
+      <button type="button" onClick={handleContinuar} className="wd-primary-action w-full py-4 rounded-2xl text-white font-bold text-lg">Continuar</button>
       <button type="button" onClick={()=>{setCliente({...cliente,aniversario:'',cpf:''});onContinuar()}} className="w-full py-2 text-sm font-semibold text-gray-600 hover:text-gray-900">Pular esta etapa</button>
     </div>
   )
@@ -830,6 +901,13 @@ function AniversarioView({ cliente, setCliente, onContinuar }: any) {
 
 function EntregaView({ cliente, setCliente, bairroSelecionado, setBairroSelecionado, enderecos, taxaEntrega, tenantEndereco, entregaConfig, tenantSlug, onContinuar }: any) {
   const [mostrarBairros, setMostrarBairros] = useState(false)
+  const [buscaBairro, setBuscaBairro] = useState('')
+  const bairrosFiltrados = useMemo(
+    () => (enderecos || []).filter((end: any) =>
+      (end.bairro || '').toLowerCase().includes(buscaBairro.toLowerCase())
+    ),
+    [enderecos, buscaBairro]
+  )
   const [sugestoes,setSugestoes]=useState<any[]>([]); const [routeError,setRouteError]=useState('');const [mapConfigured,setMapConfigured]=useState<boolean|null>(null)
   useEffect(()=>{if(entregaConfig?.metodo!=='km')return;fetch('/api/mapbox/public',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',tenant_slug:tenantSlug})}).then(r=>r.json()).then(b=>{setMapConfigured(Boolean(b.configured));if(!b.configured)setRouteError('Entrega por quilômetro indisponível agora. Escolha retirada ou fale com a loja para usar entrega por bairro.')}).catch(()=>{setMapConfigured(false);setRouteError('Não foi possível carregar o cálculo de entrega.')})},[entregaConfig?.metodo])
   useEffect(()=>{if(entregaConfig?.metodo!=='km'||mapConfigured!==true||cliente.endereco?.length<3)return;const timer=setTimeout(async()=>{const r=await fetch('/api/mapbox/public',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'search',tenant_slug:tenantSlug,query:cliente.endereco})});const b=await r.json();if(!r.ok)setRouteError(b.error||'Busca de endereço indisponível');setSugestoes(b.suggestions||[])},350);return()=>clearTimeout(timer)},[cliente.endereco,entregaConfig?.metodo,tenantSlug,mapConfigured])
@@ -906,27 +984,43 @@ function EntregaView({ cliente, setCliente, bairroSelecionado, setBairroSelecion
         </button>
 
         {mostrarBairros && (
-          <div className="mt-2 border rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-            {enderecos.length === 0 ? (
-              <p className="p-3 text-sm text-gray-500">Nenhum bairro cadastrado</p>
-            ) : (
-              enderecos.map((end: any) => (
-                <button
-                  key={end.id}
-                  onClick={() => {
-                    setBairroSelecionado(end)
-                    setCliente({ ...cliente, bairro: end.bairro })
-                    setMostrarBairros(false)
-                  }}
-                  className={`w-full p-3 text-left hover:bg-gray-50 flex justify-between items-center ${
-                    bairroSelecionado?.id === end.id ? 'bg-green-50' : ''
-                  }`}
-                >
-                  <span className="font-medium">{end.bairro}</span>
-                  <span className="text-green-600 font-semibold">{formatCurrency(end.taxa)}</span>
-                </button>
-              ))
-            )}
+          <div className="mt-2 border rounded-xl overflow-hidden">
+            {/* Barra de pesquisa */}
+            <div className="relative border-b">
+              <input
+                type="text"
+                value={buscaBairro}
+                onChange={(e) => setBuscaBairro(e.target.value)}
+                placeholder="Buscar bairro…"
+                className="w-full py-2.5 pl-3 pr-10 outline-none text-sm bg-white"
+              />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {enderecos.length === 0 ? (
+                <p className="p-3 text-sm text-gray-500">Nenhum bairro cadastrado</p>
+              ) : bairrosFiltrados.length === 0 ? (
+                <p className="p-3 text-sm text-gray-500">Nenhum bairro encontrado para “{buscaBairro}”</p>
+              ) : (
+                bairrosFiltrados.map((end: any) => (
+                  <button
+                    key={end.id}
+                    onClick={() => {
+                      setBairroSelecionado(end)
+                      setCliente({ ...cliente, bairro: end.bairro })
+                      setMostrarBairros(false)
+                      setBuscaBairro('')
+                    }}
+                    className={`w-full p-3 text-left hover:bg-gray-50 flex justify-between items-center ${
+                      bairroSelecionado?.id === end.id ? 'bg-green-50' : ''
+                    }`}
+                  >
+                    <span className="font-medium">{end.bairro}</span>
+                    <span className="text-green-600 font-semibold">{formatCurrency(end.taxa)}</span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>}
@@ -950,59 +1044,145 @@ function EntregaView({ cliente, setCliente, bairroSelecionado, setBairroSelecion
 }
 
 function PagamentoView({
-  formasPagamento, formaPagamento, setFormaPagamento,
-  trocoPara, setTrocoPara, total,
+  formasPagamento, formasSelecionadas, setFormasSelecionadas,
+  trocoPara, setTrocoPara, precisaTroco, setPrecisaTroco, total,
   cupomCodigo, setCupomCodigo, cupomAplicado, setCupomAplicado, cupomErro, setCupomErro, cupomLoading, onAplicarCupom,
   subtotal, taxaEntrega, descontoCupom, onContinuar
 }: any) {
+  // Calcular valor restante para preencher automaticamente
+  const totalSelecionado = formasSelecionadas.reduce((sum: number, fp: any) => sum + fp.valor, 0)
+  const valorRestante = Math.max(0, total - totalSelecionado)
+
+  // Toggle forma de pagamento
+  const toggleFormaPagamento = (formaId: string) => {
+    const jaSelecionada = formasSelecionadas.find((fp: any) => fp.forma === formaId)
+    if (jaSelecionada) {
+      // Remover
+      setFormasSelecionadas(formasSelecionadas.filter((fp: any) => fp.forma !== formaId))
+    } else {
+      // Adicionar com valor restante (ou sugerido)
+      const valorSugerido = valorRestante > 0 ? valorRestante : total
+      setFormasSelecionadas([...formasSelecionadas, { forma: formaId, valor: Math.round(valorSugerido * 100) / 100 }])
+    }
+  }
+
+  // Atualizar valor de uma forma
+  const atualizarValor = (formaId: string, novoValor: number) => {
+    setFormasSelecionadas(formasSelecionadas.map((fp: any) =>
+      fp.forma === formaId ? { ...fp, valor: Math.round(novoValor * 100) / 100 } : fp
+    ))
+  }
+
+  // Verificar se tem dinheiro selecionado
+  const temDinheiro = formasSelecionadas.some((fp: any) => fp.forma === 'dinheiro')
+
   return (
     <div className="p-4 space-y-4">
-      <p className="text-sm text-gray-600 mb-4">Forma de pagamento</p>
+      <p className="text-sm text-gray-600 mb-2">💳 Forma de pagamento</p>
+      <p className="text-xs text-gray-500 -mt-2">Selecione uma ou mais formas de pagamento</p>
 
-      {/* Formas de pagamento */}
+      {/* Formas de pagamento com checkbox */}
       <div className="space-y-2">
         {formasPagamento.length === 0 ? (
           <p className="text-sm text-gray-500">Nenhuma forma de pagamento cadastrada</p>
         ) : (
-          formasPagamento.map((fp: any) => (
-            <button
-              key={fp.id}
-              onClick={() => setFormaPagamento(fp.id)}
-              className={`w-full p-4 rounded-xl border-2 flex items-center gap-3 transition-all ${
-                formaPagamento === fp.id
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200 hover:border-green-300'
-              }`}
-            >
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                formaPagamento === fp.id ? 'border-green-500 bg-green-500' : 'border-gray-300'
-              }`}>
-                {formaPagamento === fp.id && <Check className="w-4 h-4 text-white" />}
+          formasPagamento.map((fp: any) => {
+            const selecionada = formasSelecionadas.find((fps: any) => fps.forma === fp.id)
+            return (
+              <div key={fp.id} className="border-2 rounded-xl overflow-hidden transition-all" style={{
+                borderColor: selecionada ? '#22c55e' : '#e5e7eb',
+                backgroundColor: selecionada ? '#f0fdf4' : 'white'
+              }}>
+                {/* Checkbox row */}
+                <button
+                  onClick={() => toggleFormaPagamento(fp.id)}
+                  className="w-full p-4 flex items-center gap-3"
+                >
+                  <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${selecionada ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                    {selecionada && <Check className="w-4 h-4 text-white" />}
+                  </div>
+                  <span className="font-medium">{fp.nome}</span>
+                </button>
+
+                {/* Campo de valor (se selecionada) */}
+                {selecionada && (
+                  <div className="px-4 pb-4 pt-1 border-t border-green-200">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Valor</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">R$</span>
+                      <input
+                        type="number"
+                        value={selecionada.valor}
+                        onChange={(e) => atualizarValor(fp.id, parseFloat(e.target.value) || 0)}
+                        className="flex-1 py-2 px-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                        step="0.01"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-              <span className="font-medium">{fp.nome}</span>
-            </button>
-          ))
+            )
+          })
         )}
       </div>
 
-      {/* Troco para (se dinheiro) */}
-      {formaPagamento === 'dinheiro' && (
-        <div className="wd-panel mt-4 p-3 rounded-xl">
-          <label className="block text-sm font-medium mb-2">Troco para</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">R$</span>
-            <input
-              type="number"
-              value={trocoPara}
-              onChange={(e) => setTrocoPara(e.target.value)}
-              placeholder="Ex: 50,00"
-              className="w-full pl-8 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
-            />
+      {/* Resumo dos pagamentos */}
+      {formasSelecionadas.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
+          <div className="text-sm font-medium text-blue-800">Pagamentos:</div>
+          {formasSelecionadas.map((fp: any) => {
+            const formaNome = formasPagamento.find((f: any) => f.id === fp.forma)?.nome || fp.forma
+            return (
+              <div key={fp.forma} className="flex justify-between text-sm">
+                <span className="text-blue-700">{formaNome}</span>
+                <span className="font-medium text-blue-900">{formatCurrency(fp.valor)}</span>
+              </div>
+            )
+          })}
+          <div className="border-t border-blue-200 pt-2 flex justify-between text-sm">
+            <span className="font-medium text-blue-800">Total pago:</span>
+            <span className="font-bold text-blue-900">{formatCurrency(totalSelecionado)}</span>
           </div>
-          {trocoPara && parseFloat(trocoPara) > total && (
-            <p className="text-sm text-green-600 mt-1">
-              Troco: {formatCurrency(parseFloat(trocoPara) - total)}
-            </p>
+          {totalSelecionado > total && (
+            <div className="text-sm text-green-600 font-medium">
+              ✓ Troco: {formatCurrency(totalSelecionado - total)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Troco para (se dinheiro selecionado) */}
+      {temDinheiro && (
+        <div className="wd-panel mt-4 p-3 rounded-xl">
+          <label className="flex items-center gap-2 text-sm font-medium mb-3">
+            <input
+              type="checkbox"
+              checked={precisaTroco}
+              onChange={(e) => setPrecisaTroco(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300"
+            />
+            Precisa de troco?
+          </label>
+          {precisaTroco && (
+            <div className="space-y-2">
+              <label className="block text-xs text-gray-500">Para quanto?</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">R$</span>
+                <input
+                  type="number"
+                  value={trocoPara}
+                  onChange={(e) => setTrocoPara(e.target.value)}
+                  placeholder="Ex: 50,00"
+                  className="w-full pl-8 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
+                />
+              </div>
+              {trocoPara && parseFloat(trocoPara) > 0 && (
+                <p className="text-sm text-green-600 font-medium">
+                  Troco: {formatCurrency(parseFloat(trocoPara) - totalSelecionado)}
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -1067,6 +1247,10 @@ function PagamentoView({
             <span>-{formatCurrency(descontoCupom)}</span>
           </div>
         )}
+        <div className="flex justify-between font-bold text-base pt-2 border-t">
+          <span>Total do pedido</span>
+          <span className="text-green-600">{formatCurrency(total)}</span>
+        </div>
       </div>
       <button type="button" onClick={onContinuar} className="wd-primary-action w-full py-4 rounded-2xl text-white font-bold text-lg">Continuar</button>
     </div>
@@ -1078,7 +1262,7 @@ function ObservacoesView({ observacaoPedido, setObservacaoPedido, itens, subtota
     <div><h3 className="font-bold text-lg">Observacoes finais</h3><p className="text-sm text-gray-500">Inclua instruções gerais para a loja antes de concluir.</p></div>
     <textarea value={observacaoPedido} onChange={(e) => setObservacaoPedido(e.target.value)} placeholder="Ex: tocar interfone, enviar guardanapos..." rows={4} className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-green-500 outline-none resize-none" />
     <div className="border rounded-2xl p-4 space-y-3"><h4 className="font-semibold">Resumo do pedido</h4>
-      {itens.map((item: CartItem) => <div key={item.id} className="text-sm"><strong>{item.quantidade}x {item.nome}</strong>{item.complementos.length > 0 && <p className="text-gray-500">{item.complementos.map(c => `${c.quantidade}x ${c.nome}`).join(', ')}</p>}</div>)}
+      {itens.map((item: CartItem) => <div key={item.id} className="text-sm"><strong>{item.quantidade}x {item.nome}</strong>{item.complementos.length > 0 && <p className="text-gray-500">{item.complementos.map(c => c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade}x ${c.nome}`).join(', ')}</p>}</div>)}
       <div className="pt-2 border-t text-sm space-y-1"><div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>{taxaEntrega > 0 && <div className="flex justify-between"><span>Entrega</span><span>{formatCurrency(taxaEntrega)}</span></div>}{desconto > 0 && <div className="flex justify-between text-green-700"><span>Desconto</span><span>-{formatCurrency(desconto)}</span></div>}<div className="flex justify-between font-bold text-base"><span>Total</span><span>{formatCurrency(total)}</span></div></div>
     </div>
   </div>
@@ -1185,6 +1369,8 @@ interface ProdutoModalProps {
   paletaCor: string
   initialItem?: CartItem | null
   onReplaceItem?: (itemId: string, item: Omit<CartItem, 'id'>) => void
+  lojaAberta?: boolean
+  saboresAtivo?: boolean
 }
 
 export function ProdutoModal({
@@ -1199,6 +1385,8 @@ export function ProdutoModal({
   paletaCor,
   initialItem,
   onReplaceItem,
+  lojaAberta = true,
+  saboresAtivo = false,
 }: ProdutoModalProps) {
   const [quantidade, setQuantidade] = useState(1)
   const [varianteSelecionada, setVarianteSelecionada] = useState<string | null>(
@@ -1207,6 +1395,7 @@ export function ProdutoModal({
   const [complementosSelecionados, setComplementosSelecionados] = useState<{[key: string]: number}>({})
   const [observacao, setObservacao] = useState('')
   const [etapaLista, setEtapaLista] = useState(0)
+  const [numeroSabores, setNumeroSabores] = useState<number | null>(null)
   const [montagemConcluida, setMontagemConcluida] = useState(false)
 
   useEffect(() => {
@@ -1216,18 +1405,30 @@ export function ProdutoModal({
     setComplementosSelecionados(Object.fromEntries((initialItem?.complementos || []).map(c => [c.id, c.quantidade])))
     setObservacao(initialItem?.observacao || '')
     setEtapaLista(0)
+    setNumeroSabores(null)
     setMontagemConcluida(false)
   }, [isOpen, produto, initialItem, variantes])
   useEffect(()=>{if(!isOpen)return;const previous=document.activeElement as HTMLElement|null;const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose();const d=document.querySelector<HTMLElement>('.wd-product-dialog');if(d)keepFocusInside(d,e)};document.addEventListener('keydown',onKey);requestAnimationFrame(()=>document.querySelector<HTMLElement>('.wd-product-dialog button')?.focus());return()=>{document.removeEventListener('keydown',onKey);previous?.focus()}},[isOpen,onClose])
 
   if (!isOpen || !produto) return null
 
+  const modoSabores = Boolean(produto.sabores_grupo_id)
+  const grupoOriginal = listas.find(l => l.id === produto.sabores_grupo_id)
+  const grupoSabores = grupoOriginal ? {...grupoOriginal, complementos: (grupoOriginal.complementos || []).filter((c: any) => c.controlar_estoque !== true)} : undefined
+  const bloqueado = modoSabores && (!saboresAtivo || !grupoSabores?.complementos?.length || ![2, 3].includes(Number(produto.sabores_maximo)) || variantes.length > 0)
+  const escolhendoQuantidade = modoSabores && numeroSabores === null
+  const listasMontagem = modoSabores && grupoSabores ? [grupoSabores, ...listas.filter(l => l.id !== grupoSabores.id)] : listas
+  const idsSabores = new Set<string>((grupoSabores?.complementos || []).map((c: any) => c.id))
+  const selecionadosSabores = complementos.filter(c => idsSabores.has(c.id) && complementosSelecionados[c.id])
+  const saboresValidos = !modoSabores || (numeroSabores !== null && selecionadosSabores.length === numeroSabores)
+  const snapshotSabores = modoSabores && saboresValidos ? createFlavorSnapshot(selecionadosSabores, produto.sabores_grupo_id, numeroSabores!) : []
   const variante = variantes.find(v => v.id === varianteSelecionada)
-  const precoBase = produto.preco + (variante?.preco_adicional || 0)
+  const precoBase = modoSabores ? 0 : chargedProductBase(produto, variante?.preco_adicional)
   const precoComplementos = Object.entries(complementosSelecionados).reduce((acc, [id, qtd]) => {
+    if (modoSabores && idsSabores.has(id)) return acc
     const comp = complementos.find(c => c.id === id)
-    return acc + (comp?.preco || 0) * (qtd as number)
-  }, 0)
+    return acc + Number(comp?.preco || 0) * qtd
+  }, 0) + snapshotSabores.reduce((acc, c) => acc + c.valor, 0)
   const total = (precoBase + precoComplementos) * quantidade
 
   function toggleComplemento(complementoId: string) {
@@ -1242,15 +1443,20 @@ export function ProdutoModal({
     })
   }
 
-  const listaAtual = listas[etapaLista]
-  const quantidadeLista = listaAtual?.complementos?.reduce((s: number, c: any) => s + (complementosSelecionados[c.id] || 0), 0) || 0
-  const minimoLista = Number(listaAtual?.qtd_minima ?? (listaAtual?.obrigatorio ? 1 : 0))
-  const maximoLista = Number(listaAtual?.qtd_maxima ?? listaAtual?.max_selecoes ?? 99)
+  const listaAtual = listasMontagem[etapaLista]
+  const listaDeSabores = modoSabores && listaAtual?.id === produto.sabores_grupo_id
+  // Regra padrão: grátis no topo, depois alfabético
+  const listaAtualOrdenada = listaAtual
+    ? { ...listaAtual, complementos: ordenarComplementos(listaAtual.complementos || []) }
+    : listaAtual
+  const quantidadeLista = listaAtualOrdenada?.complementos?.reduce((s: number, c: any) => s + (complementosSelecionados[c.id] || 0), 0) || 0
+  const minimoLista = listaDeSabores ? (numeroSabores || 1) : Number(listaAtualOrdenada?.qtd_minima ?? (listaAtualOrdenada?.obrigatorio ? 1 : 0))
+  const maximoLista = listaDeSabores ? (numeroSabores || 1) : Number(listaAtualOrdenada?.qtd_maxima ?? listaAtualOrdenada?.max_selecoes ?? 99)
 
   function alterarComplemento(comp: any, delta: number) {
     setComplementosSelecionados(prev => {
       const atual = prev[comp.id] || 0
-      const maxItem = listaAtual?.max_um_de_cada ? 1 : Number(comp.qtd_max || 99)
+      const maxItem = (listaDeSabores || listaAtual?.max_um_de_cada) ? 1 : Number(comp.qtd_max || 99)
       const proximo = Math.max(0, Math.min(maxItem, atual + delta))
       if (delta > 0 && quantidadeLista >= maximoLista) return prev
       const novo = { ...prev }
@@ -1262,13 +1468,14 @@ export function ProdutoModal({
 
   function avancarLista() {
     if (quantidadeLista < minimoLista) return
-    if (etapaLista < listas.length - 1) setEtapaLista(v => v + 1)
+    if (etapaLista < listasMontagem.length - 1) setEtapaLista(v => v + 1)
     else adicionar(true)
   }
 
   function adicionar(finalizar = false) {
-    const complementoItems = Object.entries(complementosSelecionados)
-      .filter(([_, qtd]) => (qtd as number) > 0)
+    if (bloqueado || !saboresValidos || escolhendoQuantidade) return
+    const complementoItems = [...snapshotSabores, ...Object.entries(complementosSelecionados)
+      .filter(([id, qtd]) => (qtd as number) > 0 && !(modoSabores && idsSabores.has(id)))
       .map(([id, qtd]) => {
         const comp = complementos.find(c => c.id === id)!
         return {
@@ -1277,19 +1484,21 @@ export function ProdutoModal({
           quantidade: qtd as number,
           valor: comp.preco
         }
-      })
+      })]
 
     const itemMontado: Omit<CartItem, 'id'> = {
       produto_id: produto.id,
       nome: produto.nome,
       quantidade,
-      valor_unitario: produto.preco,
+      valor_unitario: modoSabores ? 0 : chargedProductBase(produto),
+      sabores_quantidade: modoSabores ? numeroSabores! : undefined,
       variante_id: variante?.id,
       variante_nome: variante?.nome,
-      variante_preco: variante?.preco_adicional,
+      variante_preco: modoSabores || produto.exibir_preco_a_partir_de === true ? 0 : variante?.preco_adicional,
       complementos: complementoItems,
       tempo_preparo_min: produto.tempo_preparo_min || 30,
       observacao: observacao.trim() || undefined,
+      pontos: produto.pontos || 0,
     }
     if (initialItem && onReplaceItem) onReplaceItem(initialItem.id, itemMontado)
     else onAddToCart(itemMontado)
@@ -1299,6 +1508,7 @@ export function ProdutoModal({
     setComplementosSelecionados({})
     setObservacao('')
     setEtapaLista(0)
+    setNumeroSabores(null)
     setMontagemConcluida(false)
     onClose()
     if (finalizar) onGoToCheckout?.()
@@ -1308,7 +1518,27 @@ export function ProdutoModal({
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={onClose} />
 
-      <div role="dialog" aria-modal="true" aria-label={`Personalizar ${produto.nome}`} className="wd-product-dialog wd-overlay fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md rounded-3xl z-50 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      {/* Overlay bloqueante quando loja esta fora do horario */}
+      {!lojaAberta && (
+        <div className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md rounded-3xl z-[60] flex items-center justify-center p-6 shadow-2xl" style={{ background: 'var(--cardapio-surface, #FFFFFF)' }}>
+          <div className="text-center w-full">
+            <div className="text-5xl mb-3">🕐</div>
+            <h3 className="text-xl font-bold mb-1" style={{ color: 'var(--cardapio-text, #111827)' }}>Loja Fechada</h3>
+            <p className="text-sm mb-5" style={{ color: 'var(--cardapio-muted, #6B7280)' }}>
+              Esta loja está fora do horário de funcionamento. Não é possível selecionar produtos agora.
+            </p>
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl font-semibold text-white transition active:scale-95"
+              style={{ background: paletaCor }}
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div role="dialog" aria-modal="true" aria-label={`Personalizar ${produto.nome}`} className={`wd-product-dialog wd-overlay fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md rounded-3xl z-50 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden ${!lojaAberta ? 'pointer-events-none opacity-30' : ''}`}>
         <button onClick={onClose} aria-label="Fechar" className="wd-icon-button absolute top-4 right-4 z-10 p-2 rounded-full shadow-lg">
           <X className="w-5 h-5" />
         </button>
@@ -1355,28 +1585,34 @@ export function ProdutoModal({
             </div>
           )}
 
-          {/* Complementos por lista, na ordem configurada */}
-          {!montagemConcluida && listaAtual && (
+          {/* Complementos por lista, na ordem configurada (grátis no topo, depois alfabético) */}
+          {bloqueado && <p role="alert" className="my-5 text-red-700">Este produto está indisponível para montagem no momento.</p>}
+          {!bloqueado && escolhendoQuantidade && <div className="mt-5 space-y-3"><h3 className="text-xl font-bold">Quantos sabores você quer?</h3>{Array.from({length: Math.min(Number(produto.sabores_maximo || 2), grupoSabores?.complementos?.length || 0)}, (_, i) => i + 1).map(n => <button key={n} type="button" onClick={() => { setNumeroSabores(n); setComplementosSelecionados({}); setEtapaLista(0) }} className="w-full border-2 rounded-xl p-4 text-left font-semibold">{n} {n === 1 ? 'sabor — inteira' : n === 2 ? 'sabores — metade de cada' : 'sabores — um terço de cada'}</button>)}<p className="text-sm text-gray-600">O preço será a média dos sabores escolhidos. Outros adicionais são cobrados separadamente.</p></div>}
+          {!bloqueado && !escolhendoQuantidade && !montagemConcluida && listaAtualOrdenada && (
             <div className="mt-5">
-              <p className="text-xs text-gray-500 mb-1">Etapa {etapaLista + 1} de {listas.length}</p>
-              <h3 className="text-xl font-bold mb-1 text-gray-900">{listaAtual.nome || 'Escolha seus complementos'}</h3>
-              <p className="text-xs text-gray-500 mb-3">Escolha de {minimoLista} ate {maximoLista} itens ({quantidadeLista}/{maximoLista})</p>
+              <p className="text-xs text-gray-500 mb-1">Etapa {etapaLista + 1} de {listasMontagem.length}</p>
+              <h3 className="text-xl font-bold mb-1 text-gray-900">{listaDeSabores ? `Escolha ${numeroSabores} ${numeroSabores === 1 ? 'sabor' : 'sabores'}` : listaAtualOrdenada.nome || 'Escolha seus complementos'}</h3>
+              <p className="text-xs text-gray-500 mb-3">{listaDeSabores ? `Selecionados: ${quantidadeLista} de ${maximoLista}. O valor é a média dos sabores.` : `Escolha de ${minimoLista} até ${maximoLista} itens (${quantidadeLista}/${maximoLista})`}</p>
               <div className="space-y-2">
-                {listaAtual.complementos.map((comp: any) => (
+                {listaAtualOrdenada.complementos.map((comp: any) => (
                   <div
                     key={comp.id}
                     className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
                       complementosSelecionados[comp.id] ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      {comp.imagem_url && <img src={comp.imagem_url} alt="" className="w-10 h-10 rounded-lg object-cover" />}
-                      <div><span className="font-medium block">{comp.nome}</span><span className="text-sm text-green-600">+ {formatCurrency(comp.preco)}</span></div>
+                    <div className="flex items-start gap-3 flex-1">
+                      {comp.imagem_url && <img src={comp.imagem_url} alt="" className="w-10 h-10 rounded-lg object-cover mt-0.5" />}
+                      <div className="flex-1">
+                        <span className="font-medium block">{comp.nome}</span>
+                        {comp.descricao && <span className="text-xs text-gray-500 block mt-0.5 leading-snug">{comp.descricao}</span>}
+                        <span className="text-sm text-green-600 block mt-1">{listaDeSabores ? 'Pizza inteira: ' : '+ '}{formatCurrency(comp.preco)}</span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => alterarComplemento(comp, -1)} className="w-8 h-8 border rounded-full"><Minus className="w-4 h-4 mx-auto" /></button>
+                      <button type="button" aria-label={`Remover ${comp.nome}`} disabled={!complementosSelecionados[comp.id]} onClick={() => alterarComplemento(comp, -1)} className="w-8 h-8 border rounded-full"><Minus className="w-4 h-4 mx-auto" /></button>
                       <strong>{complementosSelecionados[comp.id] || 0}</strong>
-                      <button type="button" onClick={() => alterarComplemento(comp, 1)} className="w-8 h-8 border rounded-full"><Plus className="w-4 h-4 mx-auto" /></button>
+                      <button type="button" aria-label={`Selecionar ${comp.nome}`} disabled={quantidadeLista >= maximoLista || (listaDeSabores && Boolean(complementosSelecionados[comp.id]))} onClick={() => alterarComplemento(comp, 1)} className="w-8 h-8 border rounded-full"><Plus className="w-4 h-4 mx-auto" /></button>
                     </div>
                   </div>
                 ))}
@@ -1401,9 +1637,13 @@ export function ProdutoModal({
             </div>
           </div>
 
-          {listas.length > 0 ? (
-            <button disabled={quantidadeLista < minimoLista} onClick={avancarLista} className="wd-primary-action w-full py-4 rounded-2xl font-bold text-white text-lg disabled:opacity-40">Continuar</button>
-          ) : <button onClick={() => adicionar(true)} className="wd-primary-action w-full py-4 rounded-2xl font-bold text-white text-lg">Continuar {formatCurrency(total)}</button>}
+          {!bloqueado && !escolhendoQuantidade && <>
+          {modoSabores && saboresValidos && <p className="text-sm text-gray-600">{snapshotSabores.map(flavorLabel).join(' + ')}</p>}
+          {modoSabores && etapaLista === listasMontagem.length - 1 && <label className="block text-sm">Observação da pizza<textarea value={observacao} onChange={e => setObservacao(e.target.value)} className="w-full border rounded-lg p-2 mt-1" rows={2} placeholder="Ex.: sem cebola" /></label>}
+          <div className="flex justify-between items-center"><button type="button" onClick={() => etapaLista > 0 ? setEtapaLista(v => v - 1) : setNumeroSabores(null)} disabled={!modoSabores && etapaLista === 0} className="text-sm underline disabled:invisible">Voltar</button><strong>{saboresValidos ? formatCurrency(total) : 'Selecione os sabores'}</strong></div>
+          {listasMontagem.length > 0 ? (
+            <button disabled={quantidadeLista < minimoLista} onClick={avancarLista} style={{background: paletaCor}} className="wd-primary-action w-full py-4 rounded-2xl font-bold text-white text-lg disabled:opacity-40">Continuar</button>
+          ) : <button onClick={() => adicionar(true)} className="wd-primary-action w-full py-4 rounded-2xl font-bold text-white text-lg">Continuar {formatCurrency(total)}</button>}</>}
         </div>
       </div>
     </>

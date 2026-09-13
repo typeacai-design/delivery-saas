@@ -17,8 +17,14 @@ export default function MeusClientesTab() {
   const [pedidosCliente, setPedidosCliente] = useState<any[]>([])
   const [pontos, setPontos] = useState<Record<string, { pontos: number; cashback: number }>>({})
 
+  // Recarregar quando a aba volta a ficar visivel (cache-busting)
   useEffect(() => {
     carregar()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') carregar()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [])
 
   const carregar = async () => {
@@ -29,8 +35,9 @@ export default function MeusClientesTab() {
     if (!tid) { setLoading(false); return }
 
     // Clientes com pontos + cashback
+    // Filtra apenas ativos para nao mostrar duplicatas ([dup-...]) ou desativados
     const [{ data: cls }, { data: pts }] = await Promise.all([
-      supabase.from('clientes').select('id, nome, telefone, email, bairro, endereco, cpf, data_nascimento, total_pedidos, saldo_cashback, ltv, created_at, tags').eq('tenant_id', tid).order('nome'),
+      supabase.from('clientes').select('id, nome, telefone, email, bairro, endereco, cpf, data_nascimento, total_pedidos, saldo_cashback, ltv, created_at, tags').eq('tenant_id', tid).eq('ativo', true).order('nome'),
       supabase.from('cliente_pontos').select('cliente_id, saldo, saldo_cashback').eq('tenant_id', tid)
     ])
     setClientes(cls || [])

@@ -1,0 +1,5 @@
+# Local validation evidence; keep scripts and fixtures versioned.
+.local-validation/
+
+# Local encrypted credentials; never commit or deploy.
+.credentials/

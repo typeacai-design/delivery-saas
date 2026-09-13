@@ -1,5 +1,8 @@
 'use client'
 
+import { flavorLabel, parseComplements } from '@/lib/flavor-pricing'
+import { savedItemTotal } from '@/lib/product-pricing'
+
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Clock, Check, Truck, X, MapPin, Phone, User, Loader2, Package, ChefHat, Bike, Home } from 'lucide-react'
@@ -36,12 +39,29 @@ export default function PedidoClienteWrapper({
   initialData,
 }: Props) {
   const [pedido, setPedido] = useState(initialData)
+  const [realtimeConnected, setRealtimeConnected] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
-    // Inscrever no realtime para receber atualizacoes
+    // Polling de backup: recarrega status a cada 5 segundos
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from('pedidos')
+          .select('status')
+          .eq('id', pedidoId)
+          .single()
+        if (data && data.status !== pedido.status) {
+          setPedido((prev: any) => ({ ...prev, status: data.status }))
+        }
+      } catch (err) {
+        console.error('Erro no polling de status:', err)
+      }
+    }, 5000)
+
+    // Inscrever no realtime para receber atualizacoes em tempo real
     const channel = supabase
-      .channel('pedido-cliente')
+      .channel(`pedido-cliente-${pedidoId}`)
       .on(
         'postgres_changes',
         {
@@ -51,15 +71,20 @@ export default function PedidoClienteWrapper({
           filter: `id=eq.${pedidoId}`,
         },
         (payload) => {
+          console.log('Realtime update recebido:', payload.new)
           setPedido((prev: any) => ({ ...prev, ...payload.new }))
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Realtime status:', status)
+        setRealtimeConnected(status === 'SUBSCRIBED')
+      })
 
     return () => {
+      clearInterval(pollInterval)
       supabase.removeChannel(channel)
     }
-  }, [pedidoId])
+  }, [pedidoId, pedido.status])
 
   const status = pedido.status || initialStatus
   const statusInfo = STATUS_LABELS[status] || STATUS_LABELS.novo
@@ -157,9 +182,7 @@ export default function PedidoClienteWrapper({
           <h2 className="font-semibold text-gray-900 mb-4">Itens do Pedido</h2>
           <div className="space-y-3">
             {(pedido.pedido_itens || []).map((item: any) => {
-              const comps = Array.isArray(item.complementos)
-                ? (typeof item.complementos === 'string' ? JSON.parse(item.complementos) : item.complementos)
-                : []
+              const comps = parseComplements(item.complementos)
               return (
                 <div key={item.id} className="border-b pb-3 last:border-0">
                   <div className="flex justify-between items-start">
@@ -170,14 +193,14 @@ export default function PedidoClienteWrapper({
                       )}
                     </div>
                     <p className="font-semibold">
-                      {formatCurrency(Number(item.valor_unitario) * item.quantidade)}
+                      {formatCurrency(savedItemTotal(item))}
                     </p>
                   </div>
                   {comps.length > 0 && (
                     <div className="ml-2 mt-1 space-y-0.5">
                       {comps.map((c: any, i: number) => (
                         <p key={i} className="text-xs text-gray-500">
-                          • {c.quantidade > 1 ? `${c.quantidade}x ` : ''}{c.nome}
+                          • {c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}
                         </p>
                       ))}
                     </div>
@@ -267,7 +290,10 @@ export default function PedidoClienteWrapper({
         )}
 
         <p className="text-center text-xs text-gray-400 pt-4">
-          🔄 Atualização em tempo real
+          🔄 Atualização em tempo real {!realtimeConnected && <span className="text-amber-500">(polling backup ativo)</span>}
+        </p>
+        <p className="text-center text-xs text-gray-300 mt-1">
+          Status atual: <strong className="text-green-600">{statusInfo.label}</strong>
         </p>
       </div>
     </div>

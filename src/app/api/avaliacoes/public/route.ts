@@ -34,11 +34,11 @@ export async function PUT(req: NextRequest) {
     const { token } = await req.json()
     if (!token || String(token).length < 24) return out({ error: 'Token obrigatório' }, 400)
     const tokenHash = hashAccessToken(String(token))
-    const { data: pedido } = await db.from('pedidos').select('id,status,cliente_nome,avaliacao_token_expires_at,avaliacao_token_used_at,tenants(nome,slug)').eq('avaliacao_token_hash', tokenHash).maybeSingle()
+    const { data: pedido } = await db.from('pedidos').select('id,codigo,status,cliente_nome,avaliacao_token_expires_at,avaliacao_token_used_at,tenants(nome,slug)').eq('avaliacao_token_hash', tokenHash).maybeSingle()
     if (!pedido) return out({ error: 'Convite inválido' }, 404)
     if (!pedido.avaliacao_token_expires_at || new Date(pedido.avaliacao_token_expires_at) <= new Date()) return out({ error: 'Convite expirado' }, 410)
     const { data: existente } = await db.from('avaliacoes').select('id').eq('pedido_id', pedido.id).maybeSingle()
-    return out({ pedido: { status: pedido.status, cliente_nome: pedido.cliente_nome, loja: pedido.tenants }, ja_avaliado: !!existente || !!pedido.avaliacao_token_used_at })
+    return out({ pedido: { id: pedido.id, codigo: pedido.codigo, status: pedido.status, cliente_nome: pedido.cliente_nome, loja: pedido.tenants }, ja_avaliado: !!existente || !!pedido.avaliacao_token_used_at })
   } catch { return out({ error: 'Não foi possível consultar o convite' }, 500) }
 }
 
@@ -51,13 +51,13 @@ export async function GET(req: NextRequest) {
     const { data: tenant } = await db.from('tenants').select('id').eq('slug', slug).eq('status', 'active').maybeSingle()
     if (!tenant) return out({ avaliacoes: [], media: 0, total: 0 })
     const [{ data: recentes, error: reviewsError }, { data: stats, error: statsError }] = await Promise.all([
-      db.from('avaliacoes').select('nota,comentario,resposta_admin,created_at').eq('tenant_id', tenant.id).eq('aprovado', true).order('created_at', { ascending: false }).limit(20),
+      db.from('avaliacoes').select('nota,comentario,resposta_admin,created_at,cliente_nome').eq('tenant_id', tenant.id).eq('aprovado', true).order('created_at', { ascending: false }).limit(20),
       db.rpc('get_public_review_stats', { p_tenant_id: tenant.id }),
     ])
     if (reviewsError || statsError) throw reviewsError || statsError
     const stat = Array.isArray(stats) ? stats[0] : stats
     const total = Number(stat?.total || 0)
     const media = Number(stat?.media || 0)
-    return out({ avaliacoes: (recentes || []).map(review => ({ ...review, cliente_nome: 'Cliente' })), total, media })
+    return out({ avaliacoes: recentes || [], total, media })
   } catch { return out({ error: 'Não foi possível consultar as avaliações' }, 500) }
 }

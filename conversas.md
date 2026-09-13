@@ -1,3 +1,7 @@
+## Estado atual - 2026-09-09
+
+As atualizacoes de preco a partir de e divisao em sabores foram publicadas. Consulte [PROGRESSO_WE_DELIVERY.md](PROGRESSO_WE_DELIVERY.md) para o checkpoint atual, evidencias, limites e orientacoes de retomada. Os registros historicos abaixo permanecem preservados.
+
 # We Delivery — Conversas
 
 ## CHECKPOINT — 2026-08-18 (bug encoding + modal sessão)
@@ -297,3 +301,8 @@ Todas as URLs server-side via `--prod` na Vercel usando auth.json persistido.
 - O README deixou de conter credenciais em texto puro e passou a documentar migrations `037`–`041`, buckets e validação local.
 - Foi criado `pnpm run check:setup`, que verifica somente nomes de variáveis e arquivos locais, sem imprimir segredos ou consultar produção.
 - Estado remoto continua exigindo validação explícita antes do deploy; nenhuma migration ou publicação foi feita nesta etapa.
+
+
+## 2026-09-09 - Reference-price correction
+
+Fix deployed after explicit authorization: wedelivery.site now uses dpl_7NehPjynkyVYmZKKN5NCiSvTXESi (code f16b5ba, baseline 4aaafe6). Verified on mobile and desktop; no database changes. See docs/sessions/2026-09/2026-09-09-preco-a-partir-de.md.

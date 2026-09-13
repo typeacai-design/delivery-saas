@@ -16,13 +16,13 @@ import {
   Megaphone,
   CreditCard,
   Users,
-  Bike,
-  Star,
 } from 'lucide-react'
 import { SidebarNav } from '@/components/sidebar-nav'
 import ErrorBoundary from '@/components/error-boundary'
 import { createClient } from '@/lib/supabase/client'
 import GlobalSomPedidos from '@/components/global-som-pedidos'
+import { ToastProvider } from '@/components/toast'
+import { ConfirmSairModal } from '@/components/confirm-sair-modal'
 
 export default function DashboardLayout({
   children,
@@ -34,14 +34,15 @@ export default function DashboardLayout({
   const [authChecked, setAuthChecked] = useState(false)
   const [tenant, setTenant] = useState<any>(null)
   const [role, setRole] = useState('owner')
+  const [confirmSairOpen, setConfirmSairOpen] = useState(false)
   const sair = async () => { await createClient().auth.signOut(); localStorage.removeItem('wedelivery-auth'); window.location.replace('/') }
+  const perfisOperacionais = ['attendant', 'kitchen', 'motoboy', 'delivery']
+  const ehPerfilOperacional = perfisOperacionais.includes(role)
 
   useEffect(() => {
     let active = true
     const checkAuth = async () => {
       let response: Response | null = null
-      // Aguarda a persistência do cookie após o login; evita um redirecionamento
-      // falso quando a primeira leitura ocorre antes do cookie estar disponível.
       for (let attempt = 0; attempt < 3; attempt += 1) {
         response = await fetch('/api/auth/session', { cache: 'no-store', credentials: 'include' })
         if (response.ok) break
@@ -65,7 +66,7 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!authChecked) return
     if (pathname === '/motoboys') { router.replace('/equipe'); return }
-    if (['/avaliacoes', '/sorteios', '/embaixadores'].includes(pathname)) { router.replace('/marketing'); return }
+    if (['/sorteios', '/embaixadores'].includes(pathname)) { router.replace('/marketing'); return }
     const allowed = role === 'attendant' ? ['/dashboard', '/pedidos', '/clientes']
       : ['kitchen', 'motoboy', 'delivery'].includes(role) ? ['/dashboard', '/pedidos'] : null
     if (allowed && !allowed.some((route) => pathname === route || pathname.startsWith(route + '/'))) router.replace('/pedidos')
@@ -99,18 +100,20 @@ export default function DashboardLayout({
     { href: '/clientes', label: 'Clientes', icon: Users },
     { href: '/cardapio', label: 'Cardápio', icon: Utensils },
     { href: '/gestao', label: 'Gestão', icon: Package },
+    { href: '/equipes', label: 'Equipe', icon: Users },
     { href: '/marketing', label: 'Marketing', icon: Megaphone },
     { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
     { href: '/configuracoes', label: 'Configurações', icon: Settings },
   ]
 
   return (
+    <ToastProvider>
     <GlobalSomPedidos>
     <div className="app-shell">
       <div className="app-shell-inner">
         <div className="app-grid">
-          {/* SIDEBAR */}
-          <aside className="w-[232px] shrink-0 hidden lg:flex flex-col gap-3 self-start sticky top-3">
+          {/* SIDEBAR — desktop only. Escondido por padrão via CSS; aparece só em >=1024px. */}
+          <aside className="app-sidebar">
             <div className="glass px-4 py-4 flex items-center gap-3">
               <Link href="/configuracoes?tab=perfil" aria-label="Abrir meu perfil"
                 className="size-10 rounded-2xl flex items-center justify-center text-white font-bold text-[13px] overflow-hidden"
@@ -135,21 +138,21 @@ export default function DashboardLayout({
             <SidebarNav role={role} />
 
             <button type="button" onClick={sair} className="glass w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-white/75 transition rounded-2xl" style={{ color: 'var(--ink-muted)' }}>
-                <LogOut size={16} />
-                <span>Sair</span>
-              </button>
+              <LogOut size={16} />
+              <span>Sair</span>
+            </button>
           </aside>
 
           <div className="app-content">
-            <header className="glass px-5 py-3 flex items-center gap-4 sticky top-3 z-30">
-              <div className="lg:hidden flex items-center gap-2">
+            <header className="glass px-3 sm:px-5 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4 sticky top-0 z-30 mb-2 sm:mb-3">
+              <div className="lg:hidden flex items-center gap-2 shrink-0">
                 <div
-                  className="size-8 rounded-xl flex items-center justify-center text-white font-bold text-[11px]"
+                  className="size-7 sm:size-8 rounded-xl flex items-center justify-center text-white font-bold text-[11px]"
                   style={{ background: 'var(--grad-violet)' }}
                 >
                   {initials}
                 </div>
-                <span className="font-display text-base" style={{ color: 'var(--ink)' }}>
+                <span className="font-display text-sm sm:text-base whitespace-nowrap" style={{ color: 'var(--ink)' }}>
                   We Delivery
                 </span>
               </div>
@@ -174,26 +177,58 @@ export default function DashboardLayout({
         </div>
       </div>
 
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 glass border-t" style={{ borderColor: 'var(--line)' }}>
-        <div className="grid grid-cols-5 gap-1 px-2 py-2">
-          {( role === 'attendant' ? navItems.filter(item => ['/dashboard','/pedidos','/clientes'].includes(item.href)) : ['kitchen', 'motoboy', 'delivery'].includes(role) ? navItems.filter(item => ['/dashboard','/pedidos'].includes(item.href)) : navItems).slice(0, 5).map((item) => (
+      {ehPerfilOperacional && (
+        <nav className="app-bottom-nav">
+          <div className="grid grid-cols-2 gap-1 px-1.5 py-1">
             <Link
-              key={item.href}
-              href={item.href}
-              className="flex flex-col items-center gap-1 py-1.5 rounded-xl"
-              style={{ color: 'var(--ink-muted)' }}
+              href="/pedidos"
+              aria-label="Pedidos"
+              className="flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition active:scale-95"
+              style={
+                pathname === '/pedidos' || pathname.startsWith('/pedidos/')
+                  ? {
+                      background:
+                        'linear-gradient(135deg, rgba(22,163,74,.18), rgba(22,163,74,.06))',
+                      border: '1px solid rgba(22,163,74,.30)',
+                      color: '#15803D',
+                    }
+                  : {
+                      background: 'rgba(255,255,255,.6)',
+                      border: '1px solid var(--line)',
+                      color: 'var(--ink-muted)',
+                    }
+              }
             >
-              <item.icon className="w-4 h-4" strokeWidth={2} />
-              <span className="text-[10px] font-medium">{item.label}</span>
+              <ShoppingCart className="w-4 h-4" strokeWidth={pathname === '/pedidos' || pathname.startsWith('/pedidos/') ? 2.5 : 2} />
+              <span className="text-[10px] font-medium leading-none">Pedidos</span>
             </Link>
-          ))}
-        </div>
-      </nav>
+
+            <button
+              type="button"
+              onClick={() => setConfirmSairOpen(true)}
+              aria-label="Sair"
+              className="flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition active:scale-95"
+              style={{
+                background: 'rgba(255,255,255,.6)',
+                border: '1px solid var(--line)',
+                color: 'var(--ink-muted)',
+              }}
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-[10px] font-medium leading-none">Sair</span>
+            </button>
+          </div>
+        </nav>
+      )}
+
+      <ConfirmSairModal
+        open={confirmSairOpen}
+        onClose={() => setConfirmSairOpen(false)}
+        onConfirm={sair}
+        nome={tenant?.responsavel_nome || tenant?.nome}
+      />
     </div>
     </GlobalSomPedidos>
+    </ToastProvider>
   )
 }
-
-
-
-

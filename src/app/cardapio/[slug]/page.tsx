@@ -4,16 +4,19 @@ import { formatCurrency } from '@/lib/utils'
 import { CardapioCliente } from '@/components/cardapio-cliente'
 import { getCardapioTheme } from '@/lib/cardapio-theme'
 
-// Revalidar a cada 30s pra refletir cadastros quase em tempo real
-export const revalidate = 30
+// NO CACHE - sempre buscar dados atualizados (importante para status da loja)
+export const revalidate = 0
 
 // Page SEM auth - cardápio é público
 export default async function CardapioPublicoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ pedido?: string }>
 }) {
   const { slug } = await params
+  const { pedido: pedidoParam } = await searchParams
 
   // Esta pagina roda somente no servidor. A service role evita que o cardapio
   // publico dependa da sessao anonima/RLS para carregar os dados, sem expor a
@@ -47,11 +50,7 @@ export default async function CardapioPublicoPage({
     .eq('ativo', true)
     .order('ordem', { ascending: true })
 
-  const { data: categoriasProduto } = await supabase
-    .from('categorias_produtos')
-    .select('*')
-    .eq('tenant_id', tenant.id)
-    .eq('ativo', true)
+  // categorias_produtos removido — não é mais usado
     .order('ordem')
 
   const { data: produtos } = await supabase
@@ -136,8 +135,14 @@ export default async function CardapioPublicoPage({
   const diaInativo = horariosDia?.ativo === false
   const dentroHorario = !diaInativo && minutosAgora >= inicioMin && minutosAgora <= fimMin
 
-  // Loja aberta: combinacao de toggle manual + horario
-  const lojaAberta = config.loja_aberta !== false && dentroHorario
+  // Loja aberta: override manual tem prioridade sobre horário
+  // - config.loja_aberta === true → abre mesmo fora do horário
+  // - config.loja_aberta === false → fecha mesmo dentro do horário
+  // - config.loja_aberta undefined/null → segue o horário
+  const overrideLojaAberta = config.loja_aberta
+  const lojaAberta = overrideLojaAberta !== undefined
+    ? overrideLojaAberta
+    : dentroHorario
   const totalAvaliacoes = avaliacoesAprovadas?.length || 0
   const avaliacaoMedia = totalAvaliacoes ? Math.round((avaliacoesAprovadas || []).reduce((s: number, item: any) => s + Number(item.nota), 0) / totalAvaliacoes * 10) / 10 : 0
   // horarioDoDia: do dia atual do horarios_dias, ou fallback para o campo legado config.horario
@@ -172,6 +177,7 @@ export default async function CardapioPublicoPage({
   const cardapioData = {
     tenant: {
       id: tenant.id,
+      sabores_ativo: tenant.sabores_ativo === true,
       nome: tenant.nome,
       slug: tenant.slug,
       telefone: tenant.telefone || '',
@@ -183,7 +189,6 @@ export default async function CardapioPublicoPage({
       endereco: tenant.endereco || config.endereco || '',
     },
     categorias: categorias || [],
-    categoriasProduto: categoriasProduto || [],
     produtos: produtos || [],
     variantes: variantes || [],
     complementos: complementos || [],
@@ -227,6 +232,7 @@ export default async function CardapioPublicoPage({
     segundaFaixa: { ativo: config.cardapio_segunda_faixa_ativa === true, mensagem: config.cardapio_segunda_faixa_mensagem || '', link: config.cardapio_segunda_faixa_link || '' },
     valorMinimoPedido: config.valor_minimo_pedido || 0,
     totalBairros: enderecos?.length || 0,
+    pedidoInicial: pedidoParam || null,
   }
 
   return <CardapioCliente data={cardapioData} />

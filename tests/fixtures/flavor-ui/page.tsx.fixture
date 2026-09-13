@@ -1,0 +1,31 @@
+'use client'
+import { useState } from 'react'
+import { ProdutoModal, CartItem } from '@/components/checkout-flow'
+import { flavorLabel } from '@/lib/flavor-pricing'
+const flavors = [
+  { id: 'calabresa', nome: 'Calabresa', preco: 30, categoria_id: 'sabores' },
+  { id: 'frango', nome: 'Frango', preco: 36, categoria_id: 'sabores' },
+  { id: 'portuguesa', nome: 'Portuguesa', preco: 39, categoria_id: 'sabores' },
+]
+const extras = [{id: 'borda', nome: 'Borda recheada', preco: 8, categoria_id: 'extras'}]
+const lists = [{id: 'extras', nome: 'Adicionais', qtd_minima: 0, qtd_maxima: 1, complementos: extras}, {id: 'sabores', nome: 'Sabores', qtd_minima: 0, qtd_maxima: 99, complementos: flavors}]
+const product = {id:'pizza',nome:'Pizza Grande',preco:100, sabores_grupo_id:'sabores',sabores_maximo:3}
+const emptyVariants: any[] = []
+const variants = [{id:'v',nome:'Tamanho',preco_adicional:20}]
+export default function Validation() {
+ const [open,setOpen] = useState(false)
+ const [mode,setMode] = useState('flavors')
+ const [items,setItems] = useState<CartItem[]>([])
+ const [editing,setEditing] = useState<CartItem|null>(null)
+ const activeProduct = mode === 'two' ? {...product,sabores_maximo:2} : mode === 'fixed' ? {...product,sabores_grupo_id:null} : mode === 'reference' ? {...product,sabores_grupo_id:null,exibir_preco_a_partir_de:true} : product
+ return <main style={{padding:24,background:'#fafafa',minHeight:'100vh'}}>
+ <h1>Local flavor verification</h1>
+ <select aria-label="Fixture" value={mode} onChange={e=>setMode(e.target.value)}>{['flavors','two','disabled','variants','fixed','reference','stock'].map(v=><option key={v}>{v}</option>)}</select>
+ <button onClick={()=>{setEditing(null);setOpen(true)}}>Open product</button>
+ <button onClick={()=>{setEditing(items[0]);setOpen(true)}} disabled={!items.length}>Edit first</button>
+ <button onClick={()=>setItems([])}>Clear</button>
+ <pre data-testid="items">{JSON.stringify(items)}</pre>
+ <div data-testid="labels">{items.map(i=><div key={i.id}>{i.complementos.map(c=>flavorLabel(c)).join(' + ')}</div>)}</div>
+ <ProdutoModal isOpen={open} onClose={()=>setOpen(false)} produto={activeProduct} variantes={mode==='variants'?variants:emptyVariants} complementos={mode==='fixed'||mode==='reference'?extras:[...flavors,...extras]} listas={mode==='stock'?lists.map(l=>({...l,complementos:l.complementos.map(c=>({...c,controlar_estoque:true}))})):mode==='fixed'||mode==='reference'?[lists[0]]:lists} saboresAtivo={mode!=='disabled'} paletaCor="#16a34a" initialItem={editing} onAddToCart={item=>setItems(prev=>[...prev,{...item,id:`line-${prev.length}`}])} onReplaceItem={(id,item)=>setItems(prev=>prev.map(i=>i.id===id?{...item,id}:i))}/>
+ </main>
+}

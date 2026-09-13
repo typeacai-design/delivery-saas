@@ -31,14 +31,10 @@ export async function POST(request: Request) {
   }
   // Salvar só a configuração (ex: vender_sem_estoque)
   if (body.kind === 'config') {
-    console.log('Salvando config:', JSON.stringify(body.config))
     const { data: tenant } = await supabase.from('tenants').select('config').eq('id', tenantId).single()
-    console.log('Tenant config atual:', JSON.stringify(tenant?.config))
     const currentConfig = (tenant?.config || {}) as any
     const newConfig = { ...currentConfig, entrega_km: { ...(currentConfig.entrega_km || {}), vender_sem_estoque: body.config?.vender_sem_estoque } }
-    console.log('Nova config:', JSON.stringify(newConfig))
     const { error } = await supabase.from('tenants').update({ config: newConfig }).eq('id', tenantId)
-    console.log('Erro:', error)
     return error ? response({ error: error.message }, 400) : response({ ok: true })
   }
   const bairro=String(body.bairro||'').trim().slice(0,100), taxa=Number(body.taxa), prazo=body.prazo_min==null||body.prazo_min===''?null:Number(body.prazo_min)

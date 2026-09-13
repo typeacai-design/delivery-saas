@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { activeTenantId } from '@/lib/active-tenant-client'
 import {
-  Cake, Trophy, Users, Tag, RefreshCw, Sparkles, Plus, Calendar, Search, Edit, Trash2, Star, Clock
+  Cake, Trophy, Users, Tag, RefreshCw, Sparkles, Plus, Calendar, Search, Edit, Trash2, Star, Clock, X
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { useToast } from '@/components/toast'
 import FidelidadeTab from '@/components/admin/marketing/FidelidadeTab'
 
 import CarrinhoAbandonadoTab from '@/components/admin/marketing/CarrinhoAbandonadoTab'
@@ -16,6 +18,7 @@ type Tab = 'clientes' | 'fidelidade'  | 'carrinho'   | 'cupons' | 'avaliacoes'
 type Periodo = '7d' | '15d' | '30d' | 'custom'
 
 export default function MarketingPage() {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [tab, setTab] = useState<Tab>('clientes')
   const [loading, setLoading] = useState(true)
   const [clientes, setClientes] = useState<any[]>([])
@@ -72,11 +75,12 @@ export default function MarketingPage() {
     }).sort((a, b) => (b.diasSemPedido || 999) - (a.diasSemPedido || 999)) || []
     setClientesRecuperacao(recuperacao)
 
-    // Cupons do banco
+    // Cupons do banco (apenas ativos)
     const { data: cps } = await supabase
       .from('cupons')
       .select('*')
       .eq('tenant_id', tid)
+      .eq('ativo', true)
       .order('created_at', { ascending: false })
     setCupons(cps || [])
 
@@ -192,7 +196,21 @@ function ClientesTab({ clientes }: { clientes: any[] }) {
   )
 }
 
+function Field({ label, required, hint, children, className }: { label: string; required?: boolean; hint?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {hint && <span className="text-gray-400 font-normal ml-1">{hint}</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
 function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
+  const { error: toastError, success: toastSuccess } = useToast()
   const [cupons, setCupons] = useState(initialCupons)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<any>(null)
@@ -222,40 +240,69 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
   }
 
   const salvar = async () => {
-    if (!form.codigo.trim() || !form.valor || !form.validade) return
+    if (!form.codigo.trim() || !form.valor || !form.validade) {
+      toastError('Preencha código, valor e validade')
+      return
+    }
     setSaving(true)
-    const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' })
-    const session = await sessionResponse.json()
-    const tenantId = session.tenant?.id
-    if (!sessionResponse.ok || !tenantId) { setSaving(false); return }
+    try {
+      const tenantId = await activeTenantId()
+      if (!tenantId) {
+        toastError('Sessao expirada', 'Recarregue a pagina')
+        setSaving(false)
+        return
+      }
 
-    const dados = {
-      codigo: form.codigo.toUpperCase(),
-      tipo: form.tipo,
-      valor: parseFloat(form.valor),
-      valor_minimo_pedido: parseFloat(form.valor_minimo_pedido) || 0,
-      validade: form.validade,
-      max_usos: form.max_usos ? parseInt(form.max_usos) : null,
-      ativo: true,
+      const dados = {
+        codigo: form.codigo.toUpperCase().trim(),
+        tipo: form.tipo,
+        valor: parseFloat(form.valor),
+        valor_minimo_pedido: parseFloat(form.valor_minimo_pedido) || 0,
+        validade: form.validade,
+        max_usos: form.max_usos ? parseInt(form.max_usos) : null,
+        ativo: true,
+      }
+
+      let error
+      if (editing) {
+        const res = await supabase.from('cupons').update(dados).eq('id', editing.id).eq('tenant_id', tenantId)
+        error = res.error
+      } else {
+        const res = await supabase.from('cupons').insert({ tenant_id: tenantId, ...dados })
+        error = res.error
+      }
+
+      if (error) {
+        console.error('Erro ao salvar cupom:', error)
+        const msg = error.message || 'Falha desconhecida'
+        if (msg.includes('unique constraint') || msg.includes('duplicate key')) {
+          toastError('Codigo duplicado', 'Ja existe um cupom com este codigo')
+        } else {
+          toastError('Erro ao salvar cupom', msg)
+        }
+        setSaving(false)
+        return
+      }
+
+      // Reload (apenas ativos)
+      const { data: cps } = await supabase.from('cupons').select('*').eq('tenant_id', tenantId).eq('ativo', true).order('created_at', { ascending: false })
+      setCupons(cps || [])
+      setShowModal(false)
+      setEditing(null)
+      setSaving(false)
+      toastSuccess(editing ? 'Cupom atualizado' : 'Cupom criado')
+    } catch (err: any) {
+      console.error('Erro inesperado ao salvar cupom:', err)
+      toastError('Erro inesperado', err?.message || String(err))
+      setSaving(false)
     }
-
-    if (editing) {
-      await supabase.from('cupons').update(dados).eq('id', editing.id).eq('tenant_id', tenantId)
-    } else {
-      await supabase.from('cupons').insert({ tenant_id: tenantId, ...dados })
-    }
-
-    // Reload
-    const { data: cps } = await supabase.from('cupons').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false })
-    setCupons(cps || [])
-    setShowModal(false)
-    setSaving(false)
   }
 
   const deletar = async (id: string) => {
     if (!confirm('Excluir este cupom?')) return
     await supabase.from('cupons').update({ ativo: false }).eq('id', id)
     setCupons(cupons.filter(c => c.id !== id))
+    toastSuccess('Cupom removido')
   }
 
   return (
@@ -308,46 +355,90 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal — mesmo padrão visual do ProdutoFormModal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-strong rounded-3xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold mb-1">{editing ? 'Editar cupom' : 'Novo cupom'}</h2>
-            <p className="hint text-xs mb-4">Cupons funcionam no checkout via WhatsApp</p>
-            <div className="space-y-3">
+        <div className="fixed inset-0 z-50 flex items-stretch justify-center p-4 sm:p-6 overflow-y-auto" style={{ background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(100vh - 48px)' }}>
+
+            {/* Header */}
+            <div className="flex items-start justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--line-strong)' }}>
               <div>
-                <label>Código do cupom</label>
-                <input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} placeholder="Ex: BEMVINDO10" autoFocus className="font-mono" />
+                <h1 className="text-xl font-bold text-gray-900">{editing ? 'Editar cupom' : 'Novo cupom'}</h1>
+                <p className="text-sm text-gray-500 mt-1">Cupons funcionam no checkout via WhatsApp</p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label>Tipo</label>
-                  <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
-                    <option value="percentual">Percentual (%)</option>
-                    <option value="valor_fixo">Valor fixo (R$)</option>
-                  </select>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-700 p-1">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-1 gap-4">
+                <Field label="Código do cupom" required>
+                  <input
+                    value={form.codigo}
+                    onChange={(e) => setForm({ ...form, codigo: e.target.value })}
+                    placeholder="Ex: BEMVINDO10"
+                    autoFocus
+                    className="form-input font-mono"
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Tipo" required>
+                    <select
+                      value={form.tipo}
+                      onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+                      className="form-input"
+                    >
+                      <option value="percentual">Percentual (%)</option>
+                      <option value="valor_fixo">Valor fixo (R$)</option>
+                    </select>
+                  </Field>
+                  <Field label="Valor" required>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={form.valor}
+                      onChange={(e) => setForm({ ...form, valor: e.target.value })}
+                      placeholder="Ex: 10"
+                      className="form-input"
+                    />
+                  </Field>
                 </div>
-                <div>
-                  <label>Valor</label>
-                  <input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} placeholder="Ex: 10" />
-                </div>
-              </div>
-              <div>
-                <label>Validade</label>
-                <input type="date" value={form.validade} onChange={(e) => setForm({ ...form, validade: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label>Valor mín. pedido (R$)</label>
-                  <input type="number" step="0.01" value={form.valor_minimo_pedido} onChange={(e) => setForm({ ...form, valor_minimo_pedido: e.target.value })} placeholder="0 = sem mínimo" />
-                </div>
-                <div>
-                  <label>Máx. usos (0 = ilimitado)</label>
-                  <input type="number" value={form.max_usos} onChange={(e) => setForm({ ...form, max_usos: e.target.value })} placeholder="Ilimitado" />
+                <Field label="Validade" required>
+                  <input
+                    type="date"
+                    value={form.validade}
+                    onChange={(e) => setForm({ ...form, validade: e.target.value })}
+                    className="form-input"
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Valor mín. pedido" hint="(0 = sem mínimo)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={form.valor_minimo_pedido}
+                      onChange={(e) => setForm({ ...form, valor_minimo_pedido: e.target.value })}
+                      placeholder="0"
+                      className="form-input"
+                    />
+                  </Field>
+                  <Field label="Máx. usos" hint="(vazio = ilimitado)">
+                    <input
+                      type="number"
+                      value={form.max_usos}
+                      onChange={(e) => setForm({ ...form, max_usos: e.target.value })}
+                      placeholder="Ilimitado"
+                      className="form-input"
+                    />
+                  </Field>
                 </div>
               </div>
             </div>
-            <div className="flex gap-3 mt-5">
+
+            {/* Footer */}
+            <div className="flex gap-3 px-6 py-4 border-t" style={{ borderColor: 'var(--line-strong)' }}>
               <button onClick={() => setShowModal(false)} className="btn-ghost flex-1 justify-center" disabled={saving}>Cancelar</button>
               <button onClick={salvar} className="btn-primary flex-1 justify-center" disabled={saving || !form.codigo || !form.valor || !form.validade}>
                 {saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar cupom'}

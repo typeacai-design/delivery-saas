@@ -1,9 +1,11 @@
 'use client'
+import { createFlavorSnapshot, flavorCount } from '@/lib/flavor-pricing'
+import { normalizeCartPrices } from '@/lib/product-pricing'
 
 import { useState, useMemo, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { ShoppingCart, Search, SlidersHorizontal, MapPin, ChevronDown, Home, FileText, ShoppingBag, User, Plus, Bell, Clock, Star } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, ordenarComplementos } from '@/lib/utils'
 import { CheckoutDrawer, ProdutoModal, CartItem } from './checkout-flow'
 import { PublicReviews } from './public-reviews'
 import { CustomerOrders, CustomerProfile } from './customer-account'
@@ -31,12 +33,18 @@ function StoreActions({ data }: { data: any }) {
     <div className="px-3 sm:px-4 mb-4 max-w-lg mx-auto"><div className="flex items-center justify-between w-full">
       <button type="button" onClick={() => setHorariosAbertos(true)} className={`inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-semibold shadow-sm ${data.lojaAberta ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-700'}`}>
         <span>{data.lojaAberta ? 'Aberto' : 'Fechado'}</span>
-        {data.horario?.abre && <span className={`${data.lojaAberta ? 'text-green-700' : 'text-emerald-700'} bg-white rounded px-1 py-0.5 text-[10px]`}>{data.horario.abre} - {data.horario.fecha}</span>}
+        {data.lojaAberta && data.horario?.abre && <span className="text-green-700 bg-white rounded px-1 py-0.5 text-[10px]">{data.horario.abre} - {data.horario.fecha}</span>}
+        {!data.lojaAberta && <span className="text-red-700 bg-white rounded px-1 py-0.5 text-[10px]">Hoje</span>}
         <span className="inline-grid place-items-center size-3.5 rounded-full bg-teal-500 text-white text-[9px] font-bold">i</span>
       </button>
       <span title="Avaliações" className="inline-flex items-center gap-1 px-2.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--cardapio-secondary)', background: 'color-mix(in srgb, var(--cardapio-secondary) 12%, white)' }}><Star size={14} fill="currentColor" />{data.totalAvaliacoes ? `${data.avaliacaoMedia} (${data.totalAvaliacoes})` : '0,0'}</span>
     </div></div>
-    {horariosAbertos && <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" onClick={() => setHorariosAbertos(false)}><div className="wd-overlay w-full max-w-sm rounded-2xl p-5 shadow-2xl" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold">Horários de funcionamento</h2><button type="button" onClick={() => setHorariosAbertos(false)} className="text-2xl leading-none">×</button></div><div className="space-y-2">{horarios.map((h: any, i: number) => <div key={i} className="flex justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm"><span className="font-medium">{h.dia || h.nome || `Dia ${i + 1}`}</span><span>{h.abre && h.fecha ? `${h.abre} - ${h.fecha}` : 'Fechado'}</span></div>)}</div></div></div>}
+    {horariosAbertos && <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" onClick={() => setHorariosAbertos(false)}><div className="wd-overlay w-full max-w-sm rounded-2xl p-5 shadow-2xl" onClick={e => e.stopPropagation()}><div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold">Horários de funcionamento</h2><button type="button" onClick={() => setHorariosAbertos(false)} className="text-2xl leading-none">×</button></div><div className="space-y-2">{horarios.map((h: any, i: number) => (
+      <div key={i} className={`flex justify-between rounded-lg px-3 py-2 text-sm ${h.ativo === false ? 'bg-red-50 text-red-700' : 'bg-gray-50'}`}>
+        <span className="font-medium">{h.dia || h.nome || `Dia ${i + 1}`}</span>
+        <span className={h.ativo === false ? 'font-semibold' : ''}>{h.ativo === false ? 'Fechado' : (h.abre && h.fecha ? `${h.abre} - ${h.fecha}` : 'Fechado')}</span>
+      </div>
+    ))}</div></div></div>}
   </>
 }
 
@@ -66,14 +74,28 @@ const ETIQUETAS = {
   novidade: { label: 'Novidade', icone: '✨', bg: '#DBEAFE', color: '#1E3A8A' },
 }
 
-function ProductPreco({ produto, className = '' }: { produto: any; className?: string }) {
+function ProductPreco({ produto, className = '', variants = [] }: { produto: any; className?: string; variants?: any[] }) {
   const preco = Number(produto.preco)
   const riscado = produto.preco_riscado != null ? Number(produto.preco_riscado) : null
   const temPromo = riscado != null && riscado > preco
+
+  // Verificar se há variantes com preços diferentes
+  const variantPrices = variants?.map((v: any) => Number(v.preco_adicional) + preco) || []
+  const allPrices = [preco, ...variantPrices]
+  const minPrice = Math.min(...allPrices)
+  const maxPrice = Math.max(...allPrices)
+  const hasMultiplePrices = variantPrices.length > 0 && (minPrice !== maxPrice)
+  const hasVariants = variantPrices.length > 0
+  const exibirApartirDe = Boolean(produto.exibir_preco_a_partir_de) || (hasVariants && hasMultiplePrices)
+
   return (
     <div className={`flex items-baseline gap-2 ${className}`}>
-      <span className="wd-price font-bold text-sm">{formatCurrency(preco)}</span>
-      {temPromo && (
+      {exibirApartirDe ? (
+        <span className="wd-price font-bold text-sm">A partir de {formatCurrency(minPrice)}</span>
+      ) : (
+        <span className="wd-price font-bold text-sm">{formatCurrency(preco)}</span>
+      )}
+      {temPromo && !hasVariants && !exibirApartirDe && (
         <span className="text-xs text-gray-400 line-through">{formatCurrency(riscado)}</span>
       )}
     </div>
@@ -124,12 +146,12 @@ interface CardapioData {
     slug: string
     telefone: string
     logo_url: string | null
+    sabores_ativo?: boolean
     banner_url: string | null
     banners: string[]
     endereco: string
   }
   categorias: any[]
-  categoriasProduto: any[]
   produtos: any[]
   variantes: any[]
   complementos: any[]
@@ -152,6 +174,7 @@ interface CardapioData {
   whatsappAjuda: { ativo: boolean; numero: string; mensagem: string }
   faixaAvisos: { ativo: boolean; mensagem: string; corFundo: string; corTexto: string; link: string }
   segundaFaixa: { ativo: boolean; mensagem: string; link: string }
+  pedidoInicial?: string | null // codigo do pedido vindo de ?pedido=CODIGO na URL
 }
 
 function AnnouncementStrip({ faixa }: { faixa: any }) {
@@ -171,6 +194,8 @@ function scrollToSession(id:string){const reduce=window.matchMedia('(prefers-red
 function SecondaryStrip({ data }: { data:any }){if(!data.segundaFaixa?.ativo||!data.segundaFaixa.mensagem)return null;const href=safeHttpLink(data.segundaFaixa.link);const cls="wd-secondary-strip block rounded-xl px-4 py-3 mb-4 text-center font-semibold";return href?<a href={href} className={cls}>{data.segundaFaixa.mensagem}</a>:<div className={cls}>{data.segundaFaixa.mensagem}</div>}
 
 export function CardapioCliente({ data }: { data: CardapioData }) {
+  const [carrinhoCarregadoSlug, setCarrinhoCarregadoSlug] = useState<string | null>(null)
+  const [avisoCarrinho, setAvisoCarrinho] = useState('')
   const [carrinho, setCarrinho] = useState<CartItem[]>([])
   const [carrinhoAberto, setCarrinhoAberto] = useState(false)
   const [checkoutDireto, setCheckoutDireto] = useState(false)
@@ -179,16 +204,80 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
   const [itemEmEdicao, setItemEmEdicao] = useState<CartItem | null>(null)
   const [busca, setBusca] = useState('')
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null)
-  const [abaAtiva, setAbaAtiva] = useState<'inicio' | 'pedidos' | 'perfil'>('inicio')
+  const [abaAtiva, setAbaAtiva] = useState<'inicio' | 'pedidos' | 'perfil'>(
+    // Se a pagina foi aberta com ?pedido=CODIGO, vai direto pra aba de pedidos
+    data.pedidoInicial ? 'pedidos' : 'inicio'
+  )
   const [enderecoAberto, setEnderecoAberto] = useState(false)
+  const [buscaBairro, setBuscaBairro] = useState('')
+  const bairrosFiltrados = useMemo(
+    () => data.enderecos.filter((item: any) =>
+      item.bairro.toLowerCase().includes(buscaBairro.toLowerCase())
+    ),
+    [data.enderecos, buscaBairro]
+  )
   const [clienteLocal, setClienteLocal] = useState<any>({ nome: '', whatsapp: '', aniversario: '', endereco: '', numero: '', bairro: '', complemento: '', observacoes: '' })
+
+  // Sincroniza URL com a aba ativa e pedido selecionado
+  const updateUrl = (aba: 'inicio' | 'pedidos' | 'perfil', pedidoCodigo?: string | null) => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams()
+    if (aba !== 'inicio') params.set('aba', aba)
+    if (pedidoCodigo) params.set('pedido', pedidoCodigo)
+    const queryString = params.toString()
+    const novaUrl = `${window.location.pathname}${queryString ? '?' + queryString : ''}`
+    window.history.pushState({ aba, pedido: pedidoCodigo }, '', novaUrl)
+  }
+
+  const navegarPara = (aba: 'inicio' | 'pedidos' | 'perfil', pedidoCodigo?: string | null) => {
+    setAbaAtiva(aba)
+    updateUrl(aba, pedidoCodigo)
+  }
+
+  // Ao carregar, se a URL já tem ?aba= ou ?pedido=, respeita
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const abaUrl = params.get('aba') as 'inicio' | 'pedidos' | 'perfil' | null
+    if (abaUrl && (abaUrl === 'pedidos' || abaUrl === 'perfil' || abaUrl === 'inicio')) {
+      if (!data.pedidoInicial) setAbaAtiva(abaUrl)
+    }
+  }, [data.pedidoInicial])
 
   useEffect(() => {
     try {
       const salvo = localStorage.getItem(`delivery_carrinho_${data.tenant.slug}`)
-      if (salvo) setCarrinho(JSON.parse(salvo))
-    } catch { /* armazenamento indisponivel */ }
-  }, [data.tenant.slug])
+      if (!salvo) setCarrinho([])
+      if (salvo) {
+        const items = JSON.parse(salvo)
+        if (Array.isArray(items)) {
+          let removidos = 0
+          const validos = items.flatMap((item: CartItem) => {
+            const produto = data.produtos.find(p => p.id === item.produto_id)
+            const count = flavorCount(item.complementos)
+            if (!produto?.sabores_grupo_id && !item.complementos?.some(c => c.tipo === 'sabor')) return [item]
+            if (!produto?.sabores_grupo_id || !data.tenant.sabores_ativo || !count || count !== item.sabores_quantidade || count > produto.sabores_maximo) { removidos++; return [] }
+            const grupo = data.listasComplementos.find(g => g.id === produto.sabores_grupo_id)
+            const atuais = item.complementos.filter(c => c.tipo === 'sabor').flatMap(c => {
+              const atual = data.complementos.find(a => a.id === c.id && a.categoria_id === produto.sabores_grupo_id && a.controlar_estoque !== true)
+              const vinculado = data.produtoComplementos.some(pc => pc.produto_id === produto.id && pc.complemento_id === c.id)
+              return atual && vinculado ? [atual] : []
+            })
+            try {
+              if (!grupo) throw new Error('Grupo indisponivel')
+              const snapshot = createFlavorSnapshot(atuais, produto.sabores_grupo_id, count)
+              const iguais = snapshot.every(c => item.complementos.some(old => old.id === c.id && old.preco_integral === c.preco_integral && old.valor === c.valor))
+              if (!iguais) throw new Error('Precos alterados')
+              return [{...item, valor_unitario: 0, variante_preco: 0}]
+            } catch { removidos++; return [] }
+          })
+          const normalizados = normalizeCartPrices(validos, data.produtos).map(item => flavorCount(item.complementos) ? {...item, valor_unitario: 0, variante_preco: 0} : item)
+          setCarrinho(normalizados)
+          if (removidos) setAvisoCarrinho('A montagem de uma pizza mudou. Selecione novamente os sabores para conferir o valor atualizado.')
+        }
+      }
+    } catch { setCarrinho([]) } finally { setCarrinhoCarregadoSlug(data.tenant.slug) }
+  }, [data.tenant.slug, data.tenant.sabores_ativo, data.produtos, data.complementos, data.produtoComplementos, data.listasComplementos])
 
   useEffect(() => {
     try {
@@ -206,8 +295,9 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
   }
 
   useEffect(() => {
+    if (carrinhoCarregadoSlug !== data.tenant.slug) return
     try { localStorage.setItem(`delivery_carrinho_${data.tenant.slug}`, JSON.stringify(carrinho)) } catch { /* noop */ }
-  }, [carrinho, data.tenant.slug])
+  }, [carrinho, data.tenant.slug, carrinhoCarregadoSlug])
 
   // Tracking de visita ao cardápio (1× por sessão)
   useEffect(() => {
@@ -252,12 +342,14 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
         .map((l: any) => ({
           ...l,
-          complementos: (comps as any[])
-            .filter(c => c.categoria_id === l.id)
-            .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+          // Regra padrão: grátis no topo, depois alfabético
+          complementos: ordenarComplementos(
+            (comps as any[]).filter(c => c.categoria_id === l.id)
+          )
         }))
-      const semLista = (comps as any[]).filter(c => !c.categoria_id)
-        .sort((a: any, b: any) => (a.ordem || 0) - (b.ordem || 0))
+      const semLista = ordenarComplementos(
+        (comps as any[]).filter(c => !c.categoria_id)
+      )
       if (semLista.length) map[produtoId].push({ id: 'avulsos', nome: 'Adicionais', qtd_minima: 0, qtd_maxima: 99, complementos: semLista })
     })
     return map
@@ -265,12 +357,15 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
 
   // Filtro de busca
   const produtosFiltrados = useMemo(() => {
-    if (!busca.trim()) return data.produtos
     const b = busca.toLowerCase()
     return data.produtos.filter((p: any) =>
-      p.nome.toLowerCase().includes(b) || (p.descricao && p.descricao.toLowerCase().includes(b))
-    )
-  }, [data.produtos, busca])
+      (!p.sabores_grupo_id || data.tenant.sabores_ativo === true) && (p.nome.toLowerCase().includes(b) || (p.descricao && p.descricao.toLowerCase().includes(b)))
+    ).map((p: any) => {
+      if (!p.sabores_grupo_id) return p
+      const sabores = complementosPorProduto[p.id]?.filter((c: any) => c.categoria_id === p.sabores_grupo_id && c.controlar_estoque !== true) || []
+      return {...p, preco: sabores.length ? Math.min(...sabores.map((c: any) => Number(c.preco))) : p.preco, exibir_preco_a_partir_de: true, preco_promocional: null}
+    })
+  }, [data.produtos, data.tenant.sabores_ativo, busca, complementosPorProduto])
 
   function abrirModal(produto: any) {
     setItemEmEdicao(null)
@@ -363,7 +458,7 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
           categoriaAtiva={categoriaAtiva}
           setCategoriaAtiva={setCategoriaAtiva}
           abaAtiva={abaAtiva}
-          setAbaAtiva={setAbaAtiva}
+          navegarPara={navegarPara}
           enderecoCliente={clienteLocal.endereco ? `${clienteLocal.endereco}${clienteLocal.numero ? `, ${clienteLocal.numero}` : ''}` : ''}
           onEditarEndereco={() => setEnderecoAberto(true)}
           totalItens={totalItens}
@@ -393,14 +488,31 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         formasPagamento={data.formasPagamento}
         entregaConfig={data.entregaConfig}
         valorMinimoPedido={data.valorMinimoPedido}
-        onClienteCadastrado={(cliente) => setClienteLocal((current: any) => ({ ...current, ...cliente }))}
+        onClienteCadastrado={(cliente) => {
+          setClienteLocal((current: any) => {
+            const merged = { ...current, ...cliente }
+            // Persiste imediatamente no localStorage para nao perder
+            // o accessToken entre reloads/dispositivos. Sem isso, cada
+            // novo acesso gera um token diferente e cadastra o mesmo
+            // cliente varias vezes.
+            try {
+              localStorage.setItem(
+                `delivery_cliente_dados_${data.tenant.slug}`,
+                JSON.stringify({ ...merged, tenantSlug: data.tenant.slug })
+              )
+            } catch { /* noop */ }
+            return merged
+          })
+        }}
       />
 
+      {avisoCarrinho && <div role="alert" className="fixed bottom-24 inset-x-4 mx-auto max-w-md z-[70] bg-amber-50 border border-amber-300 p-4 rounded-xl shadow-lg"><p>{avisoCarrinho}</p><button type="button" onClick={() => setAvisoCarrinho('')} className="font-semibold underline mt-2">Entendi</button></div>}
       <ProdutoModal
         isOpen={modalAberto}
         onClose={() => setModalAberto(false)}
         produto={produtoSelecionado}
         variantes={variantesDoProduto}
+        saboresAtivo={data.tenant.sabores_ativo === true}
         complementos={complementosDoProduto}
         listas={produtoSelecionado ? listasPorProduto[produtoSelecionado.id] || [] : []}
         onAddToCart={adicionarAoCarrinho}
@@ -408,6 +520,7 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         paletaCor={data.corPaleta}
         initialItem={itemEmEdicao}
         onReplaceItem={substituirItem}
+        lojaAberta={data.lojaAberta}
       />
       <FloatingWhatsApp data={data} />
       {enderecoAberto && <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={() => setEnderecoAberto(false)}>
@@ -416,13 +529,35 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
           <p className="text-sm text-gray-500 mt-1 mb-4">Ficará salvo neste navegador para as próximas compras.</p>
           <div className="space-y-3">
             <input className="w-full border rounded-xl p-3" placeholder="Rua ou avenida" value={clienteLocal.endereco} onChange={(e) => setClienteLocal({ ...clienteLocal, endereco: e.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
-              <input className="w-full border rounded-xl p-3" placeholder="Número" value={clienteLocal.numero} onChange={(e) => setClienteLocal({ ...clienteLocal, numero: e.target.value })} />
-              <select className="w-full border rounded-xl p-3" value={clienteLocal.bairro} onChange={(e) => setClienteLocal({ ...clienteLocal, bairro: e.target.value })}>
-                <option value="">Bairro</option>
-                {data.enderecos.map((item: any) => <option key={item.id} value={item.bairro}>{item.bairro}</option>)}
-              </select>
+            <input className="w-full border rounded-xl p-3" placeholder="Número" value={clienteLocal.numero} onChange={(e) => setClienteLocal({ ...clienteLocal, numero: e.target.value })} />
+            {/* Barra de pesquisa do bairro */}
+            <div className="relative">
+              <input
+                type="text"
+                className="w-full border rounded-xl p-3 pr-10"
+                placeholder="Buscar bairro…"
+                value={buscaBairro}
+                onChange={(e) => setBuscaBairro(e.target.value)}
+              />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
+            {bairrosFiltrados.length > 0 ? (
+              <select
+                className="w-full border rounded-xl p-3"
+                value={clienteLocal.bairro}
+                onChange={(e) => setClienteLocal({ ...clienteLocal, bairro: e.target.value })}
+                size={Math.min(6, bairrosFiltrados.length + 1)}
+              >
+                <option value="">Selecione o bairro</option>
+                {bairrosFiltrados.map((item: any) => (
+                  <option key={item.id} value={item.bairro}>{item.bairro}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="border rounded-xl p-3 text-sm text-gray-500 bg-gray-50">
+                Nenhum bairro encontrado para “{buscaBairro}”
+              </div>
+            )}
             <input className="w-full border rounded-xl p-3" placeholder="Complemento ou referência" value={clienteLocal.complemento} onChange={(e) => setClienteLocal({ ...clienteLocal, complemento: e.target.value })} />
           </div>
           <div className="flex gap-3 mt-5">
@@ -533,19 +668,6 @@ function LayoutMinimalista({ data, busca, setBusca, totalItens, produtosFiltrado
         ))}
       </div>
 
-      {/* Aviso loja fechada */}
-      {!data.lojaAberta && (
-        <div className="hidden">
-          <div className="p-4 rounded-lg border-2 border-dashed border-red-300 bg-red-50 flex items-center gap-3">
-            <span className="text-2xl">🕐</span>
-            <div>
-              <p className="font-semibold text-red-700">Loja Fechada</p>
-              <p className="text-sm text-red-600">Voltamos em breve!</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Banner campanha */}
       <div className="hidden">
         <div className="rounded-xl overflow-hidden bg-gradient-to-r from-purple-500 to-pink-500 p-6 text-white text-center">
@@ -598,7 +720,7 @@ function LayoutMinimalista({ data, busca, setBusca, totalItens, produtosFiltrado
                     )}
                     <ProductTags produto={produto} className="mt-1" />
                     <div className="flex items-center gap-3 mt-1">
-                      <ProductPreco produto={produto} />
+                      <ProductPreco produto={produto} variants={data.variantes.filter((v: any) => v.produto_id === produto.id)} />
                       {produto.tempo_preparo_min && (
                         <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                           <Clock className="w-3 h-3" />
@@ -697,17 +819,6 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
           </div>
         </header>
 
-        {/* Aviso loja fechada */}
-        {!data.lojaAberta && (
-          <div className="hidden">
-            <span className="text-2xl">🕐</span>
-            <div>
-              <p className="font-semibold text-red-700">Loja Fechada</p>
-              <p className="text-sm text-red-600">Voltamos em breve!</p>
-            </div>
-          </div>
-        )}
-
         <main className="px-4 py-2">
           <StoreActions data={data} />
           <SecondaryStrip data={data}/>
@@ -792,12 +903,7 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
                       {produto.badge}
                     </span>
                   )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); }}
-                    className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-white/90 backdrop-blur flex items-center justify-center"
-                  >
-                    <span className="text-red-500">♡</span>
-                  </button>
+                  <span className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-white/90 backdrop-blur flex items-center justify-center"><span className="text-red-500">♡</span></span>
                   <div className="aspect-square bg-gray-100">
                     {produto.imagem_url ? (
                       <img src={produto.imagem_url} alt={produto.nome} className="w-full h-full object-cover" />
@@ -814,7 +920,7 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
                       <span className="text-gray-400">({produto.reviews || '245'})</span>
                     </div>
                     <div className="flex items-center gap-2 mb-2">
-                      <ProductPreco produto={produto} />
+                      <ProductPreco produto={produto} variants={data.variantes.filter((v: any) => v.produto_id === produto.id)} />
                       {produto.tempo_preparo_min && (
                         <span
                           className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-red-50"
@@ -826,12 +932,7 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
                       )}
                     </div>
                     <div className="flex items-center justify-between">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); }}
-                        className="text-xs text-gray-400 font-medium"
-                      >
-                        Adicionar
-                      </button>
+                      <span className="text-xs text-gray-400 font-medium">Adicionar</span>
                       <span
                         className="w-7 h-7 rounded-full flex items-center justify-center text-white"
                         style={{ background: cor }}
@@ -906,13 +1007,12 @@ function LayoutModerno({ data, busca, setBusca, totalItens, produtosFiltrados, o
 // ============================================================
 // LAYOUT CLÁSSICO — Sabor da Casa (App-style laranja)
 // ============================================================
-function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAtiva, abaAtiva, setAbaAtiva, totalItens, produtosFiltrados, onAbrirModal, onAbrirCarrinho, enderecoCliente, onEditarEndereco, clienteLocal, setClienteLocal }: any) {
+function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAtiva, abaAtiva, navegarPara, totalItens, produtosFiltrados, onAbrirModal, onAbrirCarrinho, enderecoCliente, onEditarEndereco, clienteLocal, setClienteLocal }: any) {
   const cor = data.theme.primary
   const corSecundaria = data.theme.secondary
 
-  const produtosDaCategoria = categoriaAtiva
-    ? produtosFiltrados.filter((produto: any) => produto.categoria_produto_id === categoriaAtiva)
-    : produtosFiltrados
+  // Filtro por categoriaAtiva removido: categoria_produto_id não é mais usada
+  const produtosDaCategoria = produtosFiltrados
 
   return (
     <div className="wd-classic max-w-lg mx-auto min-h-screen pb-24" style={{ background: data.theme.background, color: data.theme.text }}>
@@ -981,18 +1081,7 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
         </div>
       </header>
 
-      {/* Aviso loja fechada */}
-      {!data.lojaAberta && (
-        <div className="hidden">
-          <span className="text-2xl">🕐</span>
-          <div>
-            <p className="font-semibold text-red-700">Loja Fechada</p>
-            <p className="text-sm text-red-600">Voltamos em breve!</p>
-          </div>
-        </div>
-      )}
-
-      {abaAtiva === 'pedidos' ? <CustomerOrders slug={data.tenant.slug} cliente={clienteLocal} /> : abaAtiva === 'perfil' ? <CustomerProfile slug={data.tenant.slug} cliente={clienteLocal} setCliente={setClienteLocal} /> : <main className="wd-content px-4 py-4">
+      {abaAtiva === 'pedidos' ? <CustomerOrders slug={data.tenant.slug} cliente={clienteLocal} pedidoInicial={data.pedidoInicial || null} onVoltar={() => navegarPara('inicio')} onSelecionarPedido={(codigo) => navegarPara('pedidos', codigo)} /> : abaAtiva === 'perfil' ? <CustomerProfile slug={data.tenant.slug} cliente={clienteLocal} setCliente={setClienteLocal} /> : <main className="wd-content px-4 py-4">
         <StoreActions data={data} />
         <SecondaryStrip data={data}/>
         {/* Banner Hero */}
@@ -1090,7 +1179,7 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                     <p className="wd-description text-xs line-clamp-2 mb-2">{produto.descricao}</p>
                   )}
                   <div className="flex items-center gap-2 mb-2">
-                    <ProductPreco produto={produto} />
+                    <ProductPreco produto={produto} variants={data.variantes.filter((v: any) => v.produto_id === produto.id)} />
                     {produto.tempo_preparo_min && (
                       <span
                         className="wd-time inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md"
@@ -1101,12 +1190,9 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
                     )}
                   </div>
                   <div className="flex items-center justify-between">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); }}
-                      className="wd-description text-xs font-medium"
-                    >
+                    <span className="wd-description text-xs font-medium">
                       Toque para +
-                    </button>
+                    </span>
                     <span
                       className="wd-cta w-7 h-7 rounded-full flex items-center justify-center"
                     >
@@ -1139,7 +1225,12 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
           ].map((item) => (
             <button
               key={item.id}
-              onClick={() => setAbaAtiva(item.id)}
+              onClick={() => {
+                const abaId = item.id
+                if (abaId === 'inicio' || abaId === 'pedidos' || abaId === 'perfil') {
+                  navegarPara(abaId)
+                }
+              }}
               aria-current={abaAtiva === item.id ? 'page' : undefined}
               className="flex min-h-11 flex-col items-center justify-center gap-1 px-3"
               style={{ color: abaAtiva === item.id ? cor : data.theme.secondary }}

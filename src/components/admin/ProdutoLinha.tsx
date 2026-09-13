@@ -11,7 +11,8 @@ type Props = {
   onToggleAtivo: () => void | Promise<void>
   onDuplicate: () => void | Promise<void>
   onUpdate: (field: string, value: any) => void | Promise<void>
-  onDelete: () => void
+  onDelete: () => void // Ag不下去 = inativar
+  onExcluir: () => void // Excluir = realmente apagar
 }
 
 /**
@@ -28,6 +29,7 @@ export default function ProdutoLinha({
   onDuplicate,
   onUpdate,
   onDelete,
+  onExcluir,
 }: Props) {
   const [editandoCampo, setEditandoCampo] = useState<string | null>(null)
   const [valorTemp, setValorTemp] = useState<string>('')
@@ -178,9 +180,9 @@ export default function ProdutoLinha({
           onChange={() => onToggleAtivo()}
         />
         <button
-          onClick={onDelete}
+          onClick={onExcluir}
           className="size-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-red-600"
-          title="Apagar"
+          title="Excluir permanentemente"
         >
           <Trash2 size={14} />
         </button>

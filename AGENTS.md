@@ -7,3 +7,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Local infrastructure access
+
+For authorized Supabase/Vercel operations, read [docs/ACESSO_API_LOCAL.md](docs/ACESSO_API_LOCAL.md). Supabase credentials are DPAPI protected under the main repository .credentials directory, ignored by Git and Vercel; use the loader instead of printing or copying secrets.
+
+## Project progress
+
+Before continuing work, read [PROGRESSO_WE_DELIVERY.md](PROGRESSO_WE_DELIVERY.md) for deployed behavior, validation evidence, active checkout, operational limits, and pending GitHub authorization. The user prohibited personal browser access; use authorized APIs and commands. Saving local progress does not authorize a GitHub push.

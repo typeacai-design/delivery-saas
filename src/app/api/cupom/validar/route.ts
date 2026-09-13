@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export async function GET(request: Request) {
   try {
@@ -12,7 +12,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ valido: false, mensagem: 'Parâmetros incompletos' }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    // Usa service role key para ignorar RLS (endpoint público)
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
 
     // Buscar cupom
     const { data: cupom, error } = await supabase

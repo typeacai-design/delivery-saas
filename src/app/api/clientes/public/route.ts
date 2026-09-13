@@ -26,6 +26,18 @@ export async function POST(request: Request) {
     if (!tenant) return respond({ error: 'Não foi possível processar a solicitação' }, 404)
 
     const token = String(access_token); const tokenHash = hashAccessToken(token)
+
+    // Antes do INSERT: tenta unificar com cliente existente por telefone.
+    // A funcao `buscar_ou_unificar_cliente` (migration 067) busca outro
+    // cliente com mesmo (tenant_id, telefone), transfere o token para o
+    // primario e desativa o duplicado. Se retornar um id, reaproveitamos
+    // em vez de inserir novo registro.
+    const { data: clienteExistente } = await admin.rpc('buscar_ou_unificar_cliente', {
+      p_tenant_id: tenant.id,
+      p_telefone: String(telefone).replace(/\D/g, ''),
+      p_novo_token_hash: tokenHash,
+    })
+
     const { data: matches } = await admin.from('clientes').select('id,acesso_token_hash').eq('tenant_id', tenant.id).eq('acesso_token_hash', tokenHash).limit(2)
     if ((matches || []).length > 1) return respond({ error: 'Não foi possível processar a solicitação' }, 409)
     const existing = matches?.[0]
@@ -36,6 +48,9 @@ export async function POST(request: Request) {
       : admin.from('clientes').insert({ tenant_id: tenant.id, ...values, total_pedidos: 0 })
     const { data, error } = await query.select('nome,telefone,endereco,data_nascimento,cpf').single()
     if (error) throw error
+    // Logica de unificacao ja foi aplicada via RPC acima; clienteExistente
+    // foi consumido e nao precisa tratamento adicional aqui.
+    void clienteExistente
     return respond(profile(data))
   } catch { console.error('customer_profile_write_failed'); return respond({ error: 'Não foi possível processar a solicitação' }, 500) }
 }

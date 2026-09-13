@@ -1,10 +1,165 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
-import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power, PowerOff } from 'lucide-react'
+import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+
+// Função para verificar se a loja está aberta baseado no horário configurado (mesma lógica do cardápio público)
+function verificarLojaAbertaPorHorario(config: any): { aberto: boolean; horarioMsg: string } {
+  const horariosDias = config?.horarios_dias
+  const horarioLegado = config?.horario || { abre: '08:00', fecha: '22:00' }
+
+  // Se não há horários configurados, loja fica FECHADA
+  if (!horariosDias || Object.keys(horariosDias).length === 0) {
+    return { aberto: false, horarioMsg: '' }
+  }
+
+  // Usar timezone do Brasil
+  const agora = new Date()
+  const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+  const diaAtual = brasilia.getDay()
+  const minutosAgora = brasilia.getHours() * 60 + brasilia.getMinutes()
+
+  // Mapear dia da semana (0-6) para chave
+  const DIAS_CHAVES = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
+  const chaveDia = DIAS_CHAVES[diaAtual]
+
+  // Pegar horários do dia
+  let horariosDia = horariosDias[chaveDia]
+
+  // Se não encontrar pelo nome, tenta pelo índice numérico
+  if (!horariosDia && Array.isArray(horariosDias)) {
+    horariosDia = horariosDias.find((item: any) => Number(item.dia ?? item.dia_semana) === diaAtual)
+  }
+
+  // Parse do horário
+  const parseTime = (s: any) => {
+    if (!s) return null
+    const parts = String(s).split(':').map(Number)
+    return parts.length >= 2 ? parts[0] * 60 + parts[1] : null
+  }
+
+  const inicioMin = parseTime(horariosDia?.abre || horariosDia?.inicio) ?? parseTime(horarioLegado.abre) ?? 480
+  const fimMin = parseTime(horariosDia?.fecha || horariosDia?.fim) ?? parseTime(horarioLegado.fecha) ?? 1320
+
+  // Verificar se o dia está marcado como inativo
+  const diaInativo = horariosDia?.ativo === false
+  const dentroHorario = !diaInativo && minutosAgora >= inicioMin && minutosAgora <= fimMin
+
+  // Mensagem do horário
+  const abre = horariosDia?.abre || horariosDia?.inicio || horarioLegado.abre || '08:00'
+  const fecha = horariosDia?.fecha || horariosDia?.fim || horarioLegado.fecha || '22:00'
+  const horarioMsg = diaInativo ? `${chaveDia} - Fechado` : `${abre} - ${fecha}`
+
+  return { aberto: dentroHorario, horarioMsg }
+}
+
+// ---------------------------------------------------------------------------
+// Calcula o timestamp em que um override manual deve expirar.
+//
+// tipo === 'abrir'  -> loja foi aberta manualmente. Expira no proximo
+//                       horario PROGRAMADO de fechamento (do dia atual
+//                       se ainda nao fechou, senao do proximo dia ativo).
+// tipo === 'fechar' -> loja foi fechada manualmente. Expira no proximo
+//                       horario PROGRAMADO de abertura (hoje se ainda nao
+//                       abriu, senao no proximo dia ativo).
+//
+// Retorna Date ou null se nenhum horario configurado.
+// ---------------------------------------------------------------------------
+function calcularExpiracaoOverride(
+  horariosDias: any,
+  tipo: 'abrir' | 'fechar'
+): Date | null {
+  if (!horariosDias || Object.keys(horariosDias).length === 0) return null
+
+  const agora = new Date()
+  // Minutos de hoje no fuso de Brasilia (mesmo criterio do verificarLojaAbertaPorHorario)
+  const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+  const diaAtualIdx = brasilia.getDay()
+  const minutosHoje = brasilia.getHours() * 60 + brasilia.getMinutes()
+
+  const parseTime = (s: any): number | null => {
+    if (!s) return null
+    const parts = String(s).split(':').map(Number)
+    return parts.length >= 2 ? parts[0] * 60 + parts[1] : null
+  }
+
+  const DIAS_CHAVES = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
+
+  // Tenta encontrar o slot do dia. Aceita formato {seg:{abre,fecha,ativo}} ou array.
+  const slotDoDia = (diaIdx: number): any => {
+    const chave = DIAS_CHAVES[diaIdx]
+    const item = horariosDias[chave]
+    if (item) return item
+    if (Array.isArray(horariosDias)) {
+      return horariosDias.find((x: any) => Number(x.dia ?? x.dia_semana) === diaIdx)
+    }
+    return null
+  }
+
+  // Calcula a diferenca em dias entre hoje (Brasilia) e o dia destino
+  const diffDias = (diaDestinoIdx: number): number => {
+    let diff = (diaDestinoIdx - diaAtualIdx + 7) % 7
+    return diff
+  }
+
+  // Constrói um Date em Brasilia (UTC-3) para dia+hora especificados
+  const diaParaTimestamp = (diaIdx: number, minutos: number): Date => {
+    // Pega o inicio do dia de hoje em Brasilia
+    const inicioHojeBrasilia = new Date(brasilia)
+    inicioHojeBrasilia.setHours(0, 0, 0, 0)
+    // Soma os dias (em horario local do servidor; servidor roda em UTC, mas
+    // brasilia ja tem offset -3 embutido no .toLocaleString -- entao a hora
+    // do servidor reflete a hora local de Brasilia).
+    const target = new Date(inicioHojeBrasilia)
+    target.setDate(target.getDate() + diffDias(diaIdx))
+    target.setHours(Math.floor(minutos / 60), minutos % 60, 0, 0)
+    return target
+  }
+
+  if (tipo === 'abrir') {
+    // Precisa achar o proximo horario de FECHAMENTO programado (fecha >= agora)
+    // Tenta hoje primeiro
+    const slotHoje = slotDoDia(diaAtualIdx)
+    if (slotHoje && slotHoje.ativo !== false) {
+      const fimMin = parseTime(slotHoje.fecha || slotHoje.fim)
+      if (fimMin != null && fimMin > minutosHoje) {
+        return diaParaTimestamp(diaAtualIdx, fimMin)
+      }
+    }
+    // Senao, procura o proximo dia ativo
+    for (let i = 1; i <= 7; i++) {
+      const diaIdx = (diaAtualIdx + i) % 7
+      const slot = slotDoDia(diaIdx)
+      if (slot && slot.ativo !== false) {
+        const fimMin = parseTime(slot.fecha || slot.fim)
+        if (fimMin != null) return diaParaTimestamp(diaIdx, fimMin)
+      }
+    }
+    return null
+  }
+
+  // tipo === 'fechar'
+  // Precisa achar o proximo horario de ABERTURA programado (abre >= agora)
+  const slotHoje = slotDoDia(diaAtualIdx)
+  if (slotHoje && slotHoje.ativo !== false) {
+    const inicioMin = parseTime(slotHoje.abre || slotHoje.inicio)
+    if (inicioMin != null && inicioMin > minutosHoje) {
+      return diaParaTimestamp(diaAtualIdx, inicioMin)
+    }
+  }
+  for (let i = 1; i <= 7; i++) {
+    const diaIdx = (diaAtualIdx + i) % 7
+    const slot = slotDoDia(diaIdx)
+    if (slot && slot.ativo !== false) {
+      const inicioMin = parseTime(slot.abre || slot.inicio)
+      if (inicioMin != null) return diaParaTimestamp(diaIdx, inicioMin)
+    }
+  }
+  return null
+}
 
 export default function VisaoGeralPage() {
   const hora = new Date().getHours()
@@ -16,7 +171,8 @@ export default function VisaoGeralPage() {
   const [pedidosMes, setPedidosMes] = useState(0)
   const [slug, setSlug] = useState('')
   const [copied, setCopied] = useState(false)
-  const [lojaAberta, setLojaAberta] = useState(true)
+  const [lojaAberta, setLojaAberta] = useState<boolean | null>(null) // null = seguir horário
+  const [horarios, setHorarios] = useState<any>(null)
   const [toggleLoading, setToggleLoading] = useState(false)
   const supabase = createClient()
 
@@ -36,19 +192,64 @@ export default function VisaoGeralPage() {
         .single()
       if (tenant) {
         setSlug(tenant.slug)
-        setLojaAberta((tenant.config as any)?.loja_aberta ?? true)
+        const config = (tenant.config as any) || {}
+        const horariosDias = config.horarios_dias || null
+        setHorarios(horariosDias)
+
+        // Calcula se está dentro do horário ATUALMENTE
+        const { aberto: horarioAtual, horarioMsg } = verificarLojaAbertaPorHorario(config)
+
+        // Override manual persiste ate o timestamp em
+        // config.loja_aberta_override_until. Enquanto nao passou, respeitamos
+        // o override (true=aberto, false=fechado). Quando passa, removemos
+        // do banco e seguimos o horario automatico.
+        const overrideManual = config.loja_aberta
+        const overrideUntil = config.loja_aberta_override_until
+          ? new Date(config.loja_aberta_override_until)
+          : null
+
+        if (overrideManual !== undefined && overrideManual !== null) {
+          // Override existe. Verifica se ja expirou.
+          const expirou = overrideUntil && overrideUntil.getTime() <= Date.now()
+          if (expirou) {
+            // Override expirou - remove do banco e segue horario
+            const newConfig = { ...config }
+            delete newConfig.loja_aberta
+            delete newConfig.loja_aberta_override_until
+            await supabase.from('tenants').update({ config: newConfig }).eq('id', tenantId)
+            setLojaAberta(null)
+          } else {
+            // Override ainda valido. Respeita o que o lojista definiu,
+            // mesmo que esteja fora do horario programado.
+            setLojaAberta(overrideManual)
+          }
+        } else {
+          setLojaAberta(null)
+        }
       }
 
-      const hoje = new Date().toISOString().split('T')[0]
-      const primeiroDia = new Date()
-      primeiroDia.setDate(1)
-      primeiroDia.setHours(0, 0, 0, 0)
+      // Usar data local (Brasília) para evitar problemas de timezone
+      const agora = new Date()
+      const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+
+      // Calcular início e fim do dia em São Paulo, em UTC
+      // Brasília = UTC-3
+      // Pegar YYYY-MM-DD do dia de hoje em Brasília
+      const ano = brasilia.getFullYear()
+      const mes = brasilia.getMonth()
+      const dia = brasilia.getDate()
+
+      // Início: 08/09 00:00:00 BRT → 08/09 03:00:00 UTC
+      const inicioHojeUTC = new Date(Date.UTC(ano, mes, dia, 3, 0, 0, 0))
+      // Fim: 08/09 23:59:59.999 BRT → 09/09 02:59:59.999 UTC
+      const fimHojeUTC = new Date(Date.UTC(ano, mes, dia + 1, 2, 59, 59, 999))
 
       const { data: vendasHojeRaw } = await supabase
         .from('pedidos')
-        .select('valor_total, pago, status, forma_pagamento')
+        .select('valor_total, pago, status, forma_pagamento, data_criacao')
         .eq('tenant_id', tenantId)
-        .gte('data_criacao', hoje)
+        .gte('data_criacao', inicioHojeUTC.toISOString())
+        .lte('data_criacao', fimHojeUTC.toISOString())
         .neq('status', 'cancelado')
 
       // Faturamento: pago=true OU (entregue E dinheiro)
@@ -58,11 +259,15 @@ export default function VisaoGeralPage() {
       setTotalHoje(vendasHoje.reduce((s, p) => s + Number(p.valor_total), 0))
       setPedidosHoje(vendasHoje.length)
 
+      // Primeiro dia do mês em São Paulo → UTC
+      // 01/09 00:00:00 BRT → 01/09 03:00:00 UTC
+      const primeiroDiaUTC = new Date(Date.UTC(ano, mes, 1, 3, 0, 0, 0))
+
       const { data: vendasMesRaw } = await supabase
         .from('pedidos')
         .select('valor_total, pago, status, forma_pagamento')
         .eq('tenant_id', tenantId)
-        .gte('data_criacao', primeiroDia.toISOString())
+        .gte('data_criacao', primeiroDiaUTC.toISOString())
         .neq('status', 'cancelado')
 
       const vendasMes = (vendasMesRaw || []).filter(p =>
@@ -77,37 +282,102 @@ export default function VisaoGeralPage() {
     }
   }
 
-  const copyLink = async () => {
+  // Recalcular status baseado no horarios state
+  const calculoHorario = horarios
+    ? verificarLojaAbertaPorHorario({ horarios_dias: horarios })
+    : { aberto: false, horarioMsg: '' }
+  const abertoPorHorario = calculoHorario.aberto
+  const horarioMsg = calculoHorario.horarioMsg
+
+  // Lógica: lojaAbertaOverride pode ser true/false/null
+  // - null = seguir horário automático
+  // - true = forçar aberta
+  // - false = forçar fechada
+
+  const estaForaDoHorario = !abertoPorHorario
+  const temOverride = lojaAberta !== null
+  const lojaEstaAberta = lojaAberta === true || (!temOverride && abertoPorHorario)
+
+  // Lojista pode SEMPRE abrir ou fechar manualmente
+  const podeFechar = lojaEstaAberta
+  const podeAbrir = !lojaEstaAberta
+
+  const copiarLink = async () => {
     const url = `${window.location.origin}/${slug}`
     await navigator.clipboard.writeText(url)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const toggleLoja = async () => {
+  const abrirLoja = async () => {
     setToggleLoading(true)
     try {
       const tenantId = await activeTenantId()
       if (!tenantId) { setToggleLoading(false); return }
 
-      const novoStatus = !lojaAberta
-      const { data: tenant } = await supabase
+      // Busca config atual
+      const { data: current } = await supabase
         .from('tenants')
         .select('config')
         .eq('id', tenantId)
         .single()
 
-      const config = (tenant?.config || {}) as any
-      config.loja_aberta = novoStatus
+      const config = (current?.config as any) || {}
+      config.loja_aberta = true // Forçar aberta
+      // Calcula ate quando o override vale: proximo horario programado
+      // de fechamento do dia (ou proximo dia ativo se ja fechou).
+      const expiraEm = calcularExpiracaoOverride(config.horarios_dias, 'abrir')
+      if (expiraEm) {
+        config.loja_aberta_override_until = expiraEm.toISOString()
+      } else {
+        delete config.loja_aberta_override_until
+      }
 
       await supabase
         .from('tenants')
         .update({ config })
         .eq('id', tenantId)
 
-      setLojaAberta(novoStatus)
+      setLojaAberta(true)
     } catch (err) {
-      console.error('Erro toggle:', err)
+      console.error('Erro abrir loja:', err)
+    } finally {
+      setToggleLoading(false)
+    }
+  }
+
+  const fecharLoja = async () => {
+    setToggleLoading(true)
+    try {
+      const tenantId = await activeTenantId()
+      if (!tenantId) { setToggleLoading(false); return }
+
+      // Busca config atual
+      const { data: current } = await supabase
+        .from('tenants')
+        .select('config')
+        .eq('id', tenantId)
+        .single()
+
+      const config = (current?.config as any) || {}
+      config.loja_aberta = false // Forçar fechada
+      // Expira no proximo horario programado de abertura (hoje se ainda
+      // nao abriu, senao proximo dia ativo).
+      const expiraEm = calcularExpiracaoOverride(config.horarios_dias, 'fechar')
+      if (expiraEm) {
+        config.loja_aberta_override_until = expiraEm.toISOString()
+      } else {
+        delete config.loja_aberta_override_until
+      }
+
+      await supabase
+        .from('tenants')
+        .update({ config })
+        .eq('id', tenantId)
+
+      setLojaAberta(false)
+    } catch (err) {
+      console.error('Erro fechar loja:', err)
     } finally {
       setToggleLoading(false)
     }
@@ -130,27 +400,51 @@ export default function VisaoGeralPage() {
             </p>
           </div>
           <div className="flex gap-2 items-center">
-            <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold" style={{
-              background: lojaAberta ? 'rgba(22,163,74,.14)' : 'rgba(220,38,38,.10)',
-              color: lojaAberta ? '#15803D' : '#B91C1C',
-              border: '1px solid currentColor',
-            }}>
-              <span className="size-2 rounded-full" style={{ background: lojaAberta ? '#16A34A' : '#DC2626' }} />
-              {lojaAberta ? 'Loja aberta' : 'Loja fechada'}
-            </span>
-            <button
-              onClick={toggleLoja}
-              disabled={toggleLoading}
-              className={lojaAberta ? 'btn-secondary' : 'btn-primary'}
-              style={lojaAberta ? {
-                background: '#DC2626',
-                borderColor: 'rgba(255,255,255,.2)',
-                boxShadow: '0 6px 16px -6px rgba(220,38,38,.5)',
-              } : undefined}
-            >
-              {lojaAberta ? <PowerOff size={14} /> : <Power size={14} />}
-              {lojaAberta ? 'Fechar loja' : 'Abrir loja'}
-            </button>
+            {/* Status da loja */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ background: lojaEstaAberta ? '#16A34A' : '#DC2626' }}
+              />
+              <span style={{ color: lojaEstaAberta ? '#15803D' : '#B91C1C' }}>
+                {lojaEstaAberta ? 'Aberta' : 'Fechada'}
+              </span>
+              {horarioMsg && (
+                <span className="text-gray-400">· {horarioMsg}</span>
+              )}
+              {temOverride && (
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                  lojaAberta ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                }`} title={lojaAberta ? 'Loja aberta manualmente - fechará no próximo horário programado' : 'Loja fechada manualmente - abrirá no próximo horário programado'}>
+                  {lojaAberta ? 'manual' : 'manual'}
+                </span>
+              )}
+            </div>
+
+            {/* Botão Abrir/Fechar - aparece sempre quando lojista quer mudar */}
+            {(podeAbrir || podeFechar || temOverride) && (
+              <button
+                onClick={lojaEstaAberta ? fecharLoja : abrirLoja}
+                disabled={toggleLoading}
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition flex items-center gap-1.5 ${
+                  lojaEstaAberta
+                    ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                }`}
+                title={lojaEstaAberta ? 'Fechar loja agora (segue horário automaticamente)' : 'Abrir loja agora (fecha no próximo horário programado)'}
+              >
+                {toggleLoading ? (
+                  <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Power size={12} />
+                    <span>
+                      {lojaEstaAberta ? (temOverride ? 'Fechar agora' : 'Fechar loja') : 'Abrir loja'}
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -193,7 +487,7 @@ export default function VisaoGeralPage() {
       {/* Ações rápidas */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button
-          onClick={copyLink}
+          onClick={copiarLink}
           className="glass p-6 flex items-center gap-4 hover:bg-white/95 transition group text-left"
         >
           <div className="size-14 rounded-2xl flex items-center justify-center" style={{ background: 'var(--green)' }}>
@@ -227,4 +521,3 @@ export default function VisaoGeralPage() {
     </div>
   )
 }
-

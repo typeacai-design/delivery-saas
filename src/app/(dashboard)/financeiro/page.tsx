@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { WalletCards, Receipt, CreditCard, Plus, X, ArrowUpRight, ArrowDownRight, TrendingUp, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { useToast } from '@/components/toast'
 
 type Tab = 'cashflow'|'accounts'|'payments'
 type Order = { id:string; codigo:string|null; created_at:string; valor_total:number; taxa_entrega:number; forma_pagamento:string; status:string; pago:boolean|null }
@@ -17,6 +18,7 @@ const tabs = [
 ] as const
 
 export default function FinanceiroPage(){
+  const { error: toastError, success: toastSuccess } = useToast()
   const supabase=useMemo(()=>createClient(),[])
   const [tab,setTab]=useState<Tab>('cashflow')
   const [orders,setOrders]=useState<Order[]>([])
@@ -36,11 +38,31 @@ export default function FinanceiroPage(){
       setExpenses(body.expenses||[])
       setTransactions(body.transactions||[])
       setTenant(body.tenant)
-      // Calcular saldo total - SÓ conta pedidos PAGOS como entrada
-      const entradas = (body.orders||[]).filter((o:any)=>o.pago===true && o.status!=='cancelado').reduce((s:number,o:any)=>s+Number(o.valor_total||0),0)
-      const saidas = (body.expenses||[]).reduce((s:number,e:any)=>s+Number(e.valor||0),0)
-      const manual = (body.transactions||[]).reduce((s:number,t:any)=>s+(t.tipo==='entrada'?1:-1)*Number(t.valor||0),0)
-      setSaldoTotal(entradas - saidas + manual)
+      // Calcular saldo SEM duplicação:
+      // - Entradas: transactions manuais (todas as de tipo='entrada')
+      //   + pedidos pagos que NÃO têm transação manual correspondente
+      // - Saídas: despesas + transactions manuais de tipo='saida'
+      const pedidosComTransacao = new Set(
+        (body.transactions||[])
+          .filter((t:any) => t.categoria === 'pedido' && t.descricao)
+          .map((t:any) => t.descricao as string)
+      )
+      const entradasPedidosSemTransacao = (body.orders||[])
+        .filter((o:any) => {
+          if (o.pago !== true || o.status === 'cancelado') return false
+          const labelComHash = `Pedido #${o.codigo || o.id.slice(0,8)}`
+          const labelSemHash = `Pedido ${o.codigo || o.id.slice(0,8)}`
+          return !pedidosComTransacao.has(labelComHash) && !pedidosComTransacao.has(labelSemHash)
+        })
+        .reduce((s:number,o:any)=>s+Number(o.valor_total||0),0)
+      const entradasManuais = (body.transactions||[])
+        .filter((t:any) => t.tipo === 'entrada')
+        .reduce((s:number,t:any)=>s+Number(t.valor||0),0)
+      const saidasDespesas = (body.expenses||[]).reduce((s:number,e:any)=>s+Number(e.valor||0),0)
+      const saidasManuais = (body.transactions||[])
+        .filter((t:any) => t.tipo === 'saida')
+        .reduce((s:number,t:any)=>s+Number(t.valor||0),0)
+      setSaldoTotal(entradasPedidosSemTransacao + entradasManuais - saidasDespesas - saidasManuais)
     }finally{setLoading(false)}
   })()},[])
 
@@ -72,24 +94,19 @@ export default function FinanceiroPage(){
 const Empty=({text}:{text:string})=><p className="hint text-sm py-8 text-center">{text}</p>
 
 function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{orders:Order[];expenses:Expense[];transactions:ManualTransaction[];onNewTransaction:()=>void;onSaved:()=>void}){
-  // Só mostra PEDIDOS PAGOS como entrada no fluxo de caixa
+  // Constrói a lista:
+  // 1) Transactions manuais SEMPRE aparecem (incluindo categoria='pedido' vindas do trigger)
+  // 2) Despesas aparecem como saída
+  // 3) Orders pagos aparecem APENAS se não há transação manual correspondente
+  //    (evita duplicação quando o trigger já inseriu automaticamente)
+  const transacoesPedidoDescricoes = new Set(
+    transactions
+      .filter(t => t.categoria === 'pedido' && t.descricao)
+      .map(t => t.descricao as string)
+  )
+
   const rows=[
-    ...orders.filter(o=>o.pago===true).map(o=>({
-      date:o.created_at,
-      label:`Pedido ${o.codigo || `#${o.id.slice(0,8)}`}`,
-      value:Number(o.valor_total),
-      kind:'entrada' as const,
-      pago:o.pago,
-      status:o.status
-    })),
-    ...expenses.map(e=>({
-      date:e.created_at,
-      label:e.nome,
-      value:-Number(e.valor),
-      kind:'saída' as const,
-      pago:e.pago,
-      status:null
-    })),
+    // 1) Transações manuais PRIMEIRO (incluindo as de pedidos via trigger)
     ...transactions.map(t=>({
       date:t.data,
       label:t.descricao,
@@ -97,6 +114,30 @@ function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{order
       kind:t.tipo as 'entrada' | 'saida',
       pago:null as null,
       status:null as null
+    })),
+    // 2) Pedidos pagos que NÃO têm transação manual
+    ...orders.filter(o => {
+      if (o.pago !== true) return false
+      if (o.status === 'cancelado') return false
+      const labelComHash = `Pedido #${o.codigo || o.id.slice(0,8)}`
+      const labelSemHash = `Pedido ${o.codigo || o.id.slice(0,8)}`
+      return !transacoesPedidoDescricoes.has(labelComHash) && !transacoesPedidoDescricoes.has(labelSemHash)
+    }).map(o => ({
+      date:o.created_at,
+      label:`Pedido #${o.codigo || o.id.slice(0,8)}`,
+      value:Number(o.valor_total),
+      kind:'entrada' as const,
+      pago:o.pago,
+      status:o.status
+    })),
+    // 3) Despesas como saída
+    ...expenses.map(e=>({
+      date:e.created_at,
+      label:e.nome,
+      value:-Number(e.valor),
+      kind:'saída' as const,
+      pago:e.pago,
+      status:null
     }))
   ].sort((a,b)=>+new Date(b.date)-+new Date(a.date))
 
@@ -159,6 +200,7 @@ function Accounts({orders,expenses,onNewExpense}:{orders:Order[];expenses:Expens
 }
 
 function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
+  const { error: toastError, success: toastSuccess } = useToast()
   // Defaults: todas as formas de pagamento ATIVADAS por padrão
   const DEFAULT_FORMAS = {dinheiro:true,pix:true,cartao_credito:true,cartao_debito:true}
   // Sincronizar estado inicial com a config salva, usando defaults se vazio
@@ -179,8 +221,8 @@ function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
     if(!hasChanges)return
     const response=await fetch('/api/financeiro',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({formas:values})})
     const body=await response.json()
-    if(response.ok){onSaved(body.tenant);setHasChanges(false);alert('Formas de pagamento salvas.')}
-    else alert(body.error||'Não foi possível salvar.')
+    if(response.ok){onSaved(body.tenant);setHasChanges(false);toastSuccess('Formas de pagamento salvas')}
+    else toastError('Nao foi possivel salvar', body.error)
   }
 
   const toggleValue=(key:string)=>{
@@ -229,30 +271,34 @@ function Payments({tenant,onSaved}:{tenant:any;onSaved:(v:any)=>void}){
 }
 
 function LancarModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
+  const { error: toastError, success: toastSuccess } = useToast()
   const[forma,setForma]=useState<'entrada'|'saida'>('entrada')
   const[tipo,setTipo]=useState('manual')
   const[descricao,setDescricao]=useState('')
   const[valor,setValor]=useState('')
   const[data,setData]=useState(new Date().toISOString().split('T')[0])
   const[saving,setSaving]=useState(false)
-  const supabase=createClient()
 
   const salvar=async()=>{
-    if(!descricao.trim()||!valor){alert('Preencha descrição e valor');return}
+    if(!descricao.trim()||!valor){toastError('Preencha descricao e valor');return}
     setSaving(true)
     try{
-      const tenantId=await fetch('/api/auth/meu-tenant').then(r=>r.json()).then(d=>d.tenantId)
-      const {error}=await supabase.from('movimentacoes_financeiras').insert({
-        tenant_id:tenantId,
-        tipo:forma,
-        categoria:tipo,
-        descricao:descricao.trim(),
-        valor:parseFloat(valor),
-        data
+      const response = await fetch('/api/financeiro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: forma,
+          categoria: tipo,
+          descricao: descricao.trim(),
+          valor: parseFloat(valor),
+          data,
+        }),
       })
-      if(error)throw error
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || 'Erro ao salvar')
       onSave()
-    }catch(e:any){alert(e.message||'Erro ao salvar')}
+      toastSuccess('Lancamento salvo')
+    }catch(e:any){toastError(e.message || 'Erro ao salvar')}
     finally{setSaving(false)}
   }
 

@@ -1,11 +1,15 @@
 'use client'
+import { ProdutoModal as MontagemProduto } from './checkout-flow'
+import { flavorLabel } from '@/lib/flavor-pricing'
+import { chargedProductBase } from '@/lib/product-pricing'
 
 import { useState } from 'react'
 import { X, Plus, Minus, ShoppingCart, Clock } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, ordenarComplementos } from '@/lib/utils'
 
 export interface CartItem {
   id: string
+  sabores_quantidade?: number
   produto_id: string
   nome: string
   quantidade: number
@@ -15,9 +19,12 @@ export interface CartItem {
   variante_preco?: number
   complementos: CartComplemento[]
   tempo_preparo_min?: number
+  pontos?: number
 }
 
 export interface CartComplemento {
+  tipo?: string
+  fracao_denominador?: number
   id: string
   nome: string
   quantidade: number
@@ -80,7 +87,7 @@ export function CartDrawer({
       if (item.complementos.length > 0) {
         texto += `   ➕ Adicionais:\n`
         item.complementos.forEach(c => {
-          texto += `      - ${c.quantidade}x ${c.nome} (${formatCurrency(c.valor)})\n`
+          texto += `      - ${c.tipo === 'sabor' ? flavorLabel(c) : `+ ${c.quantidade}x ${c.nome}`} (${formatCurrency(c.valor)})\n`
         })
       }
       texto += `   Qtd: ${item.quantidade}x\n`
@@ -171,7 +178,7 @@ export function CartDrawer({
                           <div className="mt-1">
                             {item.complementos.map((c) => (
                               <p key={c.id} className="text-xs text-gray-500">
-                                + {c.quantidade}x {c.nome}
+                                {c.tipo === 'sabor' ? flavorLabel(c) : `+ ${c.quantidade}x ${c.nome}`}
                               </p>
                             ))}
                           </div>
@@ -269,6 +276,9 @@ interface ProdutoModalProps {
   complementos: any[]
   onAddToCart: (item: Omit<CartItem, 'id'>) => void
   paletaCor: string
+  lojaAberta?: boolean
+  saboresAtivo?: boolean
+  listas?: any[]
 }
 
 export function ProdutoModal({
@@ -278,7 +288,10 @@ export function ProdutoModal({
   variantes,
   complementos,
   onAddToCart,
-  paletaCor
+  paletaCor,
+  lojaAberta = true,
+  saboresAtivo = false,
+  listas = [],
 }: ProdutoModalProps) {
   const [quantidade, setQuantidade] = useState(1)
   const [varianteSelecionada, setVarianteSelecionada] = useState<string | null>(
@@ -287,9 +300,10 @@ export function ProdutoModal({
   const [complementosSelecionados, setComplementosSelecionados] = useState<{[key: string]: number}>({})
 
   if (!isOpen || !produto) return null
+  if (produto.sabores_grupo_id) return <MontagemProduto isOpen={isOpen} onClose={onClose} produto={produto} variantes={variantes} complementos={complementos} listas={listas} saboresAtivo={saboresAtivo} lojaAberta={lojaAberta} paletaCor={paletaCor} onAddToCart={onAddToCart} />
 
   const variante = variantes.find(v => v.id === varianteSelecionada)
-  const precoBase = produto.preco + (variante?.preco_adicional || 0)
+  const precoBase = chargedProductBase(produto, variante?.preco_adicional)
   const precoComplementos = Object.entries(complementosSelecionados).reduce((acc, [id, qtd]) => {
     const comp = complementos.find(c => c.id === id)
     return acc + (comp?.preco || 0) * (qtd as number)
@@ -325,12 +339,13 @@ export function ProdutoModal({
       produto_id: produto.id,
       nome: produto.nome,
       quantidade,
-      valor_unitario: produto.preco,
+      valor_unitario: chargedProductBase(produto),
       variante_id: variante?.id,
       variante_nome: variante?.nome,
-      variante_preco: variante?.preco_adicional,
+      variante_preco: produto.exibir_preco_a_partir_de === true ? 0 : variante?.preco_adicional,
       complementos: complementoItems,
-      tempo_preparo_min: produto.tempo_preparo_min || 30
+      tempo_preparo_min: produto.tempo_preparo_min || 30,
+      pontos: produto.pontos || 0,
     })
 
     // Reset
@@ -346,7 +361,27 @@ export function ProdutoModal({
         onClick={onClose}
       />
 
-      <div className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white rounded-3xl z-50 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      {/* Overlay bloqueante quando loja esta fora do horario */}
+      {!lojaAberta && (
+        <div className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white rounded-3xl z-[60] flex items-center justify-center p-6 shadow-2xl">
+          <div className="text-center w-full">
+            <div className="text-5xl mb-3">🕐</div>
+            <h3 className="text-xl font-bold mb-1 text-gray-900">Loja Fechada</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Esta loja está fora do horário de funcionamento. Não é possível selecionar produtos agora.
+            </p>
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl font-semibold text-white transition active:scale-95"
+              style={{ background: paletaCor }}
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white rounded-3xl z-50 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden ${!lojaAberta ? 'pointer-events-none opacity-30' : ''}`}>
         {/* Header com imagem */}
         <div className="relative">
           {produto.imagem_url ? (
@@ -412,12 +447,12 @@ export function ProdutoModal({
             </div>
           )}
 
-          {/* Complementos */}
+          {/* Complementos (ordenados: grátis no topo, depois alfabético) */}
           {complementos.length > 0 && (
             <div className="mt-5">
               <h3 className="font-semibold text-sm mb-2">Adicionais</h3>
               <div className="space-y-2">
-                {complementos.map((comp) => (
+                {ordenarComplementos(complementos).map((comp) => (
                   <button
                     key={comp.id}
                     onClick={() => toggleComplemento(comp.id)}
@@ -439,7 +474,10 @@ export function ProdutoModal({
                           </svg>
                         )}
                       </div>
-                      <span className="font-medium">{comp.nome}</span>
+                      <div className="flex-1 text-left">
+                        <span className="font-medium block">{comp.nome}</span>
+                        {comp.descricao && <span className="text-xs text-gray-500 block mt-0.5 leading-snug">{comp.descricao}</span>}
+                      </div>
                     </div>
                     <span className="font-semibold text-green-600">
                       + {formatCurrency(comp.preco)}
