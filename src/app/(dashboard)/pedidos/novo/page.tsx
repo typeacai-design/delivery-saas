@@ -729,6 +729,31 @@ export default function NovoPedidoPage() {
   const [mesaSessaoId, setMesaSessaoId] = useState<string | null>(null)
   const [mesaClienteNome, setMesaClienteNome] = useState('')
   const [mesaClienteWhatsapp, setMesaClienteWhatsapp] = useState('')
+  const [mesasDisponiveis, setMesasDisponiveis] = useState<any[]>([])
+  const [carregandoMesas, setCarregandoMesas] = useState(false)
+
+  // Carregar mesas do banco quando tipo='mesa'
+  useEffect(() => {
+    if (tipoEntrega !== 'mesa') {
+      setMesasDisponiveis([])
+      return
+    }
+    const carregarMesas = async () => {
+      setCarregandoMesas(true)
+      try {
+        const res = await fetch('/api/mesas', { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          setMesasDisponiveis(data.mesas || [])
+        }
+      } catch (e) {
+        console.error('Erro ao carregar mesas:', e)
+      } finally {
+        setCarregandoMesas(false)
+      }
+    }
+    carregarMesas()
+  }, [tipoEntrega])
 
   // Cliente selecionado
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
@@ -1194,16 +1219,63 @@ export default function NovoPedidoPage() {
             {tipoEntrega === 'mesa' && (
               <div className="mt-3 p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3">
                 <div className="flex items-center gap-2 text-amber-900 text-sm font-medium">
-                  🍽️ <span>Pedido de mesa</span>
+                  🍽️ <span>Selecione a mesa</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+
+                {/* Grid de seleção de mesa */}
+                {carregandoMesas ? (
+                  <div className="text-center py-4 text-sm text-amber-700">Carregando mesas...</div>
+                ) : mesasDisponiveis.length > 0 ? (
+                  <div className="grid grid-cols-4 gap-2 mb-3">
+                    {mesasDisponiveis.map((mesa) => {
+                      const isSelected = mesaNumero === String(mesa.numero)
+                      return (
+                        <button
+                          key={mesa.id}
+                          type="button"
+                          onClick={() => {
+                            setMesaNumero(String(mesa.numero))
+                            // Auto-preencher nome se vazio
+                            if (!mesaClienteNome.trim() && mesa.nome) {
+                              setMesaClienteNome(mesa.nome)
+                            }
+                          }}
+                          className={`p-3 rounded-xl border-2 text-center transition ${
+                            isSelected
+                              ? 'border-amber-500 bg-amber-500 text-white font-bold'
+                              : 'border-amber-200 bg-white hover:border-amber-400'
+                          }`}
+                        >
+                          <div className="text-lg font-bold">{mesa.numero}</div>
+                          {mesa.nome && mesa.nome !== `Mesa ${mesa.numero}` && (
+                            <div className="text-[10px] truncate mt-0.5 opacity-80">{mesa.nome}</div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-3 text-sm text-amber-700 mb-3">
+                    Nenhuma mesa cadastrada.{' '}
+                    <a href="/configuracoes?tab=mesas" target="_blank" className="underline font-medium">
+                      Cadastrar mesas
+                    </a>
+                  </div>
+                )}
+
+                {/* Número manual como fallback */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-amber-700">ou digite:</span>
                   <input
                     type="text"
                     placeholder="Nº da mesa"
-                    className="form-input"
+                    className="form-input flex-1"
                     value={mesaNumero}
                     onChange={(e) => setMesaNumero(e.target.value)}
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
                     placeholder="Nome do cliente"
@@ -1211,14 +1283,14 @@ export default function NovoPedidoPage() {
                     value={mesaClienteNome}
                     onChange={(e) => setMesaClienteNome(e.target.value)}
                   />
+                  <input
+                    type="text"
+                    placeholder="WhatsApp (opcional)"
+                    className="form-input"
+                    value={mesaClienteWhatsapp}
+                    onChange={(e) => setMesaClienteWhatsapp(e.target.value)}
+                  />
                 </div>
-                <input
-                  type="text"
-                  placeholder="WhatsApp (opcional)"
-                  className="form-input"
-                  value={mesaClienteWhatsapp}
-                  onChange={(e) => setMesaClienteWhatsapp(e.target.value)}
-                />
                 <p className="hint text-xs">
                   O pedido vai pra cozinha normalmente. Pra adicionar mais itens depois, abra o card da mesa na aba "Mesas" em Pedidos.
                 </p>

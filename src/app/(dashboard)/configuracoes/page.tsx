@@ -4,13 +4,13 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import {
-  Clock, MapPin, CreditCard, User, Save, Plus, X, Sparkles, Calendar, Upload, Trash2, Image as ImageIcon, Copy, Ban, CheckCircle2
+  Clock, MapPin, CreditCard, User, Save, Plus, X, Sparkles, Calendar, Upload, Trash2, Image as ImageIcon, Copy, Ban, CheckCircle2, Table2, Edit3
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { CoordinateMap } from '@/components/coordinate-map'
 import { useToast } from '@/components/toast'
 
-type Tab = 'horarios' | 'entregas' | 'perfil'
+type Tab = 'horarios' | 'entregas' | 'perfil' | 'mesas'
 
 const DIAS_SEMANA = [
   { id: 'seg', nome: 'Segunda' },
@@ -32,7 +32,8 @@ export default function ConfiguracoesPage() {
   // Carregar tenant uma vez só
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
-    if (urlParams.get('tab') === 'perfil') setTab('perfil')
+    const tabParam = urlParams.get('tab')
+    if (tabParam === 'perfil' || tabParam === 'mesas') setTab(tabParam as Tab)
     loadTenant()
   }, [])
 
@@ -75,6 +76,7 @@ export default function ConfiguracoesPage() {
   const tabs = [
     { id: 'horarios', label: 'Horários', icon: Clock },
     { id: 'entregas', label: 'Entregas', icon: MapPin },
+    { id: 'mesas', label: 'Mesas', icon: Table2 },
     { id: 'perfil', label: 'Meu perfil', icon: User },
   ] as const
 
@@ -89,7 +91,7 @@ export default function ConfiguracoesPage() {
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
             Configurações
           </h1>
-          <p className="hint mt-2">Horários, entregas e perfil</p>
+          <p className="hint mt-2">Horários, entregas, mesas e perfil</p>
         </div>
       </div>
 
@@ -117,6 +119,7 @@ export default function ConfiguracoesPage() {
 
       {tab === 'horarios' && <HorariosTab tenant={tenant} loadTenantFromParent={loadTenant} />}
       {tab === 'entregas' && <EntregasTab />}
+      {tab === 'mesas' && <MesasTab />}
       {tab === 'perfil' && <PerfilEditavel tenant={tenant} onSaved={loadTenant} onReload={loadTenant} />}
     </div>
   )
@@ -1014,4 +1017,232 @@ function PerfilEditavel({tenant,onSaved,onReload}:{tenant:any;onSaved:()=>Promis
       </button>
     </div>
   </div>
+}
+
+/**
+ * MesasTab — gerencia mesas do salão
+ */
+function MesasTab() {
+  const { error: toastError, success: toastSuccess } = useToast()
+  const [mesas, setMesas] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editando, setEditando] = useState<any>(null)
+  const [form, setForm] = useState({ numero: '', nome: '', capacidade: '4' })
+  const [saving, setSaving] = useState(false)
+
+  const carregar = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/mesas', { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setMesas(data.mesas || [])
+      }
+    } catch (e) {
+      console.error('Erro ao carregar mesas:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { carregar() }, [])
+
+  const abrirNovo = () => {
+    setEditando(null)
+    setForm({ numero: '', nome: '', capacidade: '4' })
+    setShowForm(true)
+  }
+
+  const abrirEditar = (mesa: any) => {
+    setEditando(mesa)
+    setForm({
+      numero: String(mesa.numero),
+      nome: mesa.nome || '',
+      capacidade: String(mesa.capacidade || 4),
+    })
+    setShowForm(true)
+  }
+
+  const salvar = async () => {
+    if (!form.numero.trim()) {
+      toastError('Informe o número da mesa')
+      return
+    }
+    setSaving(true)
+    try {
+      if (editando) {
+        // DELETE + POST (API simples não tem PUT)
+        await fetch(`/api/mesas?id=${editando.id}`, { method: 'DELETE', cache: 'no-store' })
+      }
+      const res = await fetch('/api/mesas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numero: parseInt(form.numero) || 0,
+          nome: form.nome.trim() || null,
+          capacidade: parseInt(form.capacidade) || 4,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Erro ao salvar')
+      }
+      toastSuccess(editando ? 'Mesa atualizada!' : 'Mesa cadastrada!')
+      setShowForm(false)
+      carregar()
+    } catch (e: any) {
+      toastError(e.message || 'Erro ao salvar mesa')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const excluir = async (mesa: any) => {
+    if (!confirm(`Excluir Mesa ${mesa.numero}?`)) return
+    try {
+      const res = await fetch(`/api/mesas?id=${mesa.id}`, { method: 'DELETE', cache: 'no-store' })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Erro ao excluir')
+      }
+      toastSuccess('Mesa excluída')
+      carregar()
+    } catch (e: any) {
+      toastError(e.message || 'Erro ao excluir')
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="glass p-5 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Mesas do salão</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Cadastre as mesas do seu restaurante para usar no atendimento de salão.
+          </p>
+        </div>
+        <button onClick={abrirNovo} className="btn-primary flex items-center gap-2">
+          <Plus size={16} /> Nova Mesa
+        </button>
+      </div>
+
+      {/* Formulário de cadastro/edição */}
+      {showForm && (
+        <div className="glass p-5">
+          <h3 className="font-semibold mb-4">{editando ? 'Editar Mesa' : 'Nova Mesa'}</h3>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Número *</label>
+              <input
+                type="number"
+                min={1}
+                className="form-input w-full"
+                value={form.numero}
+                onChange={(e) => setForm({ ...form, numero: e.target.value })}
+                placeholder="1"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Nome (opcional)</label>
+              <input
+                type="text"
+                className="form-input w-full"
+                value={form.nome}
+                onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                placeholder="Mesa near janela"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Capacidade</label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                className="form-input w-full"
+                value={form.capacidade}
+                onChange={(e) => setForm({ ...form, capacidade: e.target.value })}
+                placeholder="4"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowForm(false)} className="btn-secondary">
+              Cancelar
+            </button>
+            <button onClick={salvar} disabled={saving} className="btn-primary">
+              {saving ? 'Salvando...' : editando ? 'Atualizar' : 'Cadastrar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de mesas */}
+      {loading ? (
+        <div className="glass p-12 text-center">
+          <div className="size-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-gray-500">Carregando mesas...</p>
+        </div>
+      ) : mesas.length === 0 ? (
+        <div className="glass p-12 text-center">
+          <div className="text-5xl mb-3">🍽️</div>
+          <h3 className="text-lg font-semibold mb-1">Nenhuma mesa cadastrada</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Cadastre as mesas do seu salão para usar no atendimento.
+          </p>
+          <button onClick={abrirNovo} className="btn-primary inline-flex items-center gap-2">
+            <Plus size={16} /> Cadastrar primeira mesa
+          </button>
+        </div>
+      ) : (
+        <div className="glass p-5">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {mesas.map((mesa) => (
+              <div
+                key={mesa.id}
+                className="p-4 rounded-xl border-2 border-gray-100 hover:border-amber-300 transition bg-white"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <span className="text-2xl font-bold text-amber-600">#{mesa.numero}</span>
+                    {mesa.nome && (
+                      <p className="text-xs text-gray-500 mt-0.5">{mesa.nome}</p>
+                    )}
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    mesa.status === 'livre' ? 'bg-green-100 text-green-700' :
+                    mesa.status === 'ocupada' ? 'bg-red-100 text-red-700' :
+                    mesa.status === 'reservada' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {mesa.status?.toUpperCase() || 'LIVRE'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">👤 até {mesa.capacidade || 4}</span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => abrirEditar(mesa)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition"
+                      title="Editar"
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    <button
+                      onClick={() => excluir(mesa)}
+                      className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition"
+                      title="Excluir"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }

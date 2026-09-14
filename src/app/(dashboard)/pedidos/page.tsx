@@ -1254,9 +1254,23 @@ export default function PedidosPage() {
           </>
         )}
         <div className="flex items-center gap-2">
-          {pedidosTab === 'fluxo' ? (
+          {pedidosTab === 'historico' ? (
             <>
-              {/* ABA FLUXO: só "Hoje" e "Ontem" */}
+              {/* ABA HISTÓRICO: só "Todos" */}
+              <button
+                onClick={() => {
+                  setFiltroDataDe('')
+                  setFiltroDataAte('')
+                  setFiltroPeriodo('todos')
+                }}
+                className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'todos' && !filtroDataDe && !filtroDataAte ? 'bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+              >
+                Todos
+              </button>
+            </>
+          ) : (
+            <>
+              {/* ABA FLUXO e MESAS: só "Hoje" e "Ontem" */}
               <button
                 onClick={() => {
                   const agora = new Date()
@@ -1284,20 +1298,6 @@ export default function PedidosPage() {
                 className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'ontem' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
               >
                 Ontem
-              </button>
-            </>
-          ) : (
-            <>
-              {/* ABA HISTÓRICO: só "Todos" */}
-              <button
-                onClick={() => {
-                  setFiltroDataDe('')
-                  setFiltroDataAte('')
-                  setFiltroPeriodo('todos')
-                }}
-                className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'todos' && !filtroDataDe && !filtroDataAte ? 'bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-              >
-                Todos
               </button>
             </>
           )}
@@ -1812,6 +1812,9 @@ export default function PedidosPage() {
       {pedidosTab === 'mesas' && (
         <MesasGrid
           sessoes={sessoesMesa}
+          filtroDataDe={filtroDataDe}
+          filtroDataAte={filtroDataAte}
+          filtroPeriodo={filtroPeriodo}
           onRefresh={loadSessoesMesa}
           toastError={toastError}
           toastSuccess={toastSuccess}
@@ -2460,31 +2463,53 @@ export default function PedidosPage() {
 /**
  * MesasGrid — renderiza cards de sessões de mesa abertas
  */
-interface MesaCardProps {
+interface MesasGridProps {
   sessoes: any[]
+  filtroDataDe: string
+  filtroDataAte: string
+  filtroPeriodo: 'hoje' | 'ontem' | 'todos'
   onRefresh: () => void
   toastError: (msg: string, desc?: string) => void
   toastSuccess: (msg: string, desc?: string) => void
 }
 
-function MesasGrid({ sessoes, onRefresh, toastError, toastSuccess }: MesaCardProps) {
-  const abertas = sessoes.filter((s) => s.status === 'aberta')
-  const fechadas = sessoes.filter((s) => s.status !== 'aberta')
+function MesasGrid({ sessoes, filtroDataDe, filtroDataAte, filtroPeriodo, onRefresh, toastError, toastSuccess }: MesasGridProps) {
+  // Filtrar sessões por data
+  const dataLocalISO = (dateStr: string) => {
+    const d = new Date(dateStr)
+    if (Number.isNaN(d.getTime())) return ''
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
 
-  if (sessoes.length === 0) {
+  const sessoesFiltradas = filtroDataDe || filtroDataAte
+    ? sessoes.filter((s) => {
+        const dataSessao = dataLocalISO(s.data_abertura)
+        if (!dataSessao) return true
+        const deOk = !filtroDataDe || dataSessao >= filtroDataDe
+        const ateOk = !filtroDataAte || dataSessao <= filtroDataAte
+        return deOk && ateOk
+      })
+    : sessoes
+
+  const abertas = sessoesFiltradas.filter((s) => s.status === 'aberta')
+  const fechadas = sessoesFiltradas.filter((s) => s.status !== 'aberta')
+
+  if (sessoesFiltradas.length === 0) {
     return (
       <div className="col-span-full text-center py-12">
         <div className="text-5xl mb-3">🍽️</div>
-        <h3 className="text-lg font-semibold mb-1">Nenhuma mesa aberta</h3>
+        <h3 className="text-lg font-semibold mb-1">Nenhuma mesa neste período</h3>
         <p className="hint text-sm">
-          Quando você lançar um pedido do tipo "Mesa", ele aparecerá aqui pra acompanhar e fechar.
+          {sessoes.length > 0 ? 'Tente outro filtro de período.' : 'Quando você lançar um pedido do tipo "Mesa", ele aparecerá aqui.'}
         </p>
-        <a
-          href="/pedidos/novo"
-          className="btn-primary inline-flex items-center gap-2 mt-4"
-        >
-          <Plus size={16} /> Lançar pedido de mesa
-        </a>
+        {sessoes.length === 0 && (
+          <a
+            href="/pedidos/novo"
+            className="btn-primary inline-flex items-center gap-2 mt-4"
+          >
+            <Plus size={16} /> Lançar pedido de mesa
+          </a>
+        )}
       </div>
     )
   }
