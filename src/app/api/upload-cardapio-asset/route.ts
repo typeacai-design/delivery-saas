@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       await supabase.storage.from('cardapio-assets').remove([path])
       throw updateError
     }
-    return NextResponse.json({ url: publicData.publicUrl, path })
+    return NextResponse.json({ url: publicData.publicUrl, path, _ts: Date.now() })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Erro no upload' }, { status: 500 })
   }

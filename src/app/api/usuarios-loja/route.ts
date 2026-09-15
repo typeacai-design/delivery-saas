@@ -2,28 +2,52 @@
 import { NextResponse } from 'next/server'
 import { authenticatedTenant } from '@/lib/tenant-auth'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { createHash, randomBytes } from 'node:crypto'
-import { enviarEmail } from '@/lib/email/resend'
+import { hashEquipeSenha, verifyEquipeSenha } from '@/lib/equipe-auth'
 
-const escapeHtml=(value:string)=>value.replace(/[&<>'"]/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[c]!))
+const adminClient = () => createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false, autoRefreshToken: false } }
+)
 
-const adminClient=()=>createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } })
+const ROLES_OPERACIONAIS = ['kitchen', 'motoboy', 'atendimento']
+// Aceita registros legados com perfil 'attendant' (migrados para 'atendimento')
+const ROLES_VALIDAS_NO_BANCO = ['kitchen', 'motoboy', 'atendimento', 'attendant']
+const ROLES_PERMITIDAS_LABEL: Record<string, string> = {
+  kitchen: 'cozinha',
+  motoboy: 'motoboy',
+  atendimento: 'atendimento',
+  attendant: 'atendimento',
+}
 
 export async function GET() {
   try {
-    const {supabase,user,tenantId,role}=await authenticatedTenant(['owner','manager'])
-    if(!user||!tenantId)return NextResponse.json({error:'Não autorizado'},{status:403})
-    const usuarioLoja={tenant_id:tenantId,role}
+    const { user, tenantId, role } = await authenticatedTenant(['owner', 'manager'])
+    if (!user || !tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 403 })
 
-    // Listar usuários da mesma loja
-    const { data: usuarios, error } = await supabase
-      .from('usuarios_loja')
-      .select('*')
-      .eq('tenant_id', usuarioLoja.tenant_id)
+    const admin = adminClient()
+    const { data: membros, error } = await admin
+      .from('membros_equipe')
+      .select('id, nome, username, perfil, ativo, created_at')
+      .eq('tenant_id', tenantId)
+      .eq('ativo', true)
       .order('created_at')
 
     if (error) throw error
-    return NextResponse.json({ usuarios: (usuarios || []).filter((item: any) => ['kitchen', 'motoboy'].includes(item.role)), can_manage: usuarioLoja.role === 'owner' })
+
+    const lista = (membros || []).map((m: any) => ({
+      id: m.id,
+      nome: m.nome,
+      username: m.username,
+      // mantém compatibilidade com o frontend atual (lê m.email e m.role)
+      email: m.username,
+      // normaliza 'attendant' legado para 'atendimento'
+      role: m.perfil === 'attendant' ? 'atendimento' : m.perfil,
+      perfil_real: m.perfil,
+      ativo: m.ativo,
+    }))
+
+    return NextResponse.json({ usuarios: lista, can_manage: role === 'owner' })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -31,124 +55,75 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const {user,tenantId,role:actorRole}=await authenticatedTenant(['owner'])
-    if(!user||!tenantId)return NextResponse.json({error:'Sem permissão'},{status:403})
+    const { user, tenantId, role: actorRole } = await authenticatedTenant(['owner'])
+    if (!user || !tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    if (actorRole !== 'owner') return NextResponse.json({ error: 'Apenas o dono pode criar acessos' }, { status: 403 })
 
     const body = await request.json()
-    const { email, nome, role } = body
-    const rolesPermitidas = ['kitchen', 'motoboy']
+    const { nome, username, senha, perfil } = body
 
-    if (!email || !nome || !rolesPermitidas.includes(role)) {
-      return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 })
+    // Normalização
+    const nomeLimpo = String(nome || '').trim()
+    const userLimpo = String(username || '').trim().toLowerCase()
+    const senhaLimpa = String(senha || '')
+    const perfilLimpo = String(perfil || '')
+
+    if (!nomeLimpo || !userLimpo || !senhaLimpa || !ROLES_OPERACIONAIS.includes(perfilLimpo)) {
+      return NextResponse.json({ error: 'Preencha nome, usuário, senha e função.' }, { status: 400 })
+    }
+    if (userLimpo.length < 3 || userLimpo.length > 40) {
+      return NextResponse.json({ error: 'Usuário deve ter entre 3 e 40 caracteres.' }, { status: 400 })
+    }
+    if (!/^[a-z0-9._-]+$/.test(userLimpo)) {
+      return NextResponse.json({ error: 'Use apenas letras minúsculas, números, ponto, hífen ou underline.' }, { status: 400 })
+    }
+    if (senhaLimpa.length < 6) {
+      return NextResponse.json({ error: 'A senha deve ter ao menos 6 caracteres.' }, { status: 400 })
     }
 
-    const usuarioLoja={tenant_id:tenantId,role:actorRole}
-    if (actorRole !== 'owner') {
-      return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
-    }
-
-    const authAdmin = adminClient()
-    // Verifica se email já existe no Auth; caso contrário envia convite seguro.
-    const rawToken = randomBytes(32).toString('hex')
-    const tokenHash = createHash('sha256').update(rawToken).digest('hex')
-    const { data: pending, error: pendingError } = await authAdmin.from('convites_loja').insert({ tenant_id: usuarioLoja.tenant_id, email: String(email).toLowerCase(), nome, role, token_hash: tokenHash, expires_at: new Date(Date.now()+48*60*60*1000).toISOString() }).select('id').single()
-    if (pendingError) throw pendingError
-    const redirectTo = `${new URL(request.url).origin}/equipe/aceitar?token=${encodeURIComponent(rawToken)}`
-    const { data: newUser, error: createError } = await authAdmin.auth.admin.inviteUserByEmail(email, { redirectTo, data: { nome } })
-    if (createError || !newUser.user) {
-      // Um email já cadastrado não pode receber inviteUserByEmail. Nesse caso o
-      // link opaco é enviado pelo provedor transacional; o aceite ainda exige
-      // sessão autenticada com exatamente o email persistido no convite.
-      const safeName=escapeHtml(String(nome).slice(0,160)),safeUrl=escapeHtml(redirectTo)
-      const sent=await enviarEmail({to:String(email).toLowerCase(),subject:'Convite para a equipe WeDelivery',html:`<div style="font-family:sans-serif;max-width:560px;margin:auto"><h1>Convite para a equipe</h1><p>Olá, ${safeName}. Você recebeu um convite de acesso.</p><p>Entre na sua conta WeDelivery com este mesmo email e depois abra o botão abaixo.</p><p><a href="${safeUrl}" style="display:inline-block;padding:12px 18px;background:#16a34a;color:white;text-decoration:none;border-radius:10px">Aceitar convite</a></p><p>Este link expira em 48 horas.</p></div>`})
-      if(!sent.success){await authAdmin.from('convites_loja').delete().eq('id',pending.id);return NextResponse.json({error:'Não foi possível enviar o convite seguro.'},{status:503})}
-    }
-    return NextResponse.json({ pending: true })
-
-    /* vínculo criado apenas no aceite autenticado
-    const userId = newUser.user.id
-
-    // Adiciona à loja
-    const { data, error } = await supabase
-      .from('usuarios_loja')
-      .insert({
-        tenant_id: usuarioLoja.tenant_id,
-        user_id: userId,
-        nome,
-        email,
-        role,
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-
-    // Auditoria
-    await admin.rpc('registrar_auditoria', {
-      p_tenant_id: usuarioLoja.tenant_id,
-      p_user_id: user.id,
-      p_acao: 'convidar_usuario',
-      p_tabela: 'usuarios_loja',
-      p_registro_id: data.id,
-      p_dados_anteriores: null,
-      p_dados_novos: { email, nome, role }
-    })
-
-    return NextResponse.json(data) */
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const {user,tenantId,role:actorRole}=await authenticatedTenant(['owner'])
-    if(!user||!tenantId)return NextResponse.json({error:'Sem permissão'},{status:403})
-
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-    if (!id) return NextResponse.json({ error: 'ID necessário' }, { status: 400 })
-
-    const usuarioLoja={tenant_id:tenantId,role:actorRole}
-    if (actorRole !== 'owner') {
-      return NextResponse.json({ error: 'Apenas owner pode remover' }, { status: 403 })
-    }
-
-    // Não permite remover a si mesmo
     const admin = adminClient()
-    const { data: target } = await admin
-      .from('usuarios_loja')
-      .select('user_id, role')
-      .eq('id', id)
-      .eq('tenant_id', usuarioLoja.tenant_id)
+
+    // Verifica username único
+    const { data: existing } = await admin
+      .from('membros_equipe')
+      .select('id')
+      .eq('username', userLimpo)
+      .maybeSingle()
+
+    if (existing) {
+      return NextResponse.json({ error: 'Este usuário já existe. Escolha outro.' }, { status: 409 })
+    }
+
+    const password_hash = hashEquipeSenha(senhaLimpa)
+
+    const { data, error } = await admin
+      .from('membros_equipe')
+      .insert({
+        tenant_id: tenantId,
+        nome: nomeLimpo.slice(0, 160),
+        username: userLimpo,
+        password_hash,
+        perfil: perfilLimpo,
+        ativo: true,
+      })
+      .select('id, nome, username, perfil, ativo, created_at')
       .single()
 
-    if (target?.user_id === user.id) {
-      return NextResponse.json({ error: 'Você não pode remover a si mesmo' }, { status: 400 })
+    if (error) {
+      if ((error as any).code === '23505') {
+        return NextResponse.json({ error: 'Este usuário já existe. Escolha outro.' }, { status: 409 })
+      }
+      throw error
     }
-    if (!target || !['kitchen', 'motoboy'].includes(target.role)) return NextResponse.json({ error: 'Acesso não permitido' }, { status: 403 })
 
-    // Exclui apenas o vínculo de acesso à loja; a conta Auth não é apagada.
-    const { error } = await admin
-      .from('usuarios_loja')
-      .delete()
-      .eq('id', id)
-      .eq('tenant_id', usuarioLoja.tenant_id)
-
-    if (error) throw error
-
-    // Auditoria
-    await admin.rpc('registrar_auditoria', {
-      p_tenant_id: usuarioLoja.tenant_id,
-      p_user_id: user.id,
-      p_acao: 'remover_usuario',
-      p_tabela: 'usuarios_loja',
-      p_registro_id: id,
-      p_dados_anteriores: { ativo: true },
-      p_dados_novos: { acesso_removido: true }
+    return NextResponse.json({
+      id: data.id,
+      nome: data.nome,
+      username: data.username,
+      email: data.username,
+      role: data.perfil,
+      ativo: data.ativo,
     })
-
-    return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -156,18 +131,126 @@ export async function DELETE(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const {user,tenantId,role:actorRole}=await authenticatedTenant(['owner'])
-    if(!user||!tenantId)return NextResponse.json({error:'Sem permissão'},{status:403})
-    const body = await request.json(); const { id, nome, email, role, ativo } = body
-    if (!id || !['kitchen', 'motoboy'].includes(role) || typeof ativo !== 'boolean') return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
-    const actor={tenant_id:tenantId,role:actorRole}
-    if (!actor || actor.role !== 'owner') return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    const { user, tenantId, role: actorRole } = await authenticatedTenant(['owner'])
+    if (!user || !tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    if (actorRole !== 'owner') return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+
+    const body = await request.json()
+    const { id, nome, senha, perfil, ativo } = body
+
+    if (!id) return NextResponse.json({ error: 'ID obrigatório' }, { status: 400 })
+
+    const perfilLimpo = perfil ? String(perfil) : null
+    if (perfilLimpo && !ROLES_OPERACIONAIS.includes(perfilLimpo)) {
+      return NextResponse.json({ error: 'Função inválida' }, { status: 400 })
+    }
+
+    if (typeof ativo !== 'boolean') {
+      return NextResponse.json({ error: 'Campo ativo inválido' }, { status: 400 })
+    }
+
     const admin = adminClient()
-    const { data: target } = await admin.from('usuarios_loja').select('id,role,email').eq('id', id).eq('tenant_id', actor.tenant_id).single()
-    if (!target || !['kitchen', 'motoboy'].includes(target.role)) return NextResponse.json({ error: 'Acesso não permitido' }, { status: 403 })
-    if (email && String(email).toLowerCase() !== String(target.email || '').toLowerCase()) return NextResponse.json({ error: 'O email não pode ser alterado. Exclua o acesso e envie um novo convite.' }, { status: 400 })
-    const { data, error } = await admin.from('usuarios_loja').update({ nome: String(nome || '').slice(0, 160), role, ativo }).eq('id', id).eq('tenant_id', actor.tenant_id).select().single()
+    const { data: target } = await admin
+      .from('membros_equipe')
+      .select('id, perfil')
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .single()
+
+    if (!target || !ROLES_OPERACIONAIS.includes(target.perfil)) {
+      return NextResponse.json({ error: 'Acesso não permitido' }, { status: 403 })
+    }
+
+    const update: any = {}
+    if (nome !== undefined) update.nome = String(nome).slice(0, 160)
+    if (perfilLimpo) update.perfil = perfilLimpo
+    if (ativo !== undefined) update.ativo = !!ativo
+    if (senha) {
+      const senhaLimpa = String(senha)
+      if (senhaLimpa.length < 6) return NextResponse.json({ error: 'Senha deve ter ao menos 6 caracteres.' }, { status: 400 })
+      update.password_hash = hashEquipeSenha(senhaLimpa)
+    }
+    update.updated_at = new Date().toISOString()
+
+    const { data, error } = await admin
+      .from('membros_equipe')
+      .update(update)
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .select('id, nome, username, perfil, ativo, created_at')
+      .single()
+
     if (error) throw error
-    return NextResponse.json(data)
-  } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 500 }) }
+
+    return NextResponse.json({
+      id: data.id,
+      nome: data.nome,
+      username: data.username,
+      email: data.username,
+      role: data.perfil,
+      ativo: data.ativo,
+    })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { user, tenantId: initialTenantId, role: actorRole } = await authenticatedTenant(['owner'])
+    let tenantId = initialTenantId
+    if (!user || !tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    if (actorRole !== 'owner') return NextResponse.json({ error: 'Apenas owner pode remover' }, { status: 403 })
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'ID necessário' }, { status: 400 })
+
+    const admin = adminClient()
+    // Buscar o membro por ID — primeiro no tenant ativo; se não achar, em qualquer tenant do owner
+    let { data: target } = await admin
+      .from('membros_equipe')
+      .select('id, perfil, tenant_id')
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+
+    if (!target) {
+      // Fallback: se o usuário é owner do tenant do membro, permite
+      const { data: ownedTenants } = await admin.from('tenants').select('id').eq('owner_id', user.id)
+      const ownedIds = new Set((ownedTenants || []).map((t: any) => t.id))
+      const { data: anyMember } = await admin
+        .from('membros_equipe')
+        .select('id, perfil, tenant_id')
+        .eq('id', id)
+        .maybeSingle()
+      if (anyMember && ownedIds.has(anyMember.tenant_id)) {
+        target = anyMember
+        // usa o tenantId correto do membro
+        tenantId = anyMember.tenant_id
+      }
+    }
+
+    if (!target || !ROLES_VALIDAS_NO_BANCO.includes(target.perfil)) {
+      console.error('[usuarios-loja DELETE] target null ou perfil inválido', { id, tenantId, userId: user.id })
+      return NextResponse.json({ error: 'Acesso não permitido' }, { status: 403 })
+    }
+
+    // Soft delete via ativo=false (mais seguro e reversível)
+    const { error } = await admin
+      .from('membros_equipe')
+      .update({ ativo: false, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+
+    if (error) throw error
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('[usuarios-loja DELETE]', error?.message, error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+export const _rolesOperacionais = ROLES_OPERACIONAIS
+export const _rolesLabelMap = ROLES_PERMITIDAS_LABEL
+export { verifyEquipeSenha }

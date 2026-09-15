@@ -76,8 +76,8 @@ export default function ConfiguracoesPage() {
       if (activeTab === 'admin' && (!config.senhaAtual || !config.novaSenha || !config.confirmarSenha)) {
         throw new Error('Preencha a senha atual, a nova senha e a confirmação')
       }
-      if (config.novaSenha && config.novaSenha.length < 8) {
-        throw new Error('A nova senha deve ter pelo menos 8 caracteres')
+      if (config.novaSenha && config.novaSenha.length < 6) {
+        throw new Error('A nova senha deve ter pelo menos 6 caracteres')
       }
       if (config.novaSenha && config.novaSenha !== config.confirmarSenha) {
         throw new Error('Nova senha e confirmação não conferem')

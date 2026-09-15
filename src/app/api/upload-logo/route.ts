@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       .update({ logo_url: urlData.publicUrl })
       .eq('id', tenantId)
 
-    return NextResponse.json({ url: urlData.publicUrl, path })
+    return NextResponse.json({ url: urlData.publicUrl, path, _ts: Date.now() })
   } catch (error: any) {
     console.error('Erro geral:', error)
     return NextResponse.json({ error: error.message || 'Erro interno' }, { status: 500 })

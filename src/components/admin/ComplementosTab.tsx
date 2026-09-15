@@ -14,7 +14,6 @@ type Lista = {
   id: string
   nome: string
   descricao: string | null
-  ordem: number
   qtd_minima: number
   qtd_maxima: number
   max_um_de_cada: boolean
@@ -29,7 +28,6 @@ type Complemento = {
   descricao: string | null
   preco: number
   custo: number
-  ordem: number
   qtd_max: number
   etiqueta1: string | null
   etiqueta2: string | null
@@ -67,14 +65,14 @@ export default function ComplementosTab() {
       .from('categorias_complementos')
       .select('*')
       .eq('tenant_id', tid)
-      .order('ordem')
+      .order('nome')
     setListas(l || [])
 
     const { data: c } = await supabase
       .from('complementos')
       .select('*')
       .eq('tenant_id', tid)
-      .order('ordem')
+      .order('nome')
     setComplementos(c || [])
 
     setLoading(false)
@@ -240,7 +238,11 @@ export default function ComplementosTab() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => { setCloneSourceLista(lista); setShowCloneModal(true) }}
+                      onClick={() => {
+                        console.log('Clonar lista:', lista)
+                        setCloneSourceLista(lista)
+                        setShowCloneModal(true)
+                      }}
                       className="px-4 py-2 border border-amber-500 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-50 flex items-center gap-1.5"
                       title="Clonar esta lista"
                     >
@@ -255,7 +257,16 @@ export default function ComplementosTab() {
                     </button>
                     <button
                       onClick={async () => {
-                        if (!confirm('Excluir esta lista?')) return
+                        if (!confirm(`Excluir a lista "${lista.nome}"?\n\nEsta ação não pode ser desfeita.`)) return
+                        // Verificar se há vínculos com produtos
+                        const { data: vinculos } = await supabase
+                          .from('produto_complementos')
+                          .select('produto_id')
+                          .eq('complemento_id', lista.id)
+                        if (vinculos && vinculos.length > 0) {
+                          if (!confirm(`Esta lista está vinculada a ${vinculos.length} produto(s). A exclusão pode afetar esses produtos. Continuar?`)) return
+                        }
+                        // Excluir a lista (soft delete)
                         await supabase.from('categorias_complementos').update({ ativo: false }).eq('id', lista.id)
                         loadData()
                       }}
@@ -332,8 +343,8 @@ export default function ComplementosTab() {
                                 </button>
                                 <button
                                   onClick={async () => {
-                                    if (!confirm('Excluir este complemento?')) return
-                                    await supabase.from('complementos').update({ ativo: false }).eq('id', c.id)
+                                    if (!confirm('Excluir este complemento?\n\nEsta ação é permanente e não pode ser desfeita.')) return
+                                    await supabase.from('complementos').delete().eq('id', c.id)
                                     loadData()
                                   }}
                                   className="px-2 py-1 text-red-600 border border-red-300 rounded-lg hover:bg-red-50"
@@ -475,7 +486,6 @@ function CloneListaModal({
         descricao: c.descricao,
         preco: c.preco,
         custo: c.custo,
-        ordem: c.ordem,
         qtd_max: c.qtd_max,
         etiqueta1: c.etiqueta1,
         etiqueta2: c.etiqueta2,
@@ -704,7 +714,6 @@ function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, 
     nome: comp?.nome || '',
     categoria_id: comp?.categoria_id || defaultCategoriaId,
     preco: comp ? String(comp.preco) : '',
-    ordem: comp?.ordem != null ? String(comp.ordem) : '',
     qtd_max: comp?.qtd_max != null ? String(comp.qtd_max) : '',
     custo: comp?.custo != null ? String(comp.custo) : '',
     descricao: comp?.descricao || '',
@@ -722,15 +731,6 @@ function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, 
   const [erro, setErro] = useState('')
   const supabase = createClient()
 
-  // Valida se já existe outro complemento com a mesma ordem na mesma lista
-  const validarOrdemDuplicada = (novaOrdem: number, listaId: string, compId: string | undefined) => {
-    const mesmaLista = todosComplementos?.filter((c: Complemento) => c.categoria_id === listaId) || []
-    const duplicado = mesmaLista.find((c: Complemento) =>
-      c.ordem === novaOrdem && c.id !== compId
-    )
-    return duplicado ? `Já existe "${duplicado.nome}" com ordem ${novaOrdem} nesta lista.` : null
-  }
-
   const salvar = async () => {
     if (!form.nome.trim()) {
       setErro('Informe o nome do complemento.')
@@ -742,21 +742,11 @@ function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, 
 
     const num = (v: string, def: number) => (v === '' ? def : parseFloat(v))
     const intNum = (v: string, def: number) => (v === '' ? def : parseInt(v, 10))
-    const ordemNum = intNum(form.ordem, 0)
-
-    // Validação de ordem duplicada
-    const erroOrdem = validarOrdemDuplicada(ordemNum, form.categoria_id, comp?.id)
-    if (erroOrdem) {
-      setErro(erroOrdem)
-      setSalvando(false)
-      return
-    }
 
     const payload = {
       nome: form.nome,
       categoria_id: form.categoria_id || null,
       preco: num(form.preco, 0),
-      ordem: ordemNum,
       qtd_max: intNum(form.qtd_max, 99),
       custo: num(form.custo, 0),
       descricao: form.descricao || null,
@@ -819,7 +809,7 @@ function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, 
               const response = await fetch('/api/upload-complemento', { method: 'POST', body })
               const result = await response.json()
               if (!response.ok) throw new Error(result.error || 'Erro no upload')
-              setForm({ ...form, imagem_url: result.url, imagem_path: result.path })
+              setForm({ ...form, imagem_url: result.url + '?v=' + (result._ts || Date.now()), imagem_path: result.path })
             } catch (e: any) { setErro(e.message) } finally { setUploading(false) }
           }} />
         </div>
@@ -848,15 +838,6 @@ function ComplementoModal({ comp, listas, defaultCategoriaId, onClose, onSaved, 
               placeholder="0,00"
             />
           </div>
-        </Field>
-        <Field label="Ordem">
-          <input
-            type="number"
-            value={form.ordem}
-            onChange={(e) => setForm({ ...form, ordem: e.target.value })}
-            className="form-input"
-            placeholder="0"
-          />
         </Field>
         <Field label="Qtd max.">
           <input

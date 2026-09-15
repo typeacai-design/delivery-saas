@@ -21,7 +21,7 @@ export function flavorCount(value: unknown): number | null {
   const flavors = parseComplements(value).filter(c => c.tipo === 'sabor' && c.regra_preco === 'media_v1')
   if (!flavors.length) return null
   const count = flavors[0].fracao_denominador
-  return Number.isInteger(count) && count >= 1 && count <= 3 && flavors.length === count
+  return Number.isInteger(count) && count >= 1 && count <= 10 && flavors.length === count
     && flavors.every(c => c.fracao_denominador === count) ? count : null
 }
 
@@ -33,7 +33,7 @@ export function flavorLabel(c: any): string {
 
 /** Allocate rounded mean in cents, independent of selection order. Full prices remain immutable. */
 export function createFlavorSnapshot(flavors: { id: string; nome: string; preco: number | string }[], groupId: string, count: number): FlavorComplement[] {
-  if (!groupId || !Number.isInteger(count) || count < 1 || count > 3 || flavors.length !== count
+  if (!groupId || !Number.isInteger(count) || count < 1 || count > 10 || flavors.length !== count
     || new Set(flavors.map(f => f.id)).size !== count) throw new Error('Selecione exatamente a quantidade de sabores escolhida, sem repetir sabores.')
   const parts = flavors.map(f => {
     const price = Number(f.preco)

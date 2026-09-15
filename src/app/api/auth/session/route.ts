@@ -4,7 +4,7 @@ import { authenticatedTenant } from '@/lib/tenant-auth'
 // Dashboard chama isso pra verificar sessão E pegar tenant
 export async function GET(request: NextRequest) {
   try {
-    const { supabase, user, tenantId, role } = await authenticatedTenant(['owner','manager','attendant','kitchen','motoboy','delivery'], { allowPending: true })
+    const { supabase, user, tenantId, role } = await authenticatedTenant(['owner','manager','attendant','kitchen','motoboy','delivery','atendimento'], { allowPending: true })
     if (user && !tenantId) return NextResponse.json({ authenticated: true, authorized: false, role }, { status: 403 })
     const { data: { session } } = await supabase.auth.getSession()
 

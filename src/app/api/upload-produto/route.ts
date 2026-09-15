@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const { error } = await supabase.storage.from('produtos').upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: file.type, upsert: false })
     if (error) throw error
     const { data } = supabase.storage.from('produtos').getPublicUrl(path)
-    return NextResponse.json({ url: data.publicUrl, path })
+    return NextResponse.json({ url: data.publicUrl, path, _ts: Date.now() })
   } catch (error: any) { return NextResponse.json({ error: error.message || 'Erro interno' }, { status: 500 }) }
 }
 

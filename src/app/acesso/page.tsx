@@ -1,59 +1,37 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { ChefHat, Bike, Loader2, LogIn } from 'lucide-react'
+import { ChefHat, Bike, Loader2, LogIn, Headphones, LogOut } from 'lucide-react'
 
 export default function AcessoPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [senha, setSenha] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [lojas, setLojas] = useState<any[]>([])
+  const [jaLogado, setJaLogado] = useState<{ id: string; nome: string; perfil: string; tenant_id: string } | null>(null)
 
   useEffect(() => {
-    // Verificar se já está logado
-    const supabase = createClient()
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Verificar perfil
-        verificarPerfil(session.user.id)
-      } else {
-        setLoading(false)
-        carregarLojas()
-      }
-    })
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('membro_equipe') : null
+    if (raw) {
+      try {
+        const m = JSON.parse(raw)
+        setJaLogado(m)
+        // redireciona automaticamente para a página do perfil
+        redirecionar(m)
+        return
+      } catch { /* fallthrough */ }
+    }
+    setLoading(false)
   }, [])
 
-  const carregarLojas = async () => {
-    const supabase = createClient()
-    const { data } = await supabase.from('tenants').select('id, nome, slug').eq('ativo', true).order('nome')
-    setLojas(data || [])
-  }
-
-  const verificarPerfil = async (userId: string) => {
-    const supabase = createClient()
-    const { data: membro } = await supabase
-      .from('membros_equipe')
-      .select('id, perfil, tenants(nome)')
-      .eq('user_id', userId)
-      .eq('ativo', true)
-      .single()
-
-    if (membro) {
-      if (membro.perfil === 'cozinha') {
-        router.push('/acesso/cozinha')
-      } else if (membro.perfil === 'motoboy') {
-        router.push('/acesso/motoboy')
-      } else {
-        setLoading(false)
-      }
-    } else {
-      setLoading(false)
-    }
+  function redirecionar(m: { perfil: string }) {
+    if (m.perfil === 'cozinha') router.push('/acesso/cozinha')
+    else if (m.perfil === 'motoboy') router.push('/acesso/motoboy')
+    else if (m.perfil === 'atendimento') router.push('/acesso/atendimento')
+    else setLoading(false)
   }
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -61,51 +39,37 @@ export default function AcessoPage() {
     setError('')
     setSaving(true)
 
-    const supabase = createClient()
-
     try {
-      // Buscar membro pelo username
-      const { data: membro, error: membroError } = await supabase
-        .from('membros_equipe')
-        .select('*')
-        .eq('username', username.toLowerCase().trim())
-        .eq('ativo', true)
-        .single()
-
-      if (membroError || !membro) {
-        setError('Usuário não encontrado ou inativo')
+      const r = await fetch('/api/equipe/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim().toLowerCase(), senha }),
+      })
+      const b = await r.json()
+      if (!r.ok) {
+        setError(b.error || 'Erro ao entrar')
         setSaving(false)
         return
       }
-
-      // Verificar senha (hash simples - em produção usar bcrypt)
-      if (membro.password_hash !== password) {
-        setError('Senha incorreta')
-        setSaving(false)
-        return
-      }
-
-      // Simular autenticação com metadata
-      // Em produção, integrar com Auth real
+      const m = b.membro
       localStorage.setItem('membro_equipe', JSON.stringify({
-        id: membro.id,
-        nome: membro.nome,
-        perfil: membro.perfil,
-        tenant_id: membro.tenant_id,
+        id: m.id,
+        nome: m.nome,
+        username: m.username,
+        perfil: m.perfil,
+        tenant_id: m.tenant_id,
       }))
-
-      if (membro.perfil === 'cozinha') {
-        router.push('/acesso/cozinha')
-      } else if (membro.perfil === 'motoboy') {
-        router.push('/acesso/motoboy')
-      } else {
-        setError('Este perfil não tem acesso às páginas de operação')
-        setSaving(false)
-      }
+      redirecionar(m)
     } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login')
+      setError(err.message || 'Erro ao entrar')
       setSaving(false)
     }
+  }
+
+  const sair = () => {
+    localStorage.removeItem('membro_equipe')
+    setJaLogado(null)
+    setLoading(false)
   }
 
   if (loading) {
@@ -119,7 +83,6 @@ export default function AcessoPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
             <ChefHat className="text-green-600" size={32} />
@@ -128,7 +91,6 @@ export default function AcessoPage() {
           <p className="text-sm text-gray-500 mt-1">Faça login com seu usuário e senha</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
@@ -147,12 +109,13 @@ export default function AcessoPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-center text-lg"
               placeholder="••••••••"
               required
               autoComplete="current-password"
+              minLength={6}
             />
           </div>
 
@@ -172,7 +135,6 @@ export default function AcessoPage() {
           </button>
         </form>
 
-        {/* Info */}
         <div className="mt-6 pt-6 border-t border-gray-100">
           <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
             <div className="flex items-center gap-2">
@@ -182,6 +144,10 @@ export default function AcessoPage() {
             <div className="flex items-center gap-2">
               <Bike size={18} className="text-green-500" />
               <span>Motoboy</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Headphones size={18} className="text-purple-500" />
+              <span>Atendimento</span>
             </div>
           </div>
           <p className="text-xs text-gray-400 text-center mt-3">

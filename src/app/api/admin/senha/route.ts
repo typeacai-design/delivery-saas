@@ -26,8 +26,8 @@ export async function PUT(request: Request) {
   if (!senhaAtual || !novaSenha) {
     return NextResponse.json({ error: 'Senhas obrigatórias' }, { status: 400 })
   }
-  if (novaSenha.length < 8) {
-    return NextResponse.json({ error: 'Nova senha deve ter ao menos 8 caracteres' }, { status: 400 })
+  if (novaSenha.length < 6) {
+    return NextResponse.json({ error: 'Nova senha deve ter ao menos 6 caracteres' }, { status: 400 })
   }
 
   // Valida senha atual: primeiro contra a env (legado), depois contra hash persistido.

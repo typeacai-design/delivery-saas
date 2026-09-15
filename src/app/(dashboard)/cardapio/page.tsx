@@ -49,7 +49,7 @@ const PALETAS_FICTICIAS = [
 ]
 
 export default function CardapioPage() {
-  const { error: toastError } = useToast()
+  const { error: toastError, success: toastSuccess } = useToast()
   const [tab, setTab] = useState<Tab>('design')
   const supabase = createClient()
 
@@ -182,12 +182,12 @@ function DesignTab() {
 
 function AssetUpload({ tipo, titulo, url, onChanged, slug, slot = 0 }: { tipo: 'logo' | 'banner'; titulo: string; url: string; onChanged: (url: string) => void; slug?: string; slot?: number }) {
   const [uploading, setUploading] = useState(false); const [error, setError] = useState('')
-  const upload = async (file: File) => { setError(''); if (!['image/jpeg','image/png','image/webp'].includes(file.type)) return setError('Use JPG, PNG ou WebP.'); if (file.size > 5 * 1024 * 1024) return setError('A imagem deve ter no maximo 5MB.'); setUploading(true); try { const form = new FormData(); form.append('file', file); form.append('tipo', tipo); form.append('slot', String(slot)); const response = await fetch('/api/upload-cardapio-asset', { method: 'POST', body: form }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Erro no upload'); onChanged(result.url); if (slug) await fetch('/api/revalidate-cardapio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug }) }) } catch (e: any) { setError(e.message) } finally { setUploading(false) } }
+  const upload = async (file: File) => { setError(''); if (!['image/jpeg','image/png','image/webp'].includes(file.type)) return setError('Use JPG, PNG ou WebP.'); if (file.size > 5 * 1024 * 1024) return setError('A imagem deve ter no maximo 5MB.'); setUploading(true); try { const form = new FormData(); form.append('file', file); form.append('tipo', tipo); form.append('slot', String(slot)); const response = await fetch('/api/upload-cardapio-asset', { method: 'POST', body: form }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Erro no upload'); const urlWithCache = result.url + '?v=' + (result._ts || Date.now()); onChanged(urlWithCache); if (slug) await fetch('/api/revalidate-cardapio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug }) }) } catch (e: any) { setError(e.message) } finally { setUploading(false) } }
   const inputId = 'cardapio-' + tipo + '-' + slot + '-input'
-  return <div className="glass p-6"><div className="eyebrow mb-1">Identidade visual</div><h2 className="text-lg font-semibold mb-4">{titulo}</h2><button type="button" onClick={() => document.getElementById(inputId)?.click()} className="w-full min-h-36 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden">{url ? <img src={url} alt={titulo} className={tipo === 'banner' ? 'w-full h-40 object-cover' : 'size-28 object-contain'} /> : <span className="hint">{uploading ? 'Enviando...' : 'Clique para enviar'}</span>}</button><input id={inputId} className="hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.currentTarget.value = '' }} />{url && <button type="button" onClick={async () => { setUploading(true); const r = await fetch('/api/upload-cardapio-asset?tipo=' + tipo + '&slot=' + slot, { method: 'DELETE' }); if (r.ok) onChanged(''); setUploading(false) }} disabled={uploading} className="mt-3 text-sm text-red-600">Remover imagem</button>}{error && <p className="text-sm text-red-600 mt-2">{error}</p>}<p className="hint text-xs mt-2">{tipo === 'banner' ? '1080 x 600 px' : '1080 x 1080 px'} - JPG, PNG ou WebP - ate 5MB.</p></div>
+  return <div className="glass p-6"><div className="eyebrow mb-1">Identidade visual</div><h2 className="text-lg font-semibold mb-4">{titulo}</h2><button type="button" onClick={() => document.getElementById(inputId)?.click()} className="w-full min-h-36 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden">{url ? <img src={url} alt={titulo} className={tipo === 'banner' ? '!w-full !h-auto aspect-[1080/550] object-cover rounded-lg' : 'size-28 object-contain'} /> : <span className="hint">{uploading ? 'Enviando...' : 'Clique para enviar'}</span>}</button><input id={inputId} className="hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.currentTarget.value = '' }} />{url && <button type="button" onClick={async () => { setUploading(true); const r = await fetch('/api/upload-cardapio-asset?tipo=' + tipo + '&slot=' + slot, { method: 'DELETE' }); if (r.ok) onChanged(''); setUploading(false) }} disabled={uploading} className="mt-3 text-sm text-red-600">Remover imagem</button>}{error && <p className="text-sm text-red-600 mt-2">{error}</p>}<p className="hint text-xs mt-2">{tipo === 'banner' ? '1080 x 550 px' : '1080 x 1080 px'} - JPG, PNG ou WebP - ate 5MB.</p></div>
 }
 function ProdutosTab() {
-  const { error: toastError } = useToast()
+  const { error: toastError, success: toastSuccess } = useToast()
   const [categorias, setCategorias] = useState<any[]>([])
   const [produtos, setProdutos] = useState<Record<string, any[]>>({})
   const [complementosPorProduto, setComplementosPorProduto] = useState<Record<string, any[]>>({})
@@ -345,6 +345,102 @@ function ProdutosTab() {
     setShowProdModal(true)
   }
 
+  const duplicarProduto = async (produto: any) => {
+    if (!confirm(`Deseja duplicar o produto "${produto.nome}"?`)) return
+    const tid = await activeTenantId()
+    if (!tid) { toastError('Erro', 'Sessão expirada'); return }
+
+    try {
+      // 1. Criar o produto duplicado
+      const { data: novoProduto, error: erroNovo } = await supabase
+        .from('produtos')
+        .insert({
+          tenant_id: tid,
+          nome: `${produto.nome} — Cópia`,
+          descricao: produto.descricao || null,
+          preco: produto.preco,
+          preco_riscado: produto.preco_riscado || null,
+          imagem_url: produto.imagem_url || null,
+          imagem_path: produto.imagem_path || null,
+          categoria_id: produto.categoria_id,
+          ativo: true,
+          ordem: (produto.ordem || 0) + 1,
+          tempo_preparo_min: produto.tempo_preparo_min || 30,
+          pontos: produto.pontos || 0,
+          eh_adicional: produto.eh_adicional || false,
+          disponivel_mesa: produto.disponivel_mesa !== false,
+          disponivel_delivery: produto.disponivel_delivery !== false,
+          disponivel_retirada: produto.disponivel_retirada !== false,
+          etiquetas: produto.etiquetas || [],
+          pode_ser_metade: produto.pode_ser_metade || false,
+          fracionar_item: produto.fracionar_item || false,
+          dias_disponiveis: produto.dias_disponiveis || [0, 1, 2, 3, 4, 5, 6],
+          horario_inicio: produto.horario_inicio || '00:00:00',
+          horario_fim: produto.horario_fim || '23:59:00',
+          limite_vendas_dia: produto.limite_vendas_dia || null,
+          limite_vendas_turno: produto.limite_vendas_turno || null,
+          controlar_estoque: produto.controlar_estoque || false,
+          quantidade_estoque: produto.quantidade_estoque || 0,
+          exibir_preco_a_partir_de: produto.exibir_preco_a_partir_de || false,
+          // Multi-sabores: copiar configuração se existir
+          sabores_grupo_id: produto.sabores_grupo_id || null,
+          sabores_maximo: produto.sabores_maximo || 1,
+        })
+        .select()
+        .single()
+
+      if (erroNovo || !novoProduto) {
+        toastError('Erro ao duplicar', erroNovo?.message || 'Erro desconhecido')
+        return
+      }
+
+      // 2. Copiar complementos vinculados (exceto os da lista de sabores original, que será vinculada automaticamente)
+      const { data: compsVinculados } = await supabase
+        .from('produto_complementos')
+        .select('complemento_id')
+        .eq('produto_id', produto.id)
+
+      if (compsVinculados && compsVinculados.length > 0) {
+        const { error: erroVinc } = await supabase
+          .from('produto_complementos')
+          .insert(compsVinculados.map((v: any) => ({
+            produto_id: novoProduto.id,
+            complemento_id: v.complemento_id,
+          })))
+
+        if (erroVinc) {
+          console.error('Erro ao copiar complementos:', erroVinc)
+          // Não falha completamente, só avisa
+        }
+      }
+
+      // 3. Copiar variantes (tamanhos) se existirem
+      const { data: variantes } = await supabase
+        .from('variantes')
+        .select('*')
+        .eq('produto_id', produto.id)
+
+      if (variantes && variantes.length > 0) {
+        const { error: erroVariantes } = await supabase
+          .from('variantes')
+          .insert(variantes.map((v: any) => ({
+            produto_id: novoProduto.id,
+            nome: v.nome,
+            preco_adicional: v.preco_adicional,
+          })))
+
+        if (erroVariantes) {
+          console.error('Erro ao copiar variantes:', erroVariantes)
+        }
+      }
+
+      loadData()
+      toastSuccess('Sucesso', `Produto duplicado: "${novoProduto.nome}"`)
+    } catch (err: any) {
+      toastError('Erro ao duplicar', err.message || 'Erro desconhecido')
+    }
+  }
+
   const deletarProduto = async (id: string) => {
     // Apenas inativa o produto (toggle de ativo)
     if (!confirm('Tem certeza que deseja desativar este produto?')) return
@@ -483,7 +579,7 @@ function ProdutosTab() {
                     complementosCount={0}
                     onEdit={() => abrirModalProduto(prod)}
                     onToggleAtivo={async () => { await supabase.from('produtos').update({ ativo: !prod.ativo }).eq('id', prod.id); loadData(); }}
-                    onDuplicate={async () => { /* no-op */ }}
+                    onDuplicate={() => duplicarProduto(prod)}
                     onUpdate={async () => { /* no-op */ }}
                     onDelete={() => deletarProduto(prod.id)}
                     onExcluir={() => excluirProduto(prod.id)}

@@ -1415,7 +1415,8 @@ export function ProdutoModal({
   const modoSabores = Boolean(produto.sabores_grupo_id)
   const grupoOriginal = listas.find(l => l.id === produto.sabores_grupo_id)
   const grupoSabores = grupoOriginal ? {...grupoOriginal, complementos: (grupoOriginal.complementos || []).filter((c: any) => c.controlar_estoque !== true)} : undefined
-  const bloqueado = modoSabores && (!saboresAtivo || !grupoSabores?.complementos?.length || ![2, 3].includes(Number(produto.sabores_maximo)) || variantes.length > 0)
+  const maxSabores = Math.max(1, Math.min(Number(produto.sabores_maximo || 1), 10))
+  const bloqueado = modoSabores && (!saboresAtivo || !grupoSabores?.complementos?.length || maxSabores < 1 || variantes.length > 0)
   const escolhendoQuantidade = modoSabores && numeroSabores === null
   const listasMontagem = modoSabores && grupoSabores ? [grupoSabores, ...listas.filter(l => l.id !== grupoSabores.id)] : listas
   const idsSabores = new Set<string>((grupoSabores?.complementos || []).map((c: any) => c.id))
@@ -1587,7 +1588,15 @@ export function ProdutoModal({
 
           {/* Complementos por lista, na ordem configurada (grátis no topo, depois alfabético) */}
           {bloqueado && <p role="alert" className="my-5 text-red-700">Este produto está indisponível para montagem no momento.</p>}
-          {!bloqueado && escolhendoQuantidade && <div className="mt-5 space-y-3"><h3 className="text-xl font-bold">Quantos sabores você quer?</h3>{Array.from({length: Math.min(Number(produto.sabores_maximo || 2), grupoSabores?.complementos?.length || 0)}, (_, i) => i + 1).map(n => <button key={n} type="button" onClick={() => { setNumeroSabores(n); setComplementosSelecionados({}); setEtapaLista(0) }} className="w-full border-2 rounded-xl p-4 text-left font-semibold">{n} {n === 1 ? 'sabor — inteira' : n === 2 ? 'sabores — metade de cada' : 'sabores — um terço de cada'}</button>)}<p className="text-sm text-gray-600">O preço será a média dos sabores escolhidos. Outros adicionais são cobrados separadamente.</p></div>}
+          {!bloqueado && escolhendoQuantidade && <div className="mt-5 space-y-3">
+            <h3 className="text-xl font-bold">Quantos sabores você quer?</h3>
+            {Array.from({length: Math.min(Number(produto.sabores_maximo || 1), grupoSabores?.complementos?.length || 0)}, (_, i) => i + 1).map(n => {
+              const labels: Record<number, string> = {1: 'inteira', 2: 'metade de cada', 3: 'um terço de cada'}
+              const label = labels[n] || `${n} partes iguais`
+              return <button key={n} type="button" onClick={() => { setNumeroSabores(n); setComplementosSelecionados({}); setEtapaLista(0) }} className="w-full border-2 rounded-xl p-4 text-left font-semibold">{n} {n === 1 ? 'sabor — ' + label : n + ' sabores — ' + label}</button>
+            })}
+            <p className="text-sm text-gray-600">O preço será a média dos sabores escolhidos. Outros adicionais são cobrados separadamente.</p>
+          </div>}
           {!bloqueado && !escolhendoQuantidade && !montagemConcluida && listaAtualOrdenada && (
             <div className="mt-5">
               <p className="text-xs text-gray-500 mb-1">Etapa {etapaLista + 1} de {listasMontagem.length}</p>

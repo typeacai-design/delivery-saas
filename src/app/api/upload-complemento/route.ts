@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const { error } = await supabase.storage.from('complementos').upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: file.type })
     if (error) throw error
     const { data } = supabase.storage.from('complementos').getPublicUrl(path)
-    return NextResponse.json({ url: data.publicUrl, path })
+    return NextResponse.json({ url: data.publicUrl, path, _ts: Date.now() })
   } catch (error: any) { return NextResponse.json({ error: error.message || 'Erro no upload' }, { status: 500 }) }
 }
 

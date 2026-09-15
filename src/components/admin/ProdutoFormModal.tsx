@@ -44,6 +44,8 @@ type FormState = {
   quantidade_estoque: string
   // Complementos
   complemento_ids: string[]
+  // Multi-sabores: substituindo "DividirSabores"
+  item_com_mais_de_um_sabor: boolean
   sabores_grupo_id: string
   sabores_maximo: number
   // Matéria-prima (vinculada ao produto com qtd por unidade)
@@ -79,8 +81,10 @@ const FORM_VAZIO: FormState = {
   controlar_estoque: false,
   quantidade_estoque: '',
   complemento_ids: [],
+  // Multi-sabores
+  item_com_mais_de_um_sabor: false,
   sabores_grupo_id: '',
-  sabores_maximo: 2,
+  sabores_maximo: 1,
   ingredientes: [],
 }
 
@@ -126,7 +130,6 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
   const [form, setForm] = useState<FormState>(FORM_VAZIO)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
-  const [dividirSabores, setDividirSabores] = useState(Boolean(produto?.sabores_grupo_id))
   const [complementos, setComplementos] = useState<any[]>([])
   const [categoriasComp, setCategoriasComp] = useState<any[]>([])
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>('')
@@ -175,8 +178,9 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
       setForm({
         ...FORM_VAZIO,
         ...produto,
+        item_com_mais_de_um_sabor: Boolean(produto.sabores_grupo_id),
         sabores_grupo_id: produto.sabores_grupo_id || "",
-        sabores_maximo: produto.sabores_maximo || 2,
+        sabores_maximo: produto.sabores_maximo || 1,
         preco: produto.preco != null ? String(produto.preco) : '',
         exibir_preco_a_partir_de: produto.exibir_preco_a_partir_de === true,
         preco_riscado: produto.preco_riscado != null ? String(produto.preco_riscado) : '',
@@ -235,11 +239,11 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
 
   const salvar = async () => {
     const sabores = complementos.filter(c => c.categoria_id === form.sabores_grupo_id)
-    if (dividirSabores && (!form.sabores_grupo_id || sabores.length < form.sabores_maximo)) {
+    if (form.item_com_mais_de_um_sabor && (!form.sabores_grupo_id || sabores.length < form.sabores_maximo)) {
       setErro('Escolha uma lista com ao menos o limite de sabores ativos configurado.')
       return
     }
-    if (dividirSabores && sabores.some(c => c.controlar_estoque)) {
+    if (form.item_com_mais_de_um_sabor && sabores.some(c => c.controlar_estoque)) {
       setErro('A lista de sabores não pode conter itens com controle de estoque nesta versão.')
       return
     }
@@ -283,15 +287,11 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
       ordem: ordemNum,
       codigo_externo: form.codigo_externo || null,
       pontos: intOrZero(form.pontos, 0),
-      eh_adicional: form.eh_adicional,
       disponivel_mesa: form.disponivel_mesa,
       disponivel_delivery: form.disponivel_delivery,
       disponivel_retirada: form.disponivel_retirada,
       etiquetas: form.etiquetas,
       secao_destaque: form.etiquetas.length > 0,
-      pode_ser_metade: form.pode_ser_metade,
-      texto_metade: form.texto_metade || null,
-      fracionar_item: form.fracionar_item,
       dias_disponiveis: form.dias_disponiveis,
       horario_inicio: form.horario_inicio,
       horario_fim: form.horario_fim,
@@ -299,24 +299,43 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
       limite_vendas_turno: intOrZero(form.limite_vendas_turno),
       controlar_estoque: form.controlar_estoque,
       quantidade_estoque: intOrZero(form.quantidade_estoque),
-      sabores_grupo_id: dividirSabores ? form.sabores_grupo_id : null,
-      sabores_maximo: form.sabores_maximo === 3 ? 3 : 2,
+      // Multi-sabores: substitui "DividirSabores"
+      sabores_grupo_id: form.item_com_mais_de_um_sabor ? form.sabores_grupo_id : null,
+      sabores_maximo: form.item_com_mais_de_um_sabor ? Math.max(1, form.sabores_maximo) : 1,
     }
 
-    let produtoId = produto?.id
+    // Garantir sabores_maximo válido ANTES de montar o payload
+    const safeSaboresMaximo = (v: number | undefined | null): number => {
+      if (v == null || isNaN(v)) return 1
+      return Math.max(1, Math.min(10, Math.round(v)))
+    }
 
-    if (produto) {
-      const { error } = await supabase.from('produtos').update(payload).eq('id', produto.id)
+    let produtoId = produto?.id || null
+
+    // Se edição, verificar se produto tem ID válido
+    const produtoIdValido = produto?.id && typeof produto.id === 'string' && produto.id.length > 0 && produto.id.length < 100
+
+    if (produtoIdValido) {
+      // Garantir valor válido no form antes de salvar
+      if (form.sabores_maximo < 1 || form.sabores_maximo > 10) {
+        setForm(f => ({ ...f, sabores_maximo: 1 }))
+      }
+      const { error } = await supabase.from('produtos').update({
+        ...payload,
+        sabores_maximo: safeSaboresMaximo(payload.sabores_maximo),
+      }).eq('id', produto.id)
       if (error) {
         setErro(`Não foi possível salvar o produto: ${error.message}`)
         setSalvando(false)
         return
       }
     } else {
+      // Criar novo produto
       const { data: novo, error } = await supabase.from('produtos').insert({
         ...payload,
         tenant_id: tid,
         ativo: true,
+        sabores_maximo: safeSaboresMaximo(payload.sabores_maximo),
       }).select('id').single()
       if (error || !novo?.id) {
         setErro(`Não foi possível criar o produto: ${error?.message || 'produto sem ID'}`)
@@ -339,9 +358,9 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
         return
       }
       const atuais = new Set((vinculosAtuais || []).map((v: any) => v.complemento_id))
-      const mudouListaSabores = dividirSabores && produto?.sabores_grupo_id && produto.sabores_grupo_id !== form.sabores_grupo_id
+      const mudouListaSabores = form.item_com_mais_de_um_sabor && produto?.sabores_grupo_id && produto.sabores_grupo_id !== form.sabores_grupo_id
       const idsAnteriores = new Set(complementos.filter(c => mudouListaSabores && c.categoria_id === produto.sabores_grupo_id).map(c => c.id))
-      const desejados = new Set([...form.complemento_ids.filter(id => !idsAnteriores.has(id)), ...(dividirSabores ? sabores.map(c => c.id as string) : [])])
+      const desejados = new Set([...form.complemento_ids.filter(id => !idsAnteriores.has(id)), ...(form.item_com_mais_de_um_sabor ? sabores.map(c => c.id as string) : [])])
       const adicionar = [...desejados].filter((id) => !atuais.has(id))
       const remover = [...atuais].filter((id) => !desejados.has(id))
 
@@ -744,32 +763,77 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
             )}
           </CardSection>
 
-          {/* ====== CARD 10: Complementos ====== */}
-          <CardSection title="Divisão em sabores" icon={Layers}>
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={dividirSabores}
-                onChange={e => setDividirSabores(e.target.checked)} />
-              Permitir escolher mais de um sabor neste produto
-            </label>
-            <p className="text-sm text-gray-600 mt-3">Configure os sabores aqui e salve o produto para disponibilizar a escolha no cardápio e nos pedidos manuais.</p>
-            {dividirSabores && <div className="mt-4 space-y-3">
-              <Field label="Lista de sabores">
-                <select className="form-input" value={form.sabores_grupo_id || ''} onChange={e => setForm(f => ({ ...f, sabores_grupo_id: e.target.value }))}>
-                  <option value="">Selecione uma lista de complementos</option>
-                  {categoriasComp.map(cat => <option key={cat.id} value={cat.id}>{cat.nome}{cat.descricao?.trim() ? ` — ${cat.descricao.trim()}` : ''}</option>)}
-                </select>
-              </Field>
-              {produto?.sabores_grupo_id && produto.sabores_grupo_id !== form.sabores_grupo_id && <p className="text-sm text-amber-700">Ao trocar a lista, os vínculos da lista anterior de sabores serão substituídos. Outros adicionais serão preservados.</p>}
-              <Field label="Quantidade máxima de sabores">
-                <select className="form-input" value={form.sabores_maximo || 2} onChange={e => setForm(f => ({ ...f, sabores_maximo: Number(e.target.value) }))}>
-                  <option value={2}>Até 2 sabores</option><option value={3}>Até 3 sabores</option>
-                </select>
-              </Field>
-              <p className="text-sm text-gray-600">Cadastre em Complementos o preço da pizza inteira de cada sabor para este tamanho. Todos os sabores ativos desta lista serão vinculados ao salvar. O cliente escolhe primeiro a quantidade e depois os sabores.</p>
-              <p className="text-sm text-gray-600">O preço da pizza será a média dos sabores escolhidos; o preço base deste produto não será somado. Bordas e outros adicionais continuam cobrados integralmente. Use listas diferentes quando os tamanhos tiverem preços diferentes.</p>
-              <div className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900">Exemplo: (R$ 30,00 + R$ 36,00) ÷ 2 sabores = R$ 33,00. Produtos com variações e sabores com estoque controlado não são compatíveis nesta versão.</div>
+          {/* ====== CARD 10: Multi-sabores ====== */}
+          <CardSection title="Item com mais de 01 sabor" icon={Layers}>
+            <div className="flex items-start gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.item_com_mais_de_um_sabor}
+                onClick={() => setForm(f => ({ ...f, item_com_mais_de_um_sabor: !f.item_com_mais_de_um_sabor }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 mt-0.5 ${form.item_com_mais_de_um_sabor ? 'bg-green-600' : 'bg-gray-200'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.item_com_mais_de_um_sabor ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Permitir escolher mais de um sabor</p>
+                <p className="text-xs text-gray-500 mt-0.5">Quando ativado, o cliente escolhe quantos sabores deseja antes de montar o produto.</p>
+              </div>
+            </div>
+            {form.item_com_mais_de_um_sabor && <div className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Lista de sabores" required>
+                  <select className="form-input" value={form.sabores_grupo_id || ''} onChange={e => setForm(f => ({ ...f, sabores_grupo_id: e.target.value }))}>
+                    <option value="">Selecione uma lista de complementos</option>
+                    {categoriasComp.map(cat => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.nome}{cat.descricao?.trim() ? ` — ${cat.descricao.trim()}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {form.sabores_grupo_id && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {categoriasComp.find(c => c.id === form.sabores_grupo_id)?.descricao || 'Sem descrição de controle interno'}
+                    </p>
+                  )}
+                </Field>
+                <Field label="Quantidade máxima de sabores" required>
+                  <select className="form-input" value={form.sabores_maximo || 1} onChange={e => setForm(f => ({ ...f, sabores_maximo: Number(e.target.value) }))}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                      <option key={n} value={n}>
+                        {n === 1 ? '1 sabor' : `Até ${n} sabores`}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              {produto?.sabores_grupo_id && produto.sabores_grupo_id !== form.sabores_grupo_id && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                  Ao trocar a lista, os vínculos da lista anterior de sabores serão substituídos. Outros adicionais serão preservados.
+                </div>
+              )}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
+                <p className="text-sm text-blue-900 font-medium">Como funciona:</p>
+                <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                  <li>Cadastre o preço de cada sabor na lista de complementos selecionada.</li>
+                  <li>O cliente escolhe primeiro a quantidade de sabores (1 até {form.sabores_maximo}).</li>
+                  <li>Depois seleciona os sabores na lista.</li>
+                  <li>O preço final é a média dos sabores escolhidos.</li>
+                </ul>
+                <p className="text-xs text-blue-700 mt-2">
+                  <strong>Exemplo:</strong> ({form.sabores_maximo >= 2 ? 'R$ 30 + R$ 36' : 'R$ 30'}) ÷ {form.sabores_maximo >= 2 ? '2' : '1'} = {form.sabores_maximo >= 2 ? 'R$ 33,00' : 'R$ 30,00'}.
+                  Bordas e outros adicionais são cobrados separadamente.
+                </p>
+              </div>
+              <p className="text-xs text-gray-500">
+                Use listas diferentes para produtos com preços diferentes (ex: pizzas médias e grandes).
+              </p>
             </div>}
-            {!dividirSabores && produto?.sabores_grupo_id && <p className="text-sm text-amber-700 mt-3">Ao salvar sem divisão, este produto voltará ao preço base mais a soma dos complementos vinculados. Revise os preços e vínculos antes de salvar. Pedidos existentes permanecem como foram vendidos.</p>}
+            {!form.item_com_mais_de_um_sabor && produto?.sabores_grupo_id && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mt-4 text-sm text-amber-800">
+                Ao desativar, este produto voltará ao preço base. Pedidos existentes permanecem como foram vendidos.
+              </div>
+            )}
           </CardSection>
           <CardSection title="Complementos vinculados" icon={Layers}>
             <p className="text-sm text-gray-500 mb-3 -mt-1">
@@ -1128,7 +1192,7 @@ function ImageUploader({ value, onChange }: { value: string; onChange: (url: str
       const res = await fetch('/api/upload-produto', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erro no upload')
-      onChange(data.url, data.path)
+      onChange(data.url + '?v=' + (data._ts || Date.now()), data.path)
     } catch (e: any) {
       setErro(e.message)
     } finally {

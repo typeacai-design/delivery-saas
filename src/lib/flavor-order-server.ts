@@ -12,9 +12,10 @@ export async function validateFlavorItem(db: any, tenantId: string, active: bool
   }
   if (!active) invalid('A divisao em sabores esta desativada nesta loja. Este produto esta temporariamente indisponivel.')
   if (!product.ativo) invalid('Produto indisponivel.')
-  if (item.variante_id) invalid('Pizzas com sabores nao aceitam variacoes. Configure um produto para cada tamanho.')
+  if (item.variante_id) invalid('Produtos com sabores nao aceitam variacoes. Configure um produto para cada tamanho.')
   const count = Number(item.sabores_quantidade)
-  if (!Number.isInteger(count) || count < 1 || count > Number(product.sabores_maximo) || count > 3) invalid('Escolha a quantidade de sabores desta pizza.')
+  const maxAllowed = Math.max(1, Math.min(Number(product.sabores_maximo || 1), 10))
+  if (!Number.isInteger(count) || count < 1 || count > maxAllowed) invalid('Escolha a quantidade de sabores entre 1 e ' + maxAllowed + '.')
   const quantity = Number(item.quantidade)
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) invalid('Quantidade de pizzas invalida.')
   const [{ data: group, error: groupError }, { data: links, error: linksError }, { data: variants, error: variantsError }] = await Promise.all([
