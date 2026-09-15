@@ -4,13 +4,13 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import { useToast } from '@/components/toast'
-import { Plus, Trash2, User, ChefHat, Bike, Shield, ShieldCheck, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Plus, Trash2, User, ChefHat, Bike, Shield, ShieldCheck, Eye, EyeOff, Loader2, Headphones } from 'lucide-react'
 
 interface MembroEquipe {
   id: string
   nome: string
   username: string
-  perfil: 'owner' | 'manager' | 'attendant' | 'cozinha' | 'motoboy'
+  perfil: 'owner' | 'manager' | 'attendant' | 'cozinha' | 'motoboy' | 'atendimento'
   ativo: boolean
 }
 
@@ -20,6 +20,7 @@ const PERFIL_CONFIG: Record<string, { label: string; icon: typeof User; color: s
   attendant: { label: 'Atendente', icon: User, color: 'bg-gray-100 text-gray-700', description: 'Atendimento' },
   cozinha: { label: 'Cozinha', icon: ChefHat, color: 'bg-orange-100 text-orange-700', description: 'Acesso pedidos + cozinha' },
   motoboy: { label: 'Motoboy', icon: Bike, color: 'bg-green-100 text-green-700', description: 'Página de entregas' },
+  atendimento: { label: 'Atendimento', icon: Headphones, color: 'bg-violet-100 text-violet-700', description: 'Atendimento ao cliente + mesas' },
 }
 
 export default function EquipesPage() {
@@ -29,7 +30,7 @@ export default function EquipesPage() {
   const [tenantId, setTenantId] = useState<string>('')
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<MembroEquipe | null>(null)
-  const [formData, setFormData] = useState<{ nome: string; username: string; password: string; perfil: 'owner' | 'manager' | 'attendant' | 'cozinha' | 'motoboy' }>({ nome: '', username: '', password: '', perfil: 'attendant' })
+  const [formData, setFormData] = useState<{ nome: string; username: string; password: string; perfil: 'owner' | 'manager' | 'attendant' | 'cozinha' | 'motoboy' | 'atendimento' }>({ nome: '', username: '', password: '', perfil: 'attendant' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {

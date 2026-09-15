@@ -68,7 +68,7 @@ export default function DashboardLayout({
     if (pathname === '/motoboys') { router.replace('/equipe'); return }
     if (['/sorteios', '/embaixadores'].includes(pathname)) { router.replace('/marketing'); return }
     const allowed = role === 'attendant' ? ['/dashboard', '/pedidos', '/clientes']
-      : ['kitchen', 'motoboy', 'delivery'].includes(role) ? ['/dashboard', '/pedidos'] : null
+      : ['kitchen', 'motoboy', 'delivery', 'atendimento'].includes(role) ? ['/dashboard', '/pedidos', '/clientes'] : null
     if (allowed && !allowed.some((route) => pathname === route || pathname.startsWith(route + '/'))) router.replace('/pedidos')
   }, [authChecked, pathname, role, router])
 
@@ -179,7 +179,7 @@ export default function DashboardLayout({
 
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 glass border-t" style={{ borderColor: 'var(--line)' }}>
         <div className="grid grid-cols-5 gap-1 px-2 py-2">
-          {( role === 'attendant' ? navItems.filter(item => ['/dashboard','/pedidos','/clientes'].includes(item.href)) : ['kitchen', 'motoboy', 'delivery'].includes(role) ? navItems.filter(item => ['/dashboard','/pedidos'].includes(item.href)) : navItems).slice(0, 5).map((item) => (
+          {( role === 'attendant' ? navItems.filter(item => ['/dashboard','/pedidos','/clientes'].includes(item.href)) : ['kitchen', 'motoboy', 'delivery', 'atendimento'].includes(role) ? navItems.filter(item => ['/dashboard','/pedidos','/clientes'].includes(item.href)) : navItems).slice(0, 5).map((item) => (
             <Link
               key={item.href}
               href={item.href}

@@ -60,7 +60,7 @@ export default function EquipePage() {
     setMessage('')
     try {
       const payload: any = editing
-        ? { id: editing.id, nome: form.nome, role: form.role, ativo: form.ativo }
+        ? { id: editing.id, nome: form.nome, perfil: form.role, ativo: form.ativo }
         : { nome: form.nome, username: form.username, senha: form.senha, perfil: form.role }
       if (!editing && form.senha) payload.senha = form.senha
       // edição só envia senha se preenchida

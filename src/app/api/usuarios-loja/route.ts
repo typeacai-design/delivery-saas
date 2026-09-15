@@ -47,7 +47,7 @@ export async function GET() {
       ativo: m.ativo,
     }))
 
-    return NextResponse.json({ usuarios: lista, can_manage: role === 'owner' })
+    return NextResponse.json({ usuarios: lista, can_manage: role === 'owner' || role === 'manager' })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -55,9 +55,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { user, tenantId, role: actorRole } = await authenticatedTenant(['owner'])
+    const { user, tenantId, role: actorRole } = await authenticatedTenant(['owner', 'manager'])
     if (!user || !tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
-    if (actorRole !== 'owner') return NextResponse.json({ error: 'Apenas o dono pode criar acessos' }, { status: 403 })
+    if (!['owner', 'manager'].includes(actorRole || '')) {
+      return NextResponse.json({ error: 'Apenas owner ou manager pode criar acessos' }, { status: 403 })
+    }
 
     const body = await request.json()
     const { nome, username, senha, perfil } = body
@@ -131,9 +133,11 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { user, tenantId, role: actorRole } = await authenticatedTenant(['owner'])
+    const { user, tenantId, role: actorRole } = await authenticatedTenant(['owner', 'manager'])
     if (!user || !tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
-    if (actorRole !== 'owner') return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    if (!['owner', 'manager'].includes(actorRole || '')) {
+      return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    }
 
     const body = await request.json()
     const { id, nome, senha, perfil, ativo } = body
@@ -197,42 +201,43 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { user, tenantId: initialTenantId, role: actorRole } = await authenticatedTenant(['owner'])
-    let tenantId = initialTenantId
-    if (!user || !tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
-    if (actorRole !== 'owner') return NextResponse.json({ error: 'Apenas owner pode remover' }, { status: 403 })
+    const { user, tenantId: initialTenantId, role: actorRole } = await authenticatedTenant(['owner', 'manager'])
+    if (!user || !initialTenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    if (!['owner', 'manager'].includes(actorRole || '')) {
+      return NextResponse.json({ error: 'Apenas owner ou manager pode remover' }, { status: 403 })
+    }
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID necessário' }, { status: 400 })
 
     const admin = adminClient()
-    // Buscar o membro por ID — primeiro no tenant ativo; se não achar, em qualquer tenant do owner
-    let { data: target } = await admin
+    // Busca o membro por ID em qualquer tenant que o ator gerencia (owner via tenants.owner_id,
+    // ou manager via usuarios_loja com perfil 'manager' ativo no tenant).
+    const { data: ownedTenants } = await admin.from('tenants').select('id').eq('owner_id', user.id)
+    const { data: managedRows } = await admin
+      .from('usuarios_loja')
+      .select('tenant_id')
+      .eq('user_id', user.id)
+      .eq('role', 'manager')
+      .eq('ativo', true)
+    const managedTenantIds = new Set<string>([
+      ...(ownedTenants || []).map((t: any) => t.id),
+      ...(managedRows || []).map((r: any) => r.tenant_id),
+    ])
+
+    if (managedTenantIds.size === 0) {
+      return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    }
+
+    const { data: target } = await admin
       .from('membros_equipe')
       .select('id, perfil, tenant_id')
       .eq('id', id)
-      .eq('tenant_id', tenantId)
       .maybeSingle()
 
-    if (!target) {
-      // Fallback: se o usuário é owner do tenant do membro, permite
-      const { data: ownedTenants } = await admin.from('tenants').select('id').eq('owner_id', user.id)
-      const ownedIds = new Set((ownedTenants || []).map((t: any) => t.id))
-      const { data: anyMember } = await admin
-        .from('membros_equipe')
-        .select('id, perfil, tenant_id')
-        .eq('id', id)
-        .maybeSingle()
-      if (anyMember && ownedIds.has(anyMember.tenant_id)) {
-        target = anyMember
-        // usa o tenantId correto do membro
-        tenantId = anyMember.tenant_id
-      }
-    }
-
-    if (!target || !ROLES_VALIDAS_NO_BANCO.includes(target.perfil)) {
-      console.error('[usuarios-loja DELETE] target null ou perfil inválido', { id, tenantId, userId: user.id })
+    if (!target || !managedTenantIds.has(target.tenant_id) || !ROLES_VALIDAS_NO_BANCO.includes(target.perfil)) {
+      console.error('[usuarios-loja DELETE] target null ou sem permissão', { id, target, userId: user.id })
       return NextResponse.json({ error: 'Acesso não permitido' }, { status: 403 })
     }
 
@@ -241,7 +246,7 @@ export async function DELETE(request: Request) {
       .from('membros_equipe')
       .update({ ativo: false, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', target.tenant_id)
 
     if (error) throw error
     return NextResponse.json({ success: true })
