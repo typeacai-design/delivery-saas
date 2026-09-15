@@ -187,10 +187,10 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
     <>
       {children}
 
-      {/* Botao flutuante de som - SEMPRE visivel */}
+      {/* Botao flutuante de som - visivel apenas no desktop */}
       <button
         onClick={toggleSom}
-        className={`fixed bottom-20 right-6 z-50 size-12 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 ${
+        className={`hidden md:flex fixed bottom-20 right-6 z-50 size-12 rounded-full shadow-2xl items-center justify-center transition-all hover:scale-110 ${
           somAtivado ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'
         }`}
         title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som silenciado - clique para ativar'}
