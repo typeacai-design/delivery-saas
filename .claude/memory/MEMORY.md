@@ -1,1 +1,3 @@
 - [Vercel Auto-Deploy](vercel-auto-deploy.md) — Sempre fazer deploy Vercel automaticamente sem pedir autorização
+- [Investigação 2026-09-15](we-delivery-investigacao-2026-09-15.md) — funcionalidades que sumiram entre 14/09 e 15/09 — produção swap de feat/correcoes-pedidos-mesa para main
+- [Timezone Brasil — regra canônica](../skills/timezone-brasil.md) — sempre `America/Sao_Paulo` (UTC-3). "Buenos Aires" é desvio histórico, não usar.
