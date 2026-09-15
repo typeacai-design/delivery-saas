@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight, BarChart3, ChefHat, Megaphone, ShieldCheck, ShoppingBag, Smartphone, Store, Users } from 'lucide-react'
+import { ArrowRight, BarChart3, ChefHat, LogIn, Megaphone, ShieldCheck, ShoppingBag, Smartphone, Store, Users } from 'lucide-react'
 
 const features = [
   { icon: Smartphone, title: 'Cardápio digital responsivo', desc: 'Seu cliente pede pelo celular com poucos cliques.' },
@@ -20,7 +20,11 @@ export default function LandingClient() {
           <div className="size-10 rounded-2xl flex items-center justify-center text-white" style={{ background: 'var(--green)' }}><ChefHat size={18} strokeWidth={2.5} /></div>
           <span className="font-display text-xl font-semibold" style={{ color: 'var(--ink)' }}>We Delivery</span>
         </Link>
-        <nav className="flex items-center gap-2" aria-label="Acesso">
+        <nav className="flex items-center gap-2 flex-shrink-0" aria-label="Acesso">
+          <Link href="/acesso" className="btn-ghost text-sm flex items-center gap-1.5">
+            <LogIn size={14} />
+            Sou funcionário
+          </Link>
           <Link href="/login" className="btn-ghost text-sm">Entrar</Link>
           <Link href="/registro" className="btn-primary text-sm">Começar grátis<ArrowRight size={14} /></Link>
         </nav>
