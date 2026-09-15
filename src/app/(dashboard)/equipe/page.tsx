@@ -130,7 +130,9 @@ export default function EquipePage() {
 
   function copiarLink(perfil: Perfil) {
     const base = typeof window !== 'undefined' ? window.location.origin : ''
-    const url = `${base}/acesso?perfil=${perfil}`
+    // Atendente usa a rota raiz (/acesso); Cozinha e Motoboy têm rotas dedicadas
+    const path = perfil === 'attendant' ? '/acesso' : `/acesso/${perfil}`
+    const url = `${base}${path}`
     navigator.clipboard.writeText(url)
     toastSuccess('Link copiado!', url)
   }
