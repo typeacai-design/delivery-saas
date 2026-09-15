@@ -1,17 +1,54 @@
 # Progresso do We Delivery
 
-Atualizado em 09/09/2026. Este documento registra as alterações concluídas e o contexto necessário para retomar o trabalho com segurança.
+Atualizado em 15/09/2026 (sessão de diagnóstico e recuperação) e em 09/09/2026 (release de sabores por produto).
 
 ## Estado atual
 
-**Sistema publicado em https://wedelivery.site.** Deployment atual `dpl_DdaU82QKSEmHvBKu9puSNqDQ9exD`, verificado em `2026-09-09T20:15:31.328Z`; implementação atual `e6bd94b` (configuração de sabores diretamente no produto). A correção de preço “a partir de” e a funcionalidade opcional de divisão em sabores estão implementadas e publicadas. As migrações não ativaram lojas em massa nem converteram produtos existentes; na revisão 084, o salvamento autorizado de um produto com sabores habilita tecnicamente somente sua loja. Os pedidos e demais dados existentes foram preservados.
+**Sistema publicado em https://wedelivery.site.** O alias de produção foi **sobrescrito em 15/09/2026 às 10:56 UTC-3** por um deploy da branch `main` (commit `a8c4d51` "fix(mesa): liberar atendente"). Até 14/09, o alias servia a branch `feat/correcoes-pedidos-mesa` (commit `cd16e35`). Por causa dessa troca, funcionalidades que o usuário viu na véspera (botão "Sou funcionário" da landing e aba "Mesas" em `/configuracoes`) não aparecem mais no site público, embora continuem existindo no histórico do git em outra branch ou somente em working tree não commitada.
 
 - Projeto principal para continuar o trabalho: `C:/Users/ranie/delivery-saas`, branch `main`.
-- Worktree usado na implementação: `C:/Users/ranie/we-delivery-sabores`, branch `feat/divisao-sabores`.
+- Worktree usado na implementação de sabores: `C:/Users/ranie/we-delivery-sabores`, branch `feat/divisao-sabores`.
 - Cópia original preservada: `C:/Users/ranie/.claude/PROJETOS/delivery-saas`. Não foi sobrescrita.
 - A cópia principal recebeu a entrega 083 por fast-forward até `3cc513c` e a revisão 084 no commit local `e6bd94b`; o fechamento desta publicação acrescenta somente documentação.
 
-## Revisão 084 publicada: configuração somente no produto
+## 🚨 Sessão 15/09/2026 — Diagnóstico do "sumiço" entre 14/09 e 15/09
+
+Investigação registrada em `.claude/memory/we-delivery-investigacao-2026-09-15.md`. Resumo:
+
+### O que mudou em produção
+
+| Janela (UTC-3) | Branch servida | Commit | Observação |
+|---|---|---|---|
+| 14/09 11:11–16:17 | `feat/correcoes-pedidos-mesa` | `0958759` → `cd16e35` | 14 deploys, vários READY. **Era o que o usuário viu.** |
+| 15/09 10:56–11:05 | `main` | `a8c4d51` | Sobrescreveu o alias. **É o que está no ar hoje.** |
+
+### Funcionalidades afetadas
+
+- **Botão "Sou funcionário" na landing page.** Existe somente em working tree local, nunca foi commitado em nenhum branch. Foi visto em preview da Vercel com `gitDirty: "1"` (deploy inclui working tree não-commitado).
+- **Aba "Mesas" em `/configuracoes`.** Commitada apenas em `feat/correcoes-pedidos-mesa`. Não está em `main`, portanto não aparece em produção.
+- **Modal de equipe sem email (apenas Nome + Username + Senha)** e novas APIs de login. Commitadas em `feat/correcoes-pedidos-mesa`, ausentes em `main`.
+
+### Bug conhecido no link "Copiar acesso" da página `/equipe`
+
+Os cards da `/equipe` mostram três perfis (`attendant`, `cozinha`, `motoboy`) e geram links para `/acesso?perfil=<perfil>`. A página `/acesso/page.tsx` **não usa** esse query param e força login como atendente via `/api/auth/atendente-login`, rejeitando Cozinha e Motoboy. Perfis Cozinha/Motoboy só conseguem logar entrando direto em `/acesso/cozinha` ou `/acesso/motoboy`. Investigação: `.claude/memory/we-delivery-investigacao-2026-09-15.md`.
+
+### Lição sobre working tree não-commitado
+
+Deploys da Vercel com `gitDirty: "1"` montam o bundle usando a HEAD + working tree. O botão "Sou funcionário" ficou horas visível assim, mas nunca entrou no histórico. Para evitar recorrência:
+
+- Antes de testar num preview, fazer commit (mesmo com mensagem "wip") do que será avaliado.
+- Desconfiar de qualquer deploy com `gitDirty: "1"`.
+- Ao "salvar o progresso", confirmar com `git log --all -- <arquivo>` que a mudança está no histórico.
+
+### Opções de restauração (não executadas — aguardam autorização)
+
+- **A.** Merge da `feat/correcoes-pedidos-mesa` na `main` e novo deploy. **Risco:** a branch termina com `cd16e35` "remove componentes quebrados (serão refeitos corretamente)" — pode estar instável.
+- **B.** Cherry-pick cirúrgico na `main` dos commits desejados (aba Mesas em `/configuracoes`, modal sem email, APIs novas de login) + reintroduzir manualmente o botão "Sou funcionário" como commit isolado.
+- **C.** Reimplementar na `main` (que é o que está em produção) sem depender da branch instável. Mais demorado, mais seguro.
+
+Nenhuma das três opções foi executada nesta sessão. Aguarda decisão do usuário.
+
+## Revisão 084 publicada (09/09/2026): configuração somente no produto
 
 **Publicada e verificada por HTTP/API.** Nesta revisão, a aba Sabores de Configurações foi removida. O lojista marca a divisão diretamente no popup do produto, escolhe a lista e o limite de dois ou três sabores e salva. O checkbox não exige uma ativação prévia da loja. Cancelar não grava alterações.
 
