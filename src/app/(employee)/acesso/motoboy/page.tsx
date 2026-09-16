@@ -111,8 +111,13 @@ export default function MotoboyPage() {
     window.open(`https://www.google.com/maps/search/?api=1&query=${endereco}`, '_blank')
   }
 
-  const logout = () => {
+  const logout = async () => {
     localStorage.removeItem('membro_equipe')
+    document.cookie = 'wd_employee_role=; path=/; max-age=0; samesite=lax'
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch { /* ignora erro de logout */ }
     router.push('/acesso')
   }
 

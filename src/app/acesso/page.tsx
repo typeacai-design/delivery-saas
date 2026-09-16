@@ -17,6 +17,17 @@ export default function AcessoPage() {
     const supabase = createClient()
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
+        // Se houver um membro_equipe salvo no localStorage (login operacional
+        // feito pelo atendente/cozinha/motoboy), leva direto pra tela dedicada.
+        const membroStr = typeof window !== 'undefined' ? localStorage.getItem('membro_equipe') : null
+        if (membroStr) {
+          try {
+            const m = JSON.parse(membroStr)
+            if (m?.perfil === 'attendant') return router.push('/acesso/atendimento')
+            if (m?.perfil === 'cozinha') return router.push('/acesso/cozinha')
+            if (m?.perfil === 'motoboy') return router.push('/acesso/motoboy')
+          } catch { /* ignora JSON inválido e cai no fallback abaixo */ }
+        }
         router.push('/pedidos')
       } else {
         setLoading(false)
@@ -46,6 +57,9 @@ export default function AcessoPage() {
 
     // Salva membro no localStorage como fallback
     localStorage.setItem('membro_equipe', JSON.stringify(data.membro))
+    // Cookie para o middleware identificar o perfil operacional
+    // e redirecionar tentativas de acesso a rotas administrativas.
+    document.cookie = `wd_employee_role=${data.membro.perfil}; path=/; max-age=${60 * 60 * 24}; samesite=lax`
     return data.membro
   }
 
@@ -61,6 +75,7 @@ export default function AcessoPage() {
     const data = await r.json()
     if (!r.ok) throw new Error(data.error || 'Falha no login')
     localStorage.setItem('membro_equipe', JSON.stringify(data.membro))
+    document.cookie = `wd_employee_role=${data.membro.perfil}; path=/; max-age=${60 * 60 * 24}; samesite=lax`
     return data.membro
   }
 
@@ -90,7 +105,7 @@ export default function AcessoPage() {
       }
 
       if (membro.perfil === 'attendant') {
-        router.push('/pedidos')
+        router.push('/acesso/atendimento')
       } else if (membro.perfil === 'cozinha') {
         router.push('/acesso/cozinha')
       } else if (membro.perfil === 'motoboy') {
