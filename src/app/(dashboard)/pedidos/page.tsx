@@ -544,10 +544,13 @@ export default function PedidosPage() {
             event: 'INSERT',
             schema: 'public',
             table: 'pedidos',
-            filter: `tenant_id=eq.${tenantId}`,
           },
           (payload) => {
             const novoPedido = payload.new as Pedido
+            // Filtrar apenas pedidos do tenant atual
+            if (novoPedido.tenant_id !== tenantId) return
+            // Filtrar pedidos apagados
+            if (novoPedido.deleted_at) return
             setPedidos((prev) => {
               // Filtrar pedidos apagados
               const filtrados = prev.filter(p => !p.deleted_at)
@@ -568,10 +571,11 @@ export default function PedidosPage() {
             event: 'UPDATE',
             schema: 'public',
             table: 'pedidos',
-            filter: `tenant_id=eq.${tenantId}`,
           },
           (payload) => {
             const atualizado = payload.new as Pedido
+            // Filtrar apenas pedidos do tenant atual
+            if (atualizado.tenant_id !== tenantId) return
             setPedidos((prev) => {
               // Se foi apagado, remover da lista
               if (atualizado.deleted_at) {
@@ -1093,6 +1097,18 @@ export default function PedidosPage() {
     carregarItensCache()
   }, [pedidos])
 
+  const [mesasInfo, setMesasInfo] = useState<any[]>([])
+
+  useEffect(() => {
+    const carregarMesas = async () => {
+      const tid = await activeTenantId()
+      if (!tid) return
+      const { data } = await supabase.from('mesas').select('*').eq('tenant_id', tid).eq('ativa', true).order('numero')
+      setMesasInfo(data || [])
+    }
+    carregarMesas()
+  }, [])
+
   // Carrega itens quando modal de edição abre
   useEffect(() => {
     if (modalEditarAberto && pedidoEditando) {
@@ -1162,6 +1178,13 @@ export default function PedidosPage() {
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             {/* Botão Som só aparece no desktop (no mobile some pra economizar espaço) */}
+            <button
+              onClick={() => { setLoading(true); loadPedidos(); }}
+              className="px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border bg-white border-gray-300 text-gray-600 hover:bg-gray-100"
+              title="Atualizar pedidos"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
             <button
               onClick={() => setSomAtivado(!somAtivado)}
               className="hidden md:flex px-4 py-2 rounded-xl text-sm font-medium items-center gap-2 border"

@@ -817,6 +817,7 @@ export default function NovoPedidoPage() {
 
   const loadDados = async () => {
     const tenantId = await activeTenantId()
+    console.log('[pedidos/novo] loadDados - tenantId:', tenantId)
     if (!tenantId) return
     const { data: lojaSabores } = await supabase.from('tenants').select('sabores_ativo').eq('id', tenantId).single()
     setSaboresAtivo(lojaSabores?.sabores_ativo === true)
@@ -1007,11 +1008,17 @@ export default function NovoPedidoPage() {
       return
     }
 
+    if (tipoEntrega === 'mesa' && !mesaId) {
+      alert('Selecione a mesa')
+      return
+    }
+
     setLoading(true)
 
     try {
       const tenantId = await activeTenantId()
-      if (!tenantId) throw new Error('Não autenticado')
+      console.log('[pedidos/novo] tenantId:', tenantId)
+      if (!tenantId) throw new Error('Sem tenant — não autenticado ou sem acesso a loja')
 
       let clienteId = clienteSelecionado?.id
       const nomeCliente = clienteSelecionado?.nome || ''
@@ -1128,12 +1135,14 @@ export default function NovoPedidoPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pedido_id: pedido.id,
+          pedido_id: pedido!.id,
           tempo_preparo: 30,
           forma_pagamento: [formaPagamento],
         }),
       })
+      console.log('[pedidos/novo] whatsapp API status:', whatsappRes.status)
       const whatsappData = await whatsappRes.json()
+      console.log('[pedidos/novo] whatsapp API response:', whatsappData)
 
       setPedidoCriado(pedido)
       setWhatsappUrl(whatsappData.whatsapp_url || '')
@@ -1742,7 +1751,7 @@ export default function NovoPedidoPage() {
           {/* Botão Finalizar */}
           <button
             onClick={criarPedido}
-            disabled={loading || itens.length === 0 || (tipoEntrega === 'delivery' && !bairroSelecionado)}
+            disabled={loading || itens.length === 0 || (tipoEntrega === 'delivery' && !bairroSelecionado) || (tipoEntrega === 'mesa' && !mesaId)}
             className="btn-primary w-full mt-6 py-4 text-lg disabled:opacity-50"
           >
             {loading ? (

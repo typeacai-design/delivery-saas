@@ -1,8 +1,36 @@
-## Estado atual - 2026-09-09
+# Progresso do We Delivery — 2026-09-01
 
-As atualizacoes de preco a partir de e divisao em sabores foram publicadas. Consulte [PROGRESSO_WE_DELIVERY.md](PROGRESSO_WE_DELIVERY.md) para o checkpoint atual, evidencias, limites e orientacoes de retomada. Os registros historicos abaixo permanecem preservados.
+## Rodada: Subseções Pedidos + Avaliações
 
-# Progresso do We Delivery — 2026-08-12
+### Subseções em Pedidos
+- ✅ FluxoTab.tsx: pedidos em andamento (novo, preparando, pronto, saiu)
+- ✅ HistoricoTab.tsx: pedidos concluídos (entregue, cancelado)
+- ✅ Tabs visuais no topo da página de pedidos
+- ✅ Fluxo: filtros por status e data, grid de cards compactos
+- ✅ Histórico: métricas (entregues, cancelados, faturamento), busca por cliente/código
+- ✅ Tabela responsiva no histórico com ações rápidas
+
+### Página de Avaliações Melhorada
+- ✅ Cards de métricas melhorados (nota média, total, positivos, negativos)
+- ✅ Gráfico de distribuição visual com barras coloridas
+- ✅ Filtros por status (Todas, Pendentes, Aprovadas)
+- ✅ Filtros avançados por nota (1-5 estrelas)
+- ✅ Badge de tipo de avaliação (Excelente 🌟, Ótimo 😊, Regular 😐, Ruim 😕, Péssimo 😞)
+- ✅ Integração com WhatsApp para contatar cliente diretamente
+- ✅ UI mais visual com avatares e cores
+- ✅ Link para Avaliações no menu lateral (SidebarNav)
+- ✅ Removido redirect de /avaliacoes para /marketing
+
+### Correções gerais aplicadas
+- ✅ Status da loja com horário configurável
+- ✅ Botões 2x3 nos cards de pedido
+- ✅ Exibir desconto no card
+- ✅ Remover "Em Aberto", unificar com "Novo"
+- ✅ Filtro de data De/Até
+- ✅ Excluir vs inativar produtos
+- ✅ Remover horário disponível do cadastro de produto
+- ✅ Busca de complementos por nome e descrição
+- ✅ Slug sem hífen (apenas letras/números)
 
 ## Rodada integrada e publicada
 

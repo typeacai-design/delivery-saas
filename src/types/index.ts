@@ -79,6 +79,7 @@ export type Pedido = {
   agendamento: string | null
   observacoes: string | null
   tipo_entrega?: string
+  mesa_id?: string | null
   endereco_entrega?: string
   numero_entrega?: string
   complemento_entrega?: string

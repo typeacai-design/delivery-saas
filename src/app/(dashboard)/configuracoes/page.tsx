@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import {
-  Clock, MapPin, CreditCard, User, Save, Plus, X, Sparkles, Calendar, Upload, Trash2, Image as ImageIcon, Copy, Ban, CheckCircle2, Utensils, Edit
+  Clock, MapPin, CreditCard, User, Save, Plus, X, Sparkles, Calendar, Upload, Trash2, Image as ImageIcon, Copy, Ban, CheckCircle2, Utensils, Edit2
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { CoordinateMap } from '@/components/coordinate-map'
@@ -118,7 +118,7 @@ export default function ConfiguracoesPage() {
 
       {tab === 'horarios' && <HorariosTab tenant={tenant} loadTenantFromParent={loadTenant} />}
       {tab === 'entregas' && <EntregasTab />}
-      {tab === 'mesas' && <MesasTab />}
+      {tab === 'mesas' && <MesasTab tenant={tenant} />}
       {tab === 'perfil' && <PerfilEditavel tenant={tenant} onSaved={loadTenant} onReload={loadTenant} />}
     </div>
   )
@@ -418,6 +418,240 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
   )
 }
 
+function MesasTab({ tenant }: { tenant: any }) {
+  const supabase = createClient()
+  const [mesas, setMesas] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [editando, setEditando] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
+
+  // Estado do toggle mesas_habilitadas (vem do tenant)
+  const [mesasHabilitadas, setMesasHabilitadas] = useState(tenant?.mesas_habilitadas || false)
+
+  // Form de nova mesa
+  const [form, setForm] = useState({ numero: '', nome: '', capacidade: '4' })
+
+  useEffect(() => {
+    setMesasHabilitadas(tenant?.mesas_habilitadas || false)
+  }, [tenant?.mesas_habilitadas])
+
+  const carregar = async () => {
+    const tid = await activeTenantId()
+    if (!tid) return
+    setLoading(true)
+    const { data } = await supabase
+      .from('mesas')
+      .select('*')
+      .eq('tenant_id', tid)
+      .order('numero')
+    setMesas(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { carregar() }, [])
+
+  const toggleHabilitado = async (novoValor: boolean) => {
+    const tid = await activeTenantId()
+    if (!tid) return
+    const { error } = await supabase
+      .from('tenants')
+      .update({ mesas_habilitadas: novoValor })
+      .eq('id', tid)
+    if (error) { setMsg('Erro: ' + error.message); return }
+    setMesasHabilitadas(novoValor)
+    setMsg(novoValor ? '✅ Mesas ativadas' : '⏸️ Mesas desativadas')
+  }
+
+  const salvarMesa = async () => {
+    if (!form.numero || Number(form.numero) < 1) {
+      setMsg('Número da mesa é obrigatório')
+      return
+    }
+    const tid = await activeTenantId()
+    if (!tid) return
+    setSalvando(true)
+    setMsg('')
+
+    const payload = {
+      tenant_id: tid,
+      numero: Number(form.numero),
+      nome: form.nome.trim() || null,
+      capacidade: Number(form.capacidade) || 4,
+    }
+
+    if (editando) {
+      const { error } = await supabase
+        .from('mesas')
+        .update({ numero: payload.numero, nome: payload.nome, capacidade: payload.capacidade })
+        .eq('id', editando)
+      if (error) setMsg('Erro: ' + error.message)
+      else { setMsg('✅ Mesa atualizada'); limparForm(); carregar() }
+    } else {
+      const { error } = await supabase.from('mesas').insert({ ...payload, ativa: true })
+      if (error) {
+        if (error.code === '23505') setMsg('⚠️ Já existe uma mesa com esse número')
+        else setMsg('Erro: ' + error.message)
+      } else { setMsg('✅ Mesa cadastrada'); limparForm(); carregar() }
+    }
+    setSalvando(false)
+  }
+
+  const limparForm = () => {
+    setForm({ numero: '', nome: '', capacidade: '4' })
+    setEditando(null)
+  }
+
+  const editar = (m: any) => {
+    setEditando(m.id)
+    setForm({ numero: String(m.numero), nome: m.nome || '', capacidade: String(m.capacidade || 4) })
+    setMsg('')
+  }
+
+  const toggleAtiva = async (m: any) => {
+    await supabase.from('mesas').update({ ativa: !m.ativa }).eq('id', m.id)
+    carregar()
+  }
+
+  const excluir = async (m: any) => {
+    if (!confirm(`Excluir a Mesa ${m.numero}? Pedidos antigos manterão o histórico.`)) return
+    const { error } = await supabase.from('mesas').delete().eq('id', m.id)
+    if (error) setMsg('Erro ao excluir: ' + error.message)
+    else carregar()
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Card: ativar/desativar mesas */}
+      <div className="glass p-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Utensils className="w-5 h-5 text-orange-600" />
+              Gestão de mesas do salão
+            </h2>
+            <p className="hint mt-1">
+              Quando ativado, a opção <strong>"Mesa"</strong> aparece no pedido e a aba <strong>Mesas</strong> fica disponível.
+            </p>
+          </div>
+          <button
+            onClick={() => toggleHabilitado(!mesasHabilitadas)}
+            className={`relative w-14 h-7 rounded-full transition ${mesasHabilitadas ? 'bg-orange-500' : 'bg-gray-300'}`}
+          >
+            <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${mesasHabilitadas ? 'left-7' : 'left-0.5'}`} />
+          </button>
+        </div>
+        <div className="mt-3 text-xs">
+          {mesasHabilitadas ? (
+            <span className="text-orange-700 font-medium">🟢 Ativado — {mesas.length} mesa{mesas.length !== 1 ? 's' : ''} cadastrada{mesas.length !== 1 ? 's' : ''}</span>
+          ) : (
+            <span className="text-gray-500">⚪ Desativado — pedidos do tipo mesa não aparecem no painel</span>
+          )}
+        </div>
+      </div>
+
+      {/* Form de cadastro */}
+      {mesasHabilitadas && (
+        <>
+          <div className="glass p-6">
+            <h2 className="text-lg font-semibold mb-4">{editando ? '✏️ Editar mesa' : '➕ Nova mesa'}</h2>
+            <div className="grid md:grid-cols-4 gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500">Número *</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.numero}
+                  onChange={e => setForm({ ...form, numero: e.target.value })}
+                  className="form-input"
+                  placeholder="1"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500">Nome (opcional)</span>
+                <input
+                  value={form.nome}
+                  onChange={e => setForm({ ...form, nome: e.target.value })}
+                  className="form-input"
+                  placeholder="Ex: Varanda"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500">Capacidade</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.capacidade}
+                  onChange={e => setForm({ ...form, capacidade: e.target.value })}
+                  className="form-input"
+                  placeholder="4"
+                />
+              </label>
+              <div className="flex items-end gap-2">
+                <button
+                  className="btn-primary justify-center flex-1"
+                  onClick={salvarMesa}
+                  disabled={salvando}
+                >
+                  <Save size={14} />
+                  {editando ? 'Atualizar' : 'Cadastrar'}
+                </button>
+                {editando && (
+                  <button onClick={limparForm} className="btn-ghost">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Lista de mesas */}
+          <div className="glass p-6">
+            <h2 className="text-lg font-semibold mb-4">Mesas cadastradas</h2>
+            {loading ? (
+              <p className="hint">Carregando…</p>
+            ) : mesas.length === 0 ? (
+              <p className="hint">Nenhuma mesa cadastrada ainda.</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {mesas.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`p-4 rounded-xl border ${m.ativa ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200 opacity-60'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="size-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white font-bold text-lg shadow">
+                        {m.numero}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold">{m.nome || `Mesa ${m.numero}`}</div>
+                        <div className="text-xs text-gray-500">👥 Capacidade {m.capacidade || 4}</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => editar(m)} className="btn-ghost text-xs flex-1 justify-center">
+                        <Edit2 size={12} /> Editar
+                      </button>
+                      <button onClick={() => toggleAtiva(m)} className="btn-ghost text-xs flex-1 justify-center">
+                        {m.ativa ? '⏸️ Desativar' : '▶️ Ativar'}
+                      </button>
+                      <button onClick={() => excluir(m)} className="btn-ghost text-xs text-red-600">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {msg && <p className="text-sm text-center text-gray-700">{msg}</p>}
+    </div>
+  )
+}
+
 function EntregasTab() {
   const empty = { id: '', bairro: '', taxa: 0, prazo_min: '', ativo: true }
   const [data,setData]=useState<any>({bairros:[],config:{valor_km:2,minimo:5,max_km:20,arredondamento:'ceil'},origem:{}})
@@ -435,255 +669,6 @@ function EntregasTab() {
     {metodo==='bairro'?<><div className="glass p-6"><h2 className="text-lg font-semibold mb-4">{form.id?'Editar':'Novo'} bairro</h2><div className="grid md:grid-cols-5 gap-3"><input placeholder="Bairro" value={form.bairro} onChange={e=>setForm({...form,bairro:e.target.value})} className="form-input"/><input type="number" step=".01" placeholder="Taxa" value={form.taxa} onChange={e=>setForm({...form,taxa:Number(e.target.value)})} className="form-input"/><input type="number" placeholder="Prazo (min)" value={form.prazo_min} onChange={e=>setForm({...form,prazo_min:e.target.value})} className="form-input"/><label className="flex items-center gap-2"><input type="checkbox" checked={form.ativo} onChange={e=>setForm({...form,ativo:e.target.checked})}/>Ativo</label><button className="btn-primary justify-center" onClick={saveBairro}><Save size={14}/>Salvar</button></div></div><div className="glass p-6 space-y-2">{data.bairros.map((b:any)=><div key={b.id} className="glass-soft p-3 flex items-center gap-3"><MapPin size={15}/><b className="flex-1">{b.bairro}</b><span>{formatCurrency(Number(b.taxa))}{b.prazo_min?` · ${b.prazo_min} min`:''}</span><span className={b.ativo?'text-green-700':'text-gray-400'}>{b.ativo?'Ativo':'Inativo'}</span><button onClick={()=>setForm({...b,prazo_min:b.prazo_min||''})}>Editar</button><button className="text-red-600" onClick={()=>remove(b.id)}>Excluir</button></div>)}</div></>:<div className="glass p-6 space-y-4"><h2 className="text-lg font-semibold">Taxa por distância real</h2><div className="relative"><label>Origem da loja</label><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Busque o endereço de origem" className="form-input"/><div className="absolute z-20 bg-white shadow rounded-xl w-full">{suggestions.map(s=><button className="block w-full text-left p-2" key={s.id} onClick={()=>selectPlace(s)}>{s.label}</button>)}</div></div>{mapOk===false&&<div className="p-3 bg-amber-50 text-amber-800 rounded-xl">Mapa indisponível: configure MAPBOX_ACCESS_TOKEN no servidor. Bairro continua funcionando.</div>}<CoordinateMap value={data.origem} onChange={(p:any)=>setData((d:any)=>({...d,origem:{...d.origem,...p}}))}/><div className="grid md:grid-cols-4 gap-3"><FieldNum label="R$/km" value={data.config.valor_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,valor_km:v}}))}/><FieldNum label="Taxa mínima" value={data.config.minimo} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,minimo:v}}))}/><FieldNum label="Raio máximo (km)" value={data.config.max_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,max_km:v}}))}/><label>Arredondamento<select value={data.config.arredondamento} onChange={e=>setData((d:any)=>({...d,config:{...d.config,arredondamento:e.target.value}}))} className="form-input"><option value="ceil">Para cima</option><option value="round">Mais próximo</option><option value="none">Centavos</option></select></label></div><button className="btn-primary" onClick={saveKm}>Salvar taxa por km</button><div className="border-t pt-4"><h3 className="font-semibold">Prévia de rota</h3><input className="form-input mt-2" placeholder="Longitude destino" onChange={e=>setPreview({...preview,longitude:Number(e.target.value)})}/><input className="form-input mt-2" placeholder="Latitude destino" onChange={e=>setPreview({...preview,latitude:Number(e.target.value)})}/><button className="btn-ghost mt-2" onClick={calcPreview}>Calcular rota</button>{preview?.km&&<p className="mt-2"><b>{preview.km.toFixed(2)} km</b> · {preview.minutos} min · taxa {formatCurrency(preview.taxa)}</p>}</div></div>}{msg&&<p className="text-sm text-center">{msg}</p>}
     <TempoPicoSection />
   </div>
-}
-
-function MesasTab() {
-  const { success: toastSuccess, error: toastError } = useToast()
-  const [mesas, setMesas] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [editId, setEditId] = useState<string | null>(null)
-  const [form, setForm] = useState({ numero: '', nome: '', capacidade: '4', ativo: true })
-  const [showForm, setShowForm] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
-
-  async function carregar() {
-    setLoading(true)
-    try {
-      const r = await fetch('/api/mesas')
-      const b = await r.json()
-      if (r.ok) setMesas(b.mesas || [])
-      else setMsg({ type: 'error', text: b.error || 'Erro ao carregar' })
-    } catch (e: any) {
-      setMsg({ type: 'error', text: e?.message || 'Erro de rede' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { carregar() }, [])
-
-  function startNova() {
-    setEditId(null)
-    setForm({ numero: '', nome: '', capacidade: '4', ativo: true })
-    setShowForm(true)
-    setMsg(null)
-  }
-
-  function startEditar(m: any) {
-    setEditId(m.id)
-    setForm({
-      numero: String(m.numero ?? ''),
-      nome: m.nome ?? '',
-      capacidade: String(m.capacidade ?? 4),
-      ativo: m.ativo !== false,
-    })
-    setShowForm(true)
-    setMsg(null)
-  }
-
-  function cancelar() {
-    setShowForm(false)
-    setEditId(null)
-    setForm({ numero: '', nome: '', capacidade: '4', ativo: true })
-  }
-
-  async function salvar() {
-    const numero = parseInt(form.numero, 10)
-    if (!numero || numero <= 0) {
-      setMsg({ type: 'error', text: 'Informe o número da mesa' })
-      return
-    }
-    const capacidade = parseInt(form.capacidade, 10) || 4
-    const payload: any = {
-      numero,
-      nome: form.nome?.trim() || `Mesa ${numero}`,
-      capacidade,
-      ativo: form.ativo,
-    }
-    setSaving(true)
-    setMsg(null)
-    try {
-      const url = editId ? `/api/mesas?id=${editId}` : '/api/mesas'
-      const method = editId ? 'PATCH' : 'POST'
-      const r = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const b = await r.json()
-      if (!r.ok) {
-        setMsg({ type: 'error', text: b.error || 'Erro ao salvar' })
-        return
-      }
-      toastSuccess(editId ? 'Mesa atualizada' : 'Mesa criada')
-      cancelar()
-      await carregar()
-    } catch (e: any) {
-      setMsg({ type: 'error', text: e?.message || 'Erro de rede' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function toggleAtivo(m: any) {
-    const r = await fetch(`/api/mesas?id=${m.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ativo: !m.ativo }),
-    })
-    if (r.ok) {
-      toastSuccess(m.ativo ? 'Mesa desativada' : 'Mesa ativada')
-      carregar()
-    } else {
-      toastError('Erro', (await r.json()).error)
-    }
-  }
-
-  async function remover(m: any) {
-    if (!confirm(`Excluir a ${m.nome || `Mesa ${m.numero}`}?`)) return
-    const r = await fetch(`/api/mesas?id=${m.id}`, { method: 'DELETE' })
-    if (r.ok) {
-      toastSuccess('Mesa removida')
-      carregar()
-    } else {
-      toastError('Erro', (await r.json()).error)
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="eyebrow mb-1 flex items-center gap-1.5"><Utensils size={11} />Salão</div>
-          <h2 className="text-lg font-semibold">Mesas do salão</h2>
-          <p className="hint text-sm mt-1">Cadastre as mesas físicas do seu estabelecimento para atendimento presencial.</p>
-        </div>
-        {!showForm && (
-          <button className="btn-primary" onClick={startNova}>
-            <Plus size={16} /> Nova mesa
-          </button>
-        )}
-      </div>
-
-      {showForm && (
-        <div className="glass p-6">
-          <div className="eyebrow mb-1">{editId ? 'Editar' : 'Nova'}</div>
-          <h3 className="text-lg font-semibold mb-4">{editId ? 'Editar mesa' : 'Cadastrar mesa'}</h3>
-          <div className="grid md:grid-cols-4 gap-3">
-            <label className="block">
-              <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Número</span>
-              <input
-                type="number"
-                min={1}
-                className="form-input w-full"
-                value={form.numero}
-                onChange={(e) => setForm({ ...form, numero: e.target.value })}
-                placeholder="Ex: 1"
-              />
-            </label>
-            <label className="block md:col-span-2">
-              <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Nome (opcional)</span>
-              <input
-                className="form-input w-full"
-                value={form.nome}
-                onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                placeholder="Ex: Mesa da janela"
-              />
-            </label>
-            <label className="block">
-              <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Capacidade</span>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                className="form-input w-full"
-                value={form.capacidade}
-                onChange={(e) => setForm({ ...form, capacidade: e.target.value })}
-              />
-            </label>
-          </div>
-          <label className="flex items-center gap-2 mt-3">
-            <input
-              type="checkbox"
-              checked={form.ativo}
-              onChange={(e) => setForm({ ...form, ativo: e.target.checked })}
-            />
-            <span className="text-sm">Mesa ativa</span>
-          </label>
-          <div className="flex gap-2 mt-5">
-            <button
-              disabled={saving}
-              className="btn-primary disabled:opacity-50"
-              onClick={salvar}
-            >
-              <Save size={14} />
-              {saving ? 'Salvando…' : editId ? 'Atualizar mesa' : 'Criar mesa'}
-            </button>
-            <button className="btn-ghost" onClick={cancelar} disabled={saving}>
-              <X size={14} /> Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {msg && (
-        <div
-          className="text-sm text-center p-3 rounded-2xl"
-          style={{
-            background: msg.type === 'ok' ? 'rgba(22,163,74,.10)' : 'rgba(220,38,38,.10)',
-            color: msg.type === 'ok' ? '#15803D' : '#B91C1C',
-          }}
-        >
-          {msg.text}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="glass p-12 text-center">
-          <div className="size-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-500">Carregando mesas…</p>
-        </div>
-      ) : mesas.length === 0 ? (
-        <div className="glass p-12 text-center">
-          <Utensils size={40} className="mx-auto mb-3 text-gray-300" />
-          <p className="text-gray-600 font-medium">Nenhuma mesa cadastrada</p>
-          <p className="hint text-sm mt-1">Clique em "Nova mesa" para começar.</p>
-        </div>
-      ) : (
-        <div className="glass p-4">
-          <div className="space-y-2">
-            {mesas.map((m) => (
-              <div key={m.id} className="glass-soft p-4 flex items-center gap-3 flex-wrap">
-                <div className="size-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(22,163,74,.12)' }}>
-                  <Utensils size={18} style={{ color: 'var(--green)' }} />
-                </div>
-                <div className="flex-1 min-w-[180px]">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <b className="text-lg">{m.nome || `Mesa ${m.numero}`}</b>
-                    <span className="text-xs text-gray-500">#{m.numero}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${m.ativo !== false ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
-                      {m.ativo !== false ? 'Ativa' : 'Inativa'}
-                    </span>
-                  </div>
-                  <p className="hint text-xs mt-0.5">Capacidade: {m.capacidade || 4} pessoas</p>
-                </div>
-                <button className="btn-ghost text-xs" onClick={() => toggleAtivo(m)}>
-                  {m.ativo !== false ? 'Desativar' : 'Ativar'}
-                </button>
-                <button className="btn-icon-round" onClick={() => startEditar(m)} title="Editar">
-                  <Edit size={14} />
-                </button>
-                <button className="btn-icon-round" onClick={() => remover(m)} title="Excluir">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
 }
 
 function FieldNum({label,value,onChange}:{label:string,value:any,onChange:(v:number)=>void}){return <label>{label}<input type="number" step=".01" value={value??''} onChange={e=>onChange(Number(e.target.value))}/></label>}
