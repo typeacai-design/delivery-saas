@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { authenticatedTenant } from '@/lib/tenant-auth'
 
 export async function PATCH(request: Request) {
   try {
-    const { supabase, tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
-    if (!tenantId) {
+    const { user, tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
+    if (!user || !tenantId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
 
@@ -14,8 +15,15 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'pedido_id é obrigatório' }, { status: 400 })
     }
 
+    // service_role bypassa RLS — validação manual de tenant abaixo
+    const admin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
     // Verificar se o pedido pertence ao tenant
-    const { data: pedido, error: fetchError } = await supabase
+    const { data: pedido, error: fetchError } = await admin
       .from('pedidos')
       .select('id, codigo, tenant_id, valor_total, forma_pagamento, pago')
       .eq('id', pedido_id)
@@ -30,7 +38,7 @@ export async function PATCH(request: Request) {
     }
 
     // Atualizar status de pagamento
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from('pedidos')
       .update({
         pago: pago,
@@ -50,7 +58,7 @@ export async function PATCH(request: Request) {
         ? pedido.forma_pagamento[0]
         : pedido.forma_pagamento || 'outro'
 
-      const { error: lancError } = await supabase
+      const { error: lancError } = await admin
         .from('movimentacoes_financeiras')
         .insert({
           tenant_id: tenantId,
@@ -69,7 +77,7 @@ export async function PATCH(request: Request) {
       }
     } else {
       // Se está desmarcando pago, remover a movimentação do fluxo de caixa
-      await supabase
+      await admin
         .from('movimentacoes_financeiras')
         .delete()
         .eq('referencia_id', pedido_id)
