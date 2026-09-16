@@ -1008,7 +1008,7 @@ export default function NovoPedidoPage() {
       return
     }
 
-    if (tipoEntrega === 'mesa' && !mesaId) {
+    if (tipoEntrega === 'mesa' && !mesaSessaoId) {
       alert('Selecione a mesa')
       return
     }
@@ -1751,7 +1751,7 @@ export default function NovoPedidoPage() {
           {/* Botão Finalizar */}
           <button
             onClick={criarPedido}
-            disabled={loading || itens.length === 0 || (tipoEntrega === 'delivery' && !bairroSelecionado) || (tipoEntrega === 'mesa' && !mesaId)}
+            disabled={loading || itens.length === 0 || (tipoEntrega === 'delivery' && !bairroSelecionado) || (tipoEntrega === 'mesa' && !mesaSessaoId)}
             className="btn-primary w-full mt-6 py-4 text-lg disabled:opacity-50"
           >
             {loading ? (
