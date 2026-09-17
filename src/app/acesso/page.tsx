@@ -1,144 +1,107 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { UserCircle2, Loader2, LogIn } from 'lucide-react'
 
 export default function AcessoPage() {
-  const router = useRouter()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setError('')
-    setSaving(true)
 
     try {
-      const normalizedUsername = username.toLowerCase().trim()
+      const res = await fetch('/api/auth/atendente-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.toLowerCase().trim(), senha: password }),
+      })
+      const data = await res.json()
 
-      let data
-      // Tenta primeiro via endpoint principal de login de funcionário
-      try {
-        const r = await fetch('/api/auth/atendente-login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: normalizedUsername,
-            senha: password,
-          }),
-        })
-        data = await r.json()
-        if (!r.ok) throw new Error(data.error || 'Falha no login')
-      } catch (e1: any) {
-        // Fallback: tenta login via membros-equipe
-        try {
-          const r2 = await fetch('/api/membros-equipe/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username: normalizedUsername,
-              senha: password,
-            }),
-          })
-          data = await r2.json()
-          if (!r2.ok) throw new Error(data.error || 'Falha no login')
-        } catch (e2: any) {
-          throw new Error(e2.message || e1.message)
-        }
-      }
+      if (!res.ok) throw new Error(data.error || 'Erro no login')
 
-      // Seta sessão no client Supabase (se vier do endpoint principal)
-      if (data.session?.access_token) {
-        const { createClient } = await import('@/lib/supabase/client')
-        const supabase = createClient()
-        const { error: setErr } = await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        })
-        if (setErr) throw new Error('Erro ao iniciar sessão: ' + setErr.message)
-      }
+      localStorage.setItem('membro_equipe', JSON.stringify(data.membro))
+      document.cookie = `wd_employee_role=${data.membro.role || data.membro.perfil}; path=/; max-age=${60 * 60 * 24}`
 
-      const membro = data.membro
-      // Salva membro no localStorage
-      localStorage.setItem('membro_equipe', JSON.stringify(membro))
-      // Cookie com role canônica para o middleware identificar o perfil operacional
-      document.cookie = `wd_employee_role=${membro.role || membro.perfil}; path=/; max-age=${60 * 60 * 24}; samesite=lax`
-
-      // Usa o destino retornado pelo endpoint
-      const destino = data.destino
-      router.push(destino)
+      window.location.href = data.destino
     } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login')
-      setSaving(false)
+      setError(err.message)
+      setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-            <UserCircle2 className="text-green-600" size={32} />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Acesso ao Atendimento</h1>
-          <p className="text-sm text-gray-500 mt-1">Acesse a aba de pedidos com seu usuário e senha</p>
-        </div>
+    <main style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ background: 'white', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'center', marginBottom: '8px', color: '#1f2937' }}>
+          Acesso ao Atendimento
+        </h1>
+        <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '14px', marginBottom: '24px' }}>
+          Entre com seu usuário e senha
+        </p>
 
-        {/* Form */}
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+              Usuário
+            </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-center text-lg"
-              placeholder="seu_usuario"
               required
-              autoComplete="username"
+              style={{ width: '100%', padding: '12px', border: '1px solid #d1d5db', borderRadius: '10px', fontSize: '16px', textAlign: 'center' }}
+              placeholder="usuario"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+              Senha
+            </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-center text-lg"
-              placeholder="••••••••"
               required
-              autoComplete="current-password"
+              style={{ width: '100%', padding: '12px', border: '1px solid #d1d5db', borderRadius: '10px', fontSize: '16px', textAlign: 'center' }}
+              placeholder="senha"
             />
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm text-center">
+            <div style={{ padding: '12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', color: '#dc2626', fontSize: '14px', textAlign: 'center' }}>
               {error}
             </div>
           )}
 
           <button
             type="submit"
-            disabled={saving}
-            className="w-full py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '14px',
+              background: '#16a34a',
+              color: 'white',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.6 : 1
+            }}
           >
-            {saving ? <Loader2 className="animate-spin" size={20} /> : <LogIn size={20} />}
-            {saving ? 'Entrando...' : 'Entrar'}
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
 
-        {/* Info */}
-        <div className="mt-6 pt-6 border-t border-gray-100">
-          <p className="text-xs text-gray-400 text-center">
-            Solicite seu acesso ao administrador da loja
-          </p>
-        </div>
+        <p style={{ textAlign: 'center', fontSize: '12px', color: '#9ca3af', marginTop: '24px' }}>
+          Solicite acesso ao administrador
+        </p>
       </div>
-    </div>
+    </main>
   )
 }
