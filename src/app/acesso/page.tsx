@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { UserCircle2, Loader2, LogIn } from 'lucide-react'
 
 export default function AcessoPage() {
   const router = useRouter()
-  const pathname = usePathname()
   const [loading, setLoading] = useState(true)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -24,15 +23,20 @@ export default function AcessoPage() {
       try {
         const m = JSON.parse(membroStr)
         // Funcionário já logado → vai direto para sua área
-        if (m?.perfil === 'attendant' || m?.role === 'attendant') return router.push('/acesso/atendimento')
-        if (m?.perfil === 'cozinha' || m?.role === 'kitchen') return router.push('/acesso/cozinha')
-        if (m?.perfil === 'motoboy' || m?.role === 'motoboy') return router.push('/acesso/motoboy')
-      } catch { /* ignora JSON inválido e cai no form abaixo */ }
+        if (m?.perfil === 'attendant' || m?.role === 'attendant') router.push('/acesso/atendimento')
+        else if (m?.perfil === 'cozinha' || m?.role === 'kitchen') router.push('/acesso/cozinha')
+        else if (m?.perfil === 'motoboy' || m?.role === 'motoboy') router.push('/acesso/motoboy')
+        else setLoading(false) // perfil inválido, mostra form
+      } catch {
+        setLoading(false) // JSON inválido, mostra form
+      }
+    } else {
+      // Se não há membro_equipe → mostra SEMPRE o formulário de login de funcionário
+      // Importante: NÃO verifica sessão do Supabase aqui - /acesso é para login de funcionário
+      setLoading(false)
     }
-    // Se não há membro_equipe → mostra SEMPRE o formulário de login de funcionário
-    // Importante: NÃO verifica sessão do Supabase aqui - /acesso é para login de funcionário
-    setLoading(false)
-  }, [router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Array vazio = executa só uma vez na montagem
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
