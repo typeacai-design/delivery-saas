@@ -1,39 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserCircle2, Loader2, LogIn } from 'lucide-react'
 
 export default function AcessoPage() {
   const router = useRouter()
-  const [ready, setReady] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-
-  // Verifica se há sessão de funcionário ativa
-  useEffect(() => {
-    const membroStr = localStorage.getItem('membro_equipe')
-    if (membroStr) {
-      try {
-        const m = JSON.parse(membroStr)
-        if (m?.perfil === 'attendant' || m?.role === 'attendant') {
-          router.push('/acesso/atendimento')
-          return
-        }
-        if (m?.perfil === 'cozinha' || m?.role === 'kitchen') {
-          router.push('/acesso/cozinha')
-          return
-        }
-        if (m?.perfil === 'motoboy' || m?.role === 'motoboy') {
-          router.push('/acesso/motoboy')
-          return
-        }
-      } catch { /* ignora */ }
-    }
-    setReady(true)
-  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,14 +74,6 @@ export default function AcessoPage() {
       setError(err.message || 'Erro ao fazer login')
       setSaving(false)
     }
-  }
-
-  if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100">
-        <Loader2 className="animate-spin text-green-600" size={40} />
-      </div>
-    )
   }
 
   return (
