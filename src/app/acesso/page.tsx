@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { UserCircle2, Loader2, LogIn } from 'lucide-react'
 
 export default function AcessoPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const [loading, setLoading] = useState(true)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -14,10 +14,11 @@ export default function AcessoPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    // Verifica se há sessão de funcionário (membro_equipe no localStorage)
-    // Se SIM → redireciona para a área operacional correta
-    // Se NÃO → mostra o formulário de login de funcionário
-    // IMPORTANTE: não confunde sessão de lojista com sessão de funcionário
+    // IMPORTE: /acesso é a porta de entrada para LOGIN DE FUNCIONÁRIO
+    // NÃO deve ser confundido com sessão de lojista
+    // Se o usuário está acessando /acesso diretamente, mostra o formulário
+    // Exceção: se há membro_equipe válido no localStorage, redireciona para área operacional
+
     const membroStr = typeof window !== 'undefined' ? localStorage.getItem('membro_equipe') : null
     if (membroStr) {
       try {
@@ -28,10 +29,10 @@ export default function AcessoPage() {
         if (m?.perfil === 'motoboy' || m?.role === 'motoboy') return router.push('/acesso/motoboy')
       } catch { /* ignora JSON inválido e cai no form abaixo */ }
     }
-    // Se não há membro_equipe → mostra formulário de login de funcionário
-    // (mesmo que exista sessão de lojista ativa no Supabase)
+    // Se não há membro_equipe → mostra SEMPRE o formulário de login de funcionário
+    // Importante: NÃO verifica sessão do Supabase aqui - /acesso é para login de funcionário
     setLoading(false)
-  }, [])
+  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,6 +75,7 @@ export default function AcessoPage() {
 
       // Seta sessão no client Supabase (se vier do endpoint principal)
       if (data.session?.access_token) {
+        const { createClient } = await import('@/lib/supabase/client')
         const supabase = createClient()
         const { error: setErr } = await supabase.auth.setSession({
           access_token: data.session.access_token,
