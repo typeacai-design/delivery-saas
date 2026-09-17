@@ -1,42 +1,39 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserCircle2, Loader2, LogIn } from 'lucide-react'
 
 export default function AcessoPage() {
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
+  const [ready, setReady] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Verifica se há sessão de funcionário ativa
   useEffect(() => {
-    // IMPORTE: /acesso é a porta de entrada para LOGIN DE FUNCIONÁRIO
-    // NÃO deve ser confundido com sessão de lojista
-    // Se o usuário está acessando /acesso diretamente, mostra o formulário
-    // Exceção: se há membro_equipe válido no localStorage, redireciona para área operacional
-
-    const membroStr = typeof window !== 'undefined' ? localStorage.getItem('membro_equipe') : null
+    const membroStr = localStorage.getItem('membro_equipe')
     if (membroStr) {
       try {
         const m = JSON.parse(membroStr)
-        // Funcionário já logado → vai direto para sua área
-        if (m?.perfil === 'attendant' || m?.role === 'attendant') router.push('/acesso/atendimento')
-        else if (m?.perfil === 'cozinha' || m?.role === 'kitchen') router.push('/acesso/cozinha')
-        else if (m?.perfil === 'motoboy' || m?.role === 'motoboy') router.push('/acesso/motoboy')
-        else setLoading(false) // perfil inválido, mostra form
-      } catch {
-        setLoading(false) // JSON inválido, mostra form
-      }
-    } else {
-      // Se não há membro_equipe → mostra SEMPRE o formulário de login de funcionário
-      // Importante: NÃO verifica sessão do Supabase aqui - /acesso é para login de funcionário
-      setLoading(false)
+        if (m?.perfil === 'attendant' || m?.role === 'attendant') {
+          router.push('/acesso/atendimento')
+          return
+        }
+        if (m?.perfil === 'cozinha' || m?.role === 'kitchen') {
+          router.push('/acesso/cozinha')
+          return
+        }
+        if (m?.perfil === 'motoboy' || m?.role === 'motoboy') {
+          router.push('/acesso/motoboy')
+          return
+        }
+      } catch { /* ignora */ }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Array vazio = executa só uma vez na montagem
+    setReady(true)
+  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -103,10 +100,10 @@ export default function AcessoPage() {
     }
   }
 
-  if (loading) {
+  if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <Loader2 className="animate-spin text-gray-400" size={32} />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100">
+        <Loader2 className="animate-spin text-green-600" size={40} />
       </div>
     )
   }
