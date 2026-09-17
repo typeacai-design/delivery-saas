@@ -46,7 +46,7 @@ const EMPLOYEE_ROUTES: Record<TenantRole, string> = {
   motoboy: '/acesso/motoboy',
   owner: '/dashboard',
   manager: '/dashboard',
-  delivery: '/pedidos',
+  delivery: '/dashboard',
 }
 
 function isAdminPath(pathname: string): boolean {
