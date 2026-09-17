@@ -14,70 +14,24 @@ export default function AcessoPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Se houver um membro_equipe salvo no localStorage (login operacional
-        // feito pelo atendente/cozinha/motoboy), leva direto pra tela dedicada.
-        const membroStr = typeof window !== 'undefined' ? localStorage.getItem('membro_equipe') : null
-        if (membroStr) {
-          try {
-            const m = JSON.parse(membroStr)
-            if (m?.perfil === 'attendant') return router.push('/acesso/atendimento')
-            if (m?.perfil === 'cozinha') return router.push('/acesso/cozinha')
-            if (m?.perfil === 'motoboy') return router.push('/acesso/motoboy')
-          } catch { /* ignora JSON inválido e cai no fallback abaixo */ }
-        }
-        router.push('/pedidos')
-      } else {
-        setLoading(false)
-      }
-    })
+    // Verifica se há sessão de funcionário (membro_equipe no localStorage)
+    // Se SIM → redireciona para a área operacional correta
+    // Se NÃO → mostra o formulário de login de funcionário
+    // IMPORTANTE: não confunde sessão de lojista com sessão de funcionário
+    const membroStr = typeof window !== 'undefined' ? localStorage.getItem('membro_equipe') : null
+    if (membroStr) {
+      try {
+        const m = JSON.parse(membroStr)
+        // Funcionário já logado → vai direto para sua área
+        if (m?.perfil === 'attendant' || m?.role === 'attendant') return router.push('/acesso/atendimento')
+        if (m?.perfil === 'cozinha' || m?.role === 'kitchen') return router.push('/acesso/cozinha')
+        if (m?.perfil === 'motoboy' || m?.role === 'motoboy') return router.push('/acesso/motoboy')
+      } catch { /* ignora JSON inválido e cai no form abaixo */ }
+    }
+    // Se não há membro_equipe → mostra formulário de login de funcionário
+    // (mesmo que exista sessão de lojista ativa no Supabase)
+    setLoading(false)
   }, [])
-
-  async function loginAtendente() {
-    const r = await fetch('/api/auth/atendente-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: username.toLowerCase().trim(),
-        senha: password,
-      }),
-    })
-    const data = await r.json()
-    if (!r.ok) throw new Error(data.error || 'Falha no login')
-
-    // Seta sessão no client Supabase
-    const supabase = createClient()
-    const { error: setErr } = await supabase.auth.setSession({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-    })
-    if (setErr) throw new Error('Erro ao iniciar sessão: ' + setErr.message)
-
-    // Salva membro no localStorage como fallback
-    localStorage.setItem('membro_equipe', JSON.stringify(data.membro))
-    // Cookie para o middleware identificar o perfil operacional
-    // e redirecionar tentativas de acesso a rotas administrativas.
-    document.cookie = `wd_employee_role=${data.membro.perfil}; path=/; max-age=${60 * 60 * 24}; samesite=lax`
-    return data.membro
-  }
-
-  async function loginCozinhaOuMotoboy() {
-    const r = await fetch('/api/membros-equipe/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: username.toLowerCase().trim(),
-        senha: password,
-      }),
-    })
-    const data = await r.json()
-    if (!r.ok) throw new Error(data.error || 'Falha no login')
-    localStorage.setItem('membro_equipe', JSON.stringify(data.membro))
-    document.cookie = `wd_employee_role=${data.membro.perfil}; path=/; max-age=${60 * 60 * 24}; samesite=lax`
-    return data.membro
-  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,35 +39,58 @@ export default function AcessoPage() {
     setSaving(true)
 
     try {
-      // Tenta primeiro como atendente (cria sessão Supabase)
-      // Se falhar, tenta como cozinha/motoboy (localStorage)
       const normalizedUsername = username.toLowerCase().trim()
 
-      let membro
+      let data
+      // Tenta primeiro via endpoint principal de login de funcionário
       try {
-        membro = await loginAtendente()
+        const r = await fetch('/api/auth/atendente-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: normalizedUsername,
+            senha: password,
+          }),
+        })
+        data = await r.json()
+        if (!r.ok) throw new Error(data.error || 'Falha no login')
       } catch (e1: any) {
-        if (e1.message?.includes('Perfil sem acesso') || e1.message?.includes('Usuário') || e1.message?.includes('Senha')) {
-          try {
-            membro = await loginCozinhaOuMotoboy()
-          } catch (e2: any) {
-            throw new Error(e2.message || e1.message)
-          }
-        } else {
-          throw new Error(e1.message)
+        // Fallback: tenta login via membros-equipe
+        try {
+          const r2 = await fetch('/api/membros-equipe/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: normalizedUsername,
+              senha: password,
+            }),
+          })
+          data = await r2.json()
+          if (!r2.ok) throw new Error(data.error || 'Falha no login')
+        } catch (e2: any) {
+          throw new Error(e2.message || e1.message)
         }
       }
 
-      if (membro.perfil === 'attendant') {
-        router.push('/acesso/atendimento')
-      } else if (membro.perfil === 'cozinha') {
-        router.push('/acesso/cozinha')
-      } else if (membro.perfil === 'motoboy') {
-        router.push('/acesso/motoboy')
-      } else {
-        setError('Este perfil não tem acesso a esta área')
-        setSaving(false)
+      // Seta sessão no client Supabase (se vier do endpoint principal)
+      if (data.session?.access_token) {
+        const supabase = createClient()
+        const { error: setErr } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        })
+        if (setErr) throw new Error('Erro ao iniciar sessão: ' + setErr.message)
       }
+
+      const membro = data.membro
+      // Salva membro no localStorage
+      localStorage.setItem('membro_equipe', JSON.stringify(membro))
+      // Cookie com role canônica para o middleware identificar o perfil operacional
+      document.cookie = `wd_employee_role=${membro.role || membro.perfil}; path=/; max-age=${60 * 60 * 24}; samesite=lax`
+
+      // Usa o destino retornado pelo endpoint
+      const destino = data.destino
+      router.push(destino)
     } catch (err: any) {
       setError(err.message || 'Erro ao fazer login')
       setSaving(false)
