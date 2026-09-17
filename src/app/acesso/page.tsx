@@ -10,6 +10,7 @@ export default function AcessoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('Form submit iniciado')
     setLoading(true)
     setError('')
 
@@ -19,7 +20,9 @@ export default function AcessoPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.toLowerCase().trim(), senha: password }),
       })
+      console.log('Resposta:', res.status)
       const data = await res.json()
+      console.log('Data:', data)
 
       if (!res.ok) throw new Error(data.error || 'Erro no login')
 
@@ -28,6 +31,7 @@ export default function AcessoPage() {
 
       window.location.href = data.destino
     } catch (err: any) {
+      console.error('Erro:', err)
       setError(err.message)
       setLoading(false)
     }
