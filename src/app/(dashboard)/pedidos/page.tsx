@@ -1333,13 +1333,34 @@ export default function PedidosPage() {
       </div>
 
       {/* Stats Bar - BOTOES POR ABA */}
-      <div className="flex flex-col items-center gap-2 md:flex md:flex-row md:flex-wrap md:items-start md:justify-start mb-3 md:mb-4">
-        {pedidosTab === 'fluxo' && (
-          <>
-            <div className="grid grid-cols-3 gap-2 w-full max-w-md md:flex md:max-w-none md:w-auto">
+      <div className="flex flex-wrap items-center justify-start gap-2 mb-3 md:mb-4">
+        {pedidosTab === 'fluxo' && (() => {
+          // Usa o mesmo filtro aplicado ao grid (status + período) para que os
+          // contadores batam com o que está exibido.
+          const dataLocalISO = (dateStr: string) => {
+            const d = new Date(dateStr)
+            if (Number.isNaN(d.getTime())) return ''
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          }
+          // Pedidos válidos para o Fluxo (exclui mesas/consolidados), respeitando o período
+          const fluxoBase = pedidos.filter(
+            (p) => (p as any).tipo_pedido !== 'mesa' && (p as any).tipo_pedido !== 'consolidado'
+          )
+          const fluxoPorData = (filtroDataDe || filtroDataAte)
+            ? fluxoBase.filter((p) => {
+                const dp = dataLocalISO(p.data_criacao)
+                if (!dp) return true
+                const deOk = !filtroDataDe || dp >= filtroDataDe
+                const ateOk = !filtroDataAte || dp <= filtroDataAte
+                return deOk && ateOk
+              })
+            : fluxoBase
+          const countPor = (st: string) => fluxoPorData.filter((p) => p.status === st).length
+          return (
+            <>
             {/* Novo */}
             {(() => {
-              const count = pedidos.filter((p) => p.status === 'novo').length
+              const count = countPor('novo')
               const isActive = filtroStatus === 'novo'
               return (
                 <button
@@ -1355,7 +1376,7 @@ export default function PedidosPage() {
             })()}
             {/* Preparando */}
             {(() => {
-              const count = pedidos.filter((p) => p.status === 'preparando').length
+              const count = countPor('preparando')
               const isActive = filtroStatus === 'preparando'
               return (
                 <button
@@ -1371,7 +1392,7 @@ export default function PedidosPage() {
             })()}
             {/* Pronto */}
             {(() => {
-              const count = pedidos.filter((p) => p.status === 'pronto').length
+              const count = countPor('pronto')
               const isActive = filtroStatus === 'pronto'
               return (
                 <button
@@ -1385,11 +1406,9 @@ export default function PedidosPage() {
                 </button>
               )
             })()}
-            </div>
-            <div className="flex justify-center gap-2 w-full md:ml-0">
             {/* Saiu */}
             {(() => {
-              const count = pedidos.filter((p) => p.status === 'saiu').length
+              const count = countPor('saiu')
               const isActive = filtroStatus === 'saiu'
               return (
                 <button
@@ -1405,7 +1424,7 @@ export default function PedidosPage() {
             })()}
             {/* Entregue */}
             {(() => {
-              const count = pedidos.filter((p) => p.status === 'entregue').length
+              const count = countPor('entregue')
               const isActive = filtroStatus === 'entregue'
               return (
                 <button
@@ -1419,9 +1438,9 @@ export default function PedidosPage() {
                 </button>
               )
             })()}
-            </div>
-          </>
-        )}
+            </>
+          )
+        })()}
 
         {pedidosTab === 'historico' && (
           <>
