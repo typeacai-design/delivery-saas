@@ -2,10 +2,12 @@ import { FlavorValidationError, normalizeManualFlavorItems, manualFlavorTotals }
 import { removeReferenceCharges } from '@/lib/product-pricing'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { authenticatedTenant } from '@/lib/tenant-auth'
+import { authenticateFuncionario, FuncionarioPerfil } from '@/lib/funcionario-auth'
 
-// POST /api/pedidos/manual - Lancamento manual de pedidos pelo lojista
-// Usa service_role para bypassar RLS (a autenticacao foi validada acima)
+// POST /api/pedidos/manual - Lancamento manual de pedidos
+// Pode ser chamado por:
+// - Lojista (owner/manager) via sessão do Supabase
+// - Funcionário (attendant) via header X-Membro-Equipe
 function adminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,10 +18,29 @@ function adminClient() {
 
 export async function POST(request: Request) {
   try {
-    // Autenticar e descobrir o tenant
-    const auth = await authenticatedTenant(['owner', 'manager', 'attendant'])
-    if (!auth.tenantId) {
-      return NextResponse.json({ error: 'Sem permissao' }, { status: 403 })
+    // =====================================================
+    // AUTENTICAÇÃO DUAL: Lojista OU Funcionário
+    // =====================================================
+    let tenantId: string | null = null
+    let tipoAcesso: 'lojista' | 'funcionario' | null = null
+
+    // Primeiro, tentar autenticação de funcionário (header X-Membro-Equipe)
+    const funcionarioAuth = await authenticateFuncionario(request, ['attendant'])
+
+    if (funcionarioAuth) {
+      tenantId = funcionarioAuth.tenantId
+      tipoAcesso = 'funcionario'
+    } else {
+      // Não é funcionário, verificar se é lojista autenticado
+      const { authenticatedTenant } = await import('@/lib/tenant-auth')
+      const auth = await authenticatedTenant(['owner', 'manager'])
+
+      if (!auth.tenantId) {
+        return NextResponse.json({ error: 'Sem permissao' }, { status: 403 })
+      }
+
+      tenantId = auth.tenantId
+      tipoAcesso = 'lojista'
     }
 
     const body = await request.json()
@@ -52,14 +73,14 @@ export async function POST(request: Request) {
     const admin = adminClient()
 
     const { data: priceProducts, error: priceError } = await admin.from('produtos')
-      .select('id,preco,exibir_preco_a_partir_de').eq('tenant_id', auth.tenantId)
+      .select('id,preco,exibir_preco_a_partir_de').eq('tenant_id', tenantId)
       .in('id', itens.map((item: any) => item.produto_id))
     if (priceError) return NextResponse.json({ error: 'Nao foi possivel validar os precos' }, { status: 500 })
     if (itens.some((item: any) => !priceProducts?.some(product => product.id === item.produto_id))) {
       return NextResponse.json({ error: 'Produto indisponivel nesta loja' }, { status: 400 })
     }
     const referencePricing = removeReferenceCharges(itens, priceProducts || [])
-    const flavorPricing = await normalizeManualFlavorItems(admin, auth.tenantId!, referencePricing.items)
+    const flavorPricing = await normalizeManualFlavorItems(admin, tenantId!, referencePricing.items)
     const pricing = { items: flavorPricing.items, removed: referencePricing.removed - flavorPricing.adjustment }
     const flavorTotals = flavorPricing.hasFlavors ? manualFlavorTotals(pricing.items, body) : null
     const subtotalCorrigido = flavorTotals?.subtotal ?? Math.max(0, Math.round((Number(valor_subtotal || 0) - pricing.removed) * 100) / 100)
@@ -77,8 +98,8 @@ export async function POST(request: Request) {
       pontos: item.pontos || 0,
     }))
     const { data: pedido, error: pedidoError } = await admin.rpc('criar_pedido_manual_atomico', {
-      p_tenant_id: auth.tenantId, p_pedido: {
-        tenant_id: auth.tenantId,
+      p_tenant_id: tenantId, p_pedido: {
+        tenant_id: tenantId,
         cliente_id: cliente_id || null,
         cliente_nome: cliente_nome || 'Cliente',
         cliente_whatsapp: cliente_whatsapp?.replace(/\D/g, '') || null,

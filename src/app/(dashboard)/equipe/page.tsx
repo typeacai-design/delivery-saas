@@ -14,6 +14,29 @@ const perfis = [
   { id: 'motoboy' as Perfil, nome: 'Motoboy', desc: 'Acesso operacional às entregas atribuídas.', icon: Bike },
 ]
 
+/**
+ * Faz r.json() com fallback amigável quando a API retorna HTML (404/502).
+ * Quando o servidor responde HTML em vez de JSON (rota inexistente, deploy quebrado,
+ * CDN/WAF, etc.), o toast mostra uma mensagem útil em vez de "Não foi possível salvar"
+ * silencioso. Sempre retorna `data` e `error` separados.
+ */
+async function parseApiResponse(r: Response): Promise<{ data: any; error: string }> {
+  const contentType = r.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    if (r.status === 404) return { data: null, error: 'Recurso não encontrado (404). A rota pode estar ausente nesta versão — tente recarregar a página.' }
+    if (r.status === 502 || r.status === 503) return { data: null, error: `Servidor indisponível (${r.status}). Tente novamente em alguns segundos.` }
+    if (r.status >= 500) return { data: null, error: `Erro no servidor (${r.status}).` }
+    if (r.status >= 400) return { data: null, error: `Falha na requisição (${r.status}).` }
+    return { data: null, error: 'Resposta inválida do servidor.' }
+  }
+  try {
+    const body = await r.json()
+    return { data: body, error: body?.error || '' }
+  } catch {
+    return { data: null, error: 'Resposta JSON inválida do servidor.' }
+  }
+}
+
 export default function EquipePage() {
   const { success: toastSuccess, error: toastError } = useToast()
   const [members, setMembers] = useState<Member[]>([])
@@ -31,16 +54,16 @@ export default function EquipePage() {
   async function load() {
     setLoading(true)
     try {
-      const r = await fetch('/api/membros-equipe')
-      const b = await r.json()
-      if (r.ok) {
-        setMembers(b.membros || [])
+      const r = await fetch('/api/membros-equipe', { credentials: 'include' })
+      const { data, error } = await parseApiResponse(r)
+      if (r.ok && data) {
+        setMembers(data.membros || [])
         setCanManage(true)
       } else {
-        toastError('Erro ao carregar', b.error)
+        toastError('Erro ao carregar', error)
       }
     } catch (e: any) {
-      toastError('Erro de rede', e?.message || 'falha ao carregar')
+      toastError('Erro de rede', e?.message || 'Falha ao carregar')
     } finally {
       setLoading(false)
     }
@@ -67,16 +90,23 @@ export default function EquipePage() {
       const r = await fetch('/api/membros-equipe', {
         method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(editing ? { id: editing.id, ...payload } : payload),
       })
-      const b = await r.json()
-      if (!r.ok) {
-        toastError('Não foi possível salvar', b.error)
+
+      const { data, error } = await parseApiResponse(r)
+
+      if (!r.ok || error) {
+        toastError('Não foi possível salvar', error || 'Tente novamente')
         return
       }
+
       setOpen(false)
       toastSuccess(editing ? 'Acesso atualizado.' : 'Acesso criado.')
       await load()
+    } catch (err: any) {
+      console.error('[equipe/save] Erro:', err)
+      toastError('Erro', err?.message || 'Erro inesperado. Tente novamente.')
     } finally {
       setActionLoading(false)
     }
@@ -84,8 +114,8 @@ export default function EquipePage() {
 
   async function resetSenha(member: Member) {
     const nova = prompt(`Nova senha para ${member.nome}:`, '')
-    if (!nova || nova.length < 4) {
-      toastError('Senha inválida', 'Mínimo 4 caracteres')
+    if (!nova || nova.length < 6) {
+      toastError('Senha inválida', 'Mínimo 6 caracteres')
       return
     }
     setActionLoading(true)
@@ -94,9 +124,10 @@ export default function EquipePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ senha: nova }),
     })
+    const { error } = await parseApiResponse(r)
     setActionLoading(false)
-    if (r.ok) toastSuccess('Senha redefinida')
-    else toastError('Erro', (await r.json()).error)
+    if (r.ok && !error) toastSuccess('Senha redefinida')
+    else toastError('Erro', error)
   }
 
   async function toggle(member: Member) {
@@ -106,12 +137,13 @@ export default function EquipePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ativo: !member.ativo }),
     })
+    const { error } = await parseApiResponse(r)
     setActionLoading(false)
-    if (r.ok) {
+    if (r.ok && !error) {
       toastSuccess(member.ativo ? 'Acesso desativado' : 'Acesso ativado')
       await load()
     } else {
-      toastError('Erro', (await r.json()).error)
+      toastError('Erro', error)
     }
   }
 
@@ -119,12 +151,13 @@ export default function EquipePage() {
     if (!confirm(`Excluir o acesso de ${member.nome}?`)) return
     setActionLoading(true)
     const r = await fetch(`/api/membros-equipe?id=${member.id}`, { method: 'DELETE' })
+    const { error } = await parseApiResponse(r)
     setActionLoading(false)
-    if (r.ok) {
+    if (r.ok && !error) {
       toastSuccess('Acesso removido')
       await load()
     } else {
-      toastError('Erro', (await r.json()).error)
+      toastError('Erro', error)
     }
   }
 
@@ -244,7 +277,7 @@ export default function EquipePage() {
               className="form-input w-full"
               value={form.senha}
               onChange={(e) => setForm({ ...form, senha: e.target.value })}
-              placeholder={editing ? '••••••' : 'Mínimo 4 caracteres'}
+              placeholder={editing ? '••••••' : 'Mínimo 6 caracteres'}
             />
           </label>
           <label className="block">

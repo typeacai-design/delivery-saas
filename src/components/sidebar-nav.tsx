@@ -34,15 +34,12 @@ const items: NavItem[] = [
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
-export function SidebarNav({ role = 'owner' }: { role?: string }) {
+export function SidebarNav() {
   const path = usePathname()
-  const allowed = role === 'attendant' ? ['/dashboard', '/pedidos', '/clientes']
-    : ['kitchen', 'motoboy', 'delivery'].includes(role) ? ['/dashboard', '/pedidos'] : null
-  const visibleItems = allowed ? items.filter((item) => allowed.includes(item.href)) : items
 
   return (
     <nav className="glass p-2 flex flex-col gap-0.5">
-      {visibleItems.map((it) => {
+      {items.map((it) => {
         // "/" é exact match pra evitar ativar em qualquer rota
         const isActive = path === it.href || (path?.startsWith(it.href + '/') ?? false)
 

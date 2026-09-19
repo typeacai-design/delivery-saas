@@ -51,3 +51,6 @@ next-env.d.ts
 
 # Local encrypted credentials; never commit or deploy.
 .credentials/
+
+.vercel
+.env*

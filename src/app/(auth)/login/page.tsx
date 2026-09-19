@@ -121,6 +121,28 @@ export default function LoginPage() {
               </form>
 
               <div className="mt-7 pt-5 divider" />
+
+              {/* Botão para funcionários */}
+              <div className="mt-5">
+                <Link
+                  href="/acesso"
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-medium text-sm border-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  style={{
+                    borderColor: 'var(--green)',
+                    color: 'var(--green)',
+                    background: 'transparent',
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                  Sou funcionário
+                </Link>
+              </div>
+
               <p className="hint text-center mt-5">
                 Não tem conta?{' '}
                 <Link href="/registro" className="link">

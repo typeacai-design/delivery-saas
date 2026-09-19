@@ -30,8 +30,9 @@ export async function GET() {
   const authStatus = tenantAuthStatus(auth)
   if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão' }, { status: authStatus })
 
-  const { supabase, tenantId } = auth
-  const { data, error } = await supabase
+  const { tenantId } = auth
+  const admin = adminClient()
+  const { data, error } = await admin
     .from('membros_equipe')
     .select('id, tenant_id, nome, username, perfil, ativo, created_at, updated_at')
     .eq('tenant_id', tenantId)
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
   const authStatus = tenantAuthStatus(auth)
   if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão' }, { status: authStatus })
 
-  const { tenantId, supabase } = auth
+  const { tenantId } = auth
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
 
@@ -66,8 +67,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Perfil inválido. Use attendant, cozinha ou motoboy.' }, { status: 400 })
   }
 
-  if (senha.length < 4) {
-    return NextResponse.json({ error: 'Senha deve ter pelo menos 4 caracteres' }, { status: 400 })
+  if (senha.length < 6) {
+    return NextResponse.json({ error: 'A senha precisa ter pelo menos 6 caracteres.' }, { status: 400 })
   }
 
   const usernameNorm = String(username).toLowerCase().trim().replace(/[^a-z0-9_]/g, '').slice(0, 30)
@@ -75,19 +76,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Username deve ter ao menos 3 caracteres (letras, números, _)' }, { status: 400 })
   }
 
-  // Verifica duplicidade de username (constraint é global UNIQUE)
+  // Verifica duplicidade de username dentro do mesmo tenant
   const admin = adminClient()
   const { data: existing } = await admin
     .from('membros_equipe')
     .select('id, tenant_id')
     .eq('username', usernameNorm)
+    .eq('tenant_id', tenantId)
     .maybeSingle()
 
   if (existing) {
     return NextResponse.json({ error: 'Este username já está em uso. Escolha outro.' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  // Usa service role para bypassar RLS já que a autenticação já foi validada
+  const { data, error } = await admin
     .from('membros_equipe')
     .insert({
       tenant_id: tenantId,
@@ -100,7 +103,10 @@ export async function POST(req: NextRequest) {
     .select('id, tenant_id, nome, username, perfil, ativo')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[API] Erro ao criar membro:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ membro: data })
 }
 
@@ -113,7 +119,7 @@ export async function PATCH(req: NextRequest) {
   const authStatus = tenantAuthStatus(auth)
   if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão' }, { status: authStatus })
 
-  const { tenantId, supabase } = auth
+  const { tenantId } = auth
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
 
@@ -123,8 +129,8 @@ export async function PATCH(req: NextRequest) {
   const update: any = {}
   if (body.nome !== undefined) update.nome = String(body.nome).trim().slice(0, 80)
   if (body.senha !== undefined) {
-    if (String(body.senha).length < 4) {
-      return NextResponse.json({ error: 'Senha deve ter pelo menos 4 caracteres' }, { status: 400 })
+    if (String(body.senha).length < 6) {
+      return NextResponse.json({ error: 'A senha precisa ter pelo menos 6 caracteres.' }, { status: 400 })
     }
     update.password_hash = hashSenha(String(body.senha))
   }
@@ -134,7 +140,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  // Usa service role para bypassar RLS
+  const admin = adminClient()
+  const { data, error } = await admin
     .from('membros_equipe')
     .update(update)
     .eq('id', id)
@@ -154,11 +162,13 @@ export async function DELETE(req: NextRequest) {
   const authStatus = tenantAuthStatus(auth)
   if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão' }, { status: authStatus })
 
-  const { tenantId, supabase } = auth
+  const { tenantId } = auth
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
 
-  const { error } = await supabase
+  // Usa service role para bypassar RLS
+  const admin = adminClient()
+  const { error } = await admin
     .from('membros_equipe')
     .delete()
     .eq('id', id)
