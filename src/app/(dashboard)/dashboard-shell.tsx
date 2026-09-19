@@ -161,7 +161,7 @@ export default function DashboardShell({
               </div>
             </div>
 
-            <SidebarNav role={role} />
+            <SidebarNav />
 
             <button type="button" onClick={sair} className="glass w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-white/75 transition rounded-2xl" style={{ color: 'var(--ink-muted)' }}>
               <LogOut size={16} />

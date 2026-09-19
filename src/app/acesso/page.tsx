@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 export default function AcessoPage() {
   const [username, setUsername] = useState('')
@@ -28,6 +29,21 @@ export default function AcessoPage() {
 
       localStorage.setItem('membro_equipe', JSON.stringify(data.membro))
       document.cookie = `wd_employee_role=${data.membro.role || data.membro.perfil}; path=/; max-age=${60 * 60 * 24}`
+
+      // Aplica a sessão do Supabase no client. Sem isso, o browser não tem
+      // cookie de autenticação e o EmployeeLayout server-side redireciona
+      // de volta para /acesso — sintoma: "clica em entrar e volta pro login".
+      if (data.session?.access_token && data.session?.refresh_token) {
+        const supabase = createClient()
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        })
+        if (sessionError) {
+          console.error('Erro ao aplicar sessão:', sessionError)
+          throw new Error('Sessão não pôde ser aplicada: ' + sessionError.message)
+        }
+      }
 
       window.location.href = data.destino
     } catch (err: any) {
