@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -30,7 +30,22 @@ const NEXT_STATUS: Record<PedidoStatus, PedidoStatus | null> = {
 
 export default function AtendimentoPage() {
   const router = useRouter()
-  const { error: toastError, success: toastSuccess } = useToast()
+  // useToast() só pode ser chamado após hidratação (ToastProvider não cobre (employee))
+  const toastRef = useRef<{ success: (t: string, d?: string) => void; error: (t: string, d?: string) => void } | null>(null)
+  useEffect(() => {
+    toastRef.current = {
+      success: useToast().success,
+      error: useToast().error,
+    }
+  }, [])
+  const notify = (kind: 'success' | 'error', title: string, description?: string) => {
+    const fn = toastRef.current?.[kind]
+    if (fn) {
+      fn(title, description)
+    } else {
+      console[kind === 'success' ? 'log' : 'error'](`[toast] ${title}`, description ?? '')
+    }
+  }
   const [loading, setLoading] = useState(true)
   const [membro, setMembro] = useState<any>(null)
   const [pedidos, setPedidos] = useState<any[]>([])
@@ -55,7 +70,7 @@ export default function AtendimentoPage() {
     const membroData = JSON.parse(membroStr)
     if (membroData.perfil !== 'attendant') {
       // Perfil não tem acesso a esta área
-      toastError('Acesso não permitido')
+      notify('error', 'Acesso não permitido')
       router.push('/acesso')
       return
     }
@@ -156,14 +171,14 @@ export default function AtendimentoPage() {
 
       if (!res.ok) {
         const data = await res.json()
-        toastError('Erro ao atualizar', data.error || 'Erro desconhecido')
+        notify('error', 'Erro ao atualizar', data.error || 'Erro desconhecido')
         return
       }
 
-      toastSuccess(`Pedido movido para ${STATUS_CONFIG[novoStatus].label}`)
+      notify('success', `Pedido movido para ${STATUS_CONFIG[novoStatus].label}`)
       carregarDados(tenantId)
     } catch (err: any) {
-      toastError('Erro ao atualizar status', err?.message)
+      notify('error', 'Erro ao atualizar status', err?.message)
     }
   }
 
