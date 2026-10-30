@@ -99,7 +99,7 @@ export default function ProdutoLinha({
   }
 
   return (
-    <div className="bg-white rounded-2xl border p-3 flex items-center gap-3 hover:shadow-md transition" style={{ borderColor: '#E5E7EB' }}>
+    <div className="wd-product-line bg-white rounded-2xl border p-3 flex items-center gap-3 hover:shadow-md transition" style={{ borderColor: '#E5E7EB' }}>
       {/* Foto */}
       {produto.imagem_url ? (
         <img src={produto.imagem_url} alt={produto.nome} className="size-12 rounded-lg object-cover shrink-0" />
@@ -110,7 +110,7 @@ export default function ProdutoLinha({
       )}
 
       {/* Nome + complementos chip + etiquetas */}
-      <div className="flex-1 min-w-0">
+      <div className="wd-product-info flex-1 min-w-0">
         <div className="text-sm font-semibold text-gray-900 truncate">
           <EditavelInline campo="nome" valor={produto.nome} />
         </div>
@@ -134,13 +134,13 @@ export default function ProdutoLinha({
       </div>
 
       {/* Ordem editável */}
-      <div className="text-xs text-gray-500 flex flex-col items-center">
+      <div className="wd-product-order text-xs text-gray-500 flex flex-col items-center">
         <span className="hint">Ordem</span>
         <EditavelInline campo="ordem" valor={produto.ordem ?? 0} />
       </div>
 
       {/* Preço editável */}
-      <div className="text-sm font-bold text-gray-900 text-right min-w-[80px]">
+      <div className="wd-product-price text-sm font-bold text-gray-900 text-right min-w-[80px]">
         <div className="hint text-xs font-normal">Preço</div>
         <EditavelInline
           campo="preco"
@@ -151,7 +151,7 @@ export default function ProdutoLinha({
 
       {/* Pontos editável */}
       {Number(produto.pontos) > 0 && (
-        <div className="text-xs flex flex-col items-center min-w-[50px]">
+        <div className="wd-product-points text-xs flex flex-col items-center min-w-[50px]">
           <span className="hint">Pontos</span>
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-100 text-green-800 text-sm font-bold">
             {produto.pontos}
@@ -160,18 +160,18 @@ export default function ProdutoLinha({
       )}
 
       {/* Ações */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="wd-product-actions flex items-center gap-1 shrink-0">
         <button
           onClick={onEdit}
           className="size-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-600"
-          title="Editar"
+          title="Editar" aria-label="Editar"
         >
           <Edit size={14} />
         </button>
         <button
           onClick={onDuplicate}
           className="size-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-600"
-          title="Duplicar"
+          title="Duplicar" aria-label="Duplicar"
         >
           <Copy size={14} />
         </button>
@@ -182,7 +182,7 @@ export default function ProdutoLinha({
         <button
           onClick={onExcluir}
           className="size-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-red-600"
-          title="Excluir permanentemente"
+          title="Excluir permanentemente" aria-label="Excluir permanentemente"
         >
           <Trash2 size={14} />
         </button>
@@ -199,6 +199,8 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: () => void 
       className="w-10 h-5 rounded-full transition relative shrink-0"
       style={{ background: checked ? '#16A34A' : '#D1D5DB' }}
       title={checked ? 'Desativar' : 'Ativar'}
+      aria-label={checked ? 'Desativar produto' : 'Ativar produto'}
+      aria-pressed={checked}
     >
       <div
         className="size-4 rounded-full bg-white absolute top-0.5 transition-all shadow"
@@ -207,3 +209,4 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: () => void 
     </button>
   )
 }
+
