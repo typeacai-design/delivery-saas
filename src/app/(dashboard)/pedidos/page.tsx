@@ -13,6 +13,9 @@ import { useToast } from '@/components/toast'
 import { flavorLabel, parseComplements, flavorCount } from '@/lib/flavor-pricing'
 import { ProdutoModal } from '@/components/checkout-flow'
 import MerchantOrderStages from '@/components/merchant-order-stages'
+import { orderPeriodRange } from '@/lib/order-period'
+import MerchantOrderCard from '@/components/merchant-order-card'
+import MerchantDisclosure from '@/components/merchant-disclosure'
 
 // Componente de alerta de tempo
 function TempoAlerta({ dataCriacao, tempoEstimadoMin }: { dataCriacao: string; tempoEstimadoMin?: number }) {
@@ -65,71 +68,6 @@ function TempoAlerta({ dataCriacao, tempoEstimadoMin }: { dataCriacao: string; t
       <span className="text-green-700 text-xs font-medium">⏱️ {restantes} min restantes</span>
     </div>
   )
-}
-
-// Hook para tocar som de novo pedido em LOOP
-function useSomNovoPedido(somAtivado: boolean) {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const pedidoIdsJaTocados = useRef<Set<string>>(new Set())
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const pedidosEmLoop = useRef<Set<string>>(new Set())
-
-  useEffect(() => {
-    audioRef.current = new Audio('/sounds/pedido-novo.mp3')
-    audioRef.current.volume = 0.7
-    audioRef.current.addEventListener('ended', () => {
-      // Quando o som termina, se ainda houver pedidos "novo" sem confirmar, toca novamente
-      if (pedidosEmLoop.current.size > 0 && somAtivado) {
-        setTimeout(() => {
-          if (pedidosEmLoop.current.size > 0 && audioRef.current) {
-            audioRef.current.currentTime = 0
-            audioRef.current.play().catch(() => {})
-          }
-        }, 1000) // Espera 1 segundo e toca novamente
-      }
-    })
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [])
-
-  const adicionarAoLoop = (pedidoId: string) => {
-    pedidosEmLoop.current.add(pedidoId)
-    // Toca o som imediatamente
-    if (audioRef.current && somAtivado) {
-      audioRef.current.currentTime = 0
-      audioRef.current.play().catch(() => {})
-    }
-  }
-
-  const removerDoLoop = (pedidoId: string) => {
-    pedidosEmLoop.current.delete(pedidoId)
-    // Para o som se não houver mais pedidos em loop
-    if (pedidosEmLoop.current.size === 0 && audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-    }
-  }
-
-  const inicializarIds = (pedidos: Pedido[]) => {
-    pedidos.forEach((p) => {
-      if (p.status === 'novo') {
-        pedidoIdsJaTocados.current.add(p.id)
-        adicionarAoLoop(p.id)
-      }
-    })
-  }
-
-  // Remove do loop quando o status muda de "novo"
-  const verificarMudancaStatus = useCallback((pedidos: Pedido[]) => {
-    pedidos.forEach(p => {
-      if (p.status !== 'novo' && pedidosEmLoop.current.has(p.id)) {
-        removerDoLoop(p.id)
-      }
-    })
-  }, [])
-
-  return { inicializarIds, adicionarAoLoop, removerDoLoop, verificarMudancaStatus }
 }
 
 const STATUS_CONFIG: Record<PedidoStatus, { label: string; color: string; bgColor: string; icon: typeof Clock }> = {
@@ -235,7 +173,7 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
   }
 
   return (
-    <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+    <div className="wd-oe-item bg-gray-50 p-3 rounded-lg space-y-2">
       <div className="flex items-start gap-2">
         {/* BUSCA PRODUTO */}
         <div className="flex-1 relative">
@@ -282,16 +220,19 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
         </div>
 
         {/* QTD */}
+        <label className="wd-oe-number"><span className="wd-oe-item-label">Quantidade</span>
         <input
           type="number"
           min={1}
           className="form-input text-sm w-16 text-center"
           value={item.quantidade || 1}
           onChange={(e) => onChange(idx, { ...item, quantidade: Number(e.target.value) || 1 })}
-          title="Quantidade"
+          title="Quantidade" aria-label="Quantidade"
         />
+        </label>
 
         {/* VALOR */}
+        <label className="wd-oe-number"><span className="wd-oe-item-label">Valor unitário (R$)</span>
         <input
           type="number"
           step="0.01"
@@ -299,8 +240,9 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
           value={item.valor_unitario || 0}
           disabled={temSabores}
           onChange={(e) => onChange(idx, { ...item, valor_unitario: Number(e.target.value) || 0 })}
-          title="Valor unitário"
+          title="Valor unitário" aria-label="Valor unitário"
         />
+        </label>
 
         {/* REMOVER */}
         <button
@@ -457,7 +399,6 @@ export default function PedidosPage() {
   const [itensPedido, setItensPedido] = useState<any[]>([])
   const [motoboys, setMotoboys] = useState<any[]>([])
   const [novosPedidosCount, setNovosPedidosCount] = useState(0)
-  const [somAtivado, setSomAtivado] = useState(true)
   const [detalhesExpandidos, setDetalhesExpandidos] = useState<Set<string>>(new Set())
   const [filtroStatus, setFiltroStatus] = useState<string>('novo') // Padrão: subseção "Novo"
   // FILTRO PADRÃO: HOJE (somente pedidos do dia atual) - usa data LOCAL de Brasília
@@ -472,6 +413,8 @@ export default function PedidosPage() {
   const [pedidoEditando, setPedidoEditando] = useState<any>(null)
   const [itensEditando, setItensEditando] = useState<any[]>([])
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+  const [carregandoItensEdicao, setCarregandoItensEdicao] = useState(false)
+  const orderEditorRef = useRef<HTMLDivElement>(null)
   const [tenantIdAtual, setTenantIdAtual] = useState<string>('')
   const [tenantSlugAtual, setTenantSlugAtual] = useState<string>('')
   const [tenantNomeAtual, setTenantNomeAtual] = useState<string>('Nossa Loja')
@@ -481,7 +424,6 @@ export default function PedidosPage() {
   const [motivoDetalhe, setMotivoDetalhe] = useState('')
   const [salvandoCancelamento, setSalvandoCancelamento] = useState(false)
   const supabase = createClient()
-  const { inicializarIds, adicionarAoLoop, removerDoLoop, verificarMudancaStatus } = useSomNovoPedido(somAtivado)
 
   useEffect(() => {
     let subscription: any = null
@@ -526,7 +468,6 @@ export default function PedidosPage() {
       }
 
       const pedidosData: any[] = apiData.pedidos || []
-      inicializarIds(pedidosData)
 
       const countNovos = pedidosData.filter((p: any) => p.status === 'novo').length
       setNovosPedidosCount(countNovos)
@@ -559,7 +500,6 @@ export default function PedidosPage() {
                 return filtrados
               }
               const novosPedidos = [novoPedido, ...filtrados]
-              adicionarAoLoop(novoPedido.id)
               const count = novosPedidos.filter((p) => p.status === 'novo').length
               setNovosPedidosCount(count)
               return novosPedidos
@@ -583,10 +523,6 @@ export default function PedidosPage() {
                 return prev.filter(p => p.id !== atualizado.id)
               }
               const novos = prev.map(p => p.id === atualizado.id ? atualizado : p)
-              // Remove do loop se status mudou de "novo"
-              if (atualizado.status !== 'novo') {
-                removerDoLoop(atualizado.id)
-              }
               const count = novos.filter((p) => p.status === 'novo').length
               setNovosPedidosCount(count)
               return novos
@@ -609,14 +545,18 @@ export default function PedidosPage() {
     }
   }, [])
 
-  // Garante que o filtro "Hoje" está com a data local correta ao montar
+  // Keep Hoje/Ontem correct across midnight and when returning to the page.
   useEffect(() => {
-    const dataLocalHoje = getDataLocal()
-    if (filtroPeriodo === 'hoje' && filtroDataDe !== dataLocalHoje) {
-      setFiltroDataDe(dataLocalHoje)
-      setFiltroDataAte(dataLocalHoje)
+    if (filtroPeriodo === 'todos') return
+    const sync = () => {
+      const range = orderPeriodRange(filtroPeriodo)
+      setFiltroDataDe(range.from); setFiltroDataAte(range.to)
     }
-  }, [])
+    sync()
+    const timer = window.setInterval(sync, 60000)
+    document.addEventListener('visibilitychange', sync)
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', sync) }
+  }, [filtroPeriodo])
 
   // Carrega pedidos do servidor
   const loadPedidos = useCallback(async () => {
@@ -631,19 +571,15 @@ export default function PedidosPage() {
 
       const pedidosData: any[] = apiData.pedidos || []
 
-      if (loading) {
-        inicializarIds(pedidosData)
-      }
 
       const countNovos = pedidosData.filter((p: any) => p.status === 'novo').length
       setNovosPedidosCount(countNovos)
 
       setPedidos(pedidosData)
-      verificarMudancaStatus(pedidosData)
     } catch (err) {
       console.error('Erro no loadPedidos:', err)
     }
-  }, [loading, inicializarIds, verificarMudancaStatus])
+  }, [])
 
   const loadSessoesMesa = useCallback(async () => {
     try {
@@ -697,11 +633,6 @@ export default function PedidosPage() {
   }
 
   const updateStatus = async (pedido: Pedido, newStatus: PedidoStatus, motivo?: { tipo: string; descricao?: string }) => {
-    // Remove do loop de som se estiver mudando de "novo"
-    if (pedido.status === 'novo') {
-      removerDoLoop(pedido.id)
-    }
-
     try {
       const res = await fetch(`/api/pedidos/${pedido.id}/status`, {
         method: 'PATCH',
@@ -720,6 +651,7 @@ export default function PedidosPage() {
         console.error('Erro ao atualizar status:', data.error)
         toastError('Erro ao atualizar status', data.error || 'Erro desconhecido')
       } else {
+        window.dispatchEvent(new CustomEvent('wd:order-updated', { detail: { ...pedido, status: newStatus } }))
         loadPedidos()
       }
     } catch (err: any) {
@@ -1043,12 +975,14 @@ export default function PedidosPage() {
 
   // Editar pedido - abre modal real
   const abrirModalEditar = (pedido: any) => {
+    setCarregandoItensEdicao(true)
+    setItensEditando([])
     setPedidoEditando(pedido)
     setModalEditarAberto(true)
   }
 
   const salvarEdicao = async () => {
-    if (!pedidoEditando) return
+    if (!pedidoEditando || carregandoItensEdicao || salvandoEdicao) return
     setSalvandoEdicao(true)
     try {
       const body = {
@@ -1110,12 +1044,37 @@ export default function PedidosPage() {
     carregarMesas()
   }, [])
 
-  // Carrega itens quando modal de edição abre
+  // Fetch once per open/order, never on field edits or background refreshes.
   useEffect(() => {
-    if (modalEditarAberto && pedidoEditando) {
-      setItensEditando(itensCache[pedidoEditando.id] || [])
+    if (!modalEditarAberto || !pedidoEditando?.id) return
+    let cancelled = false
+    setCarregandoItensEdicao(true)
+    supabase.from('pedido_itens').select('*').eq('pedido_id', pedidoEditando.id).then(({ data, error }) => {
+      if (cancelled) return
+      if (error) { toastError('Não foi possível carregar os itens. Feche e tente novamente.'); return }
+      setItensEditando(data || [])
+      setCarregandoItensEdicao(false)
+    })
+    return () => { cancelled = true }
+  }, [modalEditarAberto, pedidoEditando?.id])
+
+  useEffect(() => {
+    if (!modalEditarAberto) return
+    const previousFocus = document.activeElement as HTMLElement | null
+    const scrollY = window.scrollY, previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const panel = orderEditorRef.current
+    panel?.querySelector<HTMLElement>('button, input')?.focus({ preventScroll: true })
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !panel) return
+      const nodes = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, a[href]')).filter(node => node.getClientRects().length)
+      const first = nodes[0], last = nodes[nodes.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }
-  }, [modalEditarAberto, pedidoEditando, itensCache])
+    document.addEventListener('keydown', onKey)
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', onKey); window.scrollTo(0, scrollY); previousFocus?.focus({ preventScroll: true }) }
+  }, [modalEditarAberto])
 
   const loadDetalhesPedido = async (pedido: Pedido) => {
     setSelectedPedido(pedido)
@@ -1178,26 +1137,6 @@ export default function PedidosPage() {
             <p className="hint">Gerencie os pedidos do seu delivery</p>
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
-            {/* Botão Som só aparece no desktop (no mobile some pra economizar espaço) */}
-            <button
-              onClick={() => { setLoading(true); loadPedidos(); }}
-              className="px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border bg-white border-gray-300 text-gray-600 hover:bg-gray-100"
-              title="Atualizar pedidos"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setSomAtivado(!somAtivado)}
-              className="hidden md:flex px-4 py-2 rounded-xl text-sm font-medium items-center gap-2 border"
-              style={{
-                background: somAtivado ? '#F0FDF4' : '#F3F4F6',
-                borderColor: somAtivado ? '#86EFAC' : '#D1D5DB',
-                color: somAtivado ? '#15803D' : '#6B7280',
-              }}
-              title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som desativado - clique para ativar'}
-            >
-              {somAtivado ? '🔊 Som' : '🔇 Mudo'}
-            </button>
             <Link
               href="/pedidos/novo"
               className="btn-primary flex items-center gap-2"
@@ -1288,11 +1227,9 @@ export default function PedidosPage() {
               {/* ABA FLUXO: só "Hoje" e "Ontem" */}
               <button
                 onClick={() => {
-                  const agora = new Date()
-                  const hojeLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate())
-                  const hoj = `${hojeLocal.getFullYear()}-${String(hojeLocal.getMonth() + 1).padStart(2, '0')}-${String(hojeLocal.getDate()).padStart(2, '0')}`
-                  setFiltroDataDe(hoj)
-                  setFiltroDataAte(hoj)
+                  const range = orderPeriodRange('hoje')
+                  setFiltroDataDe(range.from)
+                  setFiltroDataAte(range.to)
                   setFiltroPeriodo('hoje')
                 }}
                 className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'hoje' ? 'bg-green-600 text-white' : 'bg-green-100 hover:bg-green-200 text-green-700'}`}
@@ -1301,13 +1238,9 @@ export default function PedidosPage() {
               </button>
               <button
                 onClick={() => {
-                  const agora = new Date()
-                  const ontemLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 1)
-                  const hojeLocal = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate())
-                  const ont = `${ontemLocal.getFullYear()}-${String(ontemLocal.getMonth() + 1).padStart(2, '0')}-${String(ontemLocal.getDate()).padStart(2, '0')}`
-                  const hoj = `${hojeLocal.getFullYear()}-${String(hojeLocal.getMonth() + 1).padStart(2, '0')}-${String(hojeLocal.getDate()).padStart(2, '0')}`
-                  setFiltroDataDe(ont)
-                  setFiltroDataAte(hoj)
+                  const range = orderPeriodRange('ontem')
+                  setFiltroDataDe(range.from)
+                  setFiltroDataAte(range.to)
                   setFiltroPeriodo('ontem')
                 }}
                 className={`px-2 py-1 text-xs rounded transition-colors ${filtroPeriodo === 'ontem' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
@@ -1548,19 +1481,6 @@ export default function PedidosPage() {
           : null
         return (
           <>
-            {filtroStatus && statusConfig && (
-              <div className="mb-4 text-sm text-gray-500">
-                Mostrando <strong>{statusConfig.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
-                <button onClick={() => setFiltroStatus('')} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
-              </div>
-            )}
-
-            {(filtroDataDe || filtroDataAte) && (
-              <div className="mb-4 text-sm text-gray-500">
-                📅 Período: <strong>{filtroDataDe ? new Date(filtroDataDe + 'T00:00:00').toLocaleDateString('pt-BR') : '...'} até {filtroDataAte ? new Date(filtroDataAte + 'T00:00:00').toLocaleDateString('pt-BR') : '...'}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
-              </div>
-            )}
-
       {/* Lista de Pedidos em GRID 3 COLUNAS - key forca re-render quando filtro muda */}
       <div key={`grid-${filtroPeriodo}-${filtroDataDe}-${filtroDataAte}-${pedidosTab}`} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {loading ? (
@@ -1569,7 +1489,7 @@ export default function PedidosPage() {
           <div className="col-span-full text-center py-12">
             <div className="text-gray-400 mb-2">📦 Nenhum pedido encontrado</div>
             <div className="text-xs text-gray-400">
-              {pedidos.length === 0 ? 'Nenhum pedido no banco para este tenant.' : 'Tente outro filtro ou período.'}
+              {pedidos.length === 0 ? 'Os pedidos aparecem automaticamente quando chegarem.' : 'Tente outro filtro ou período.'}
             </div>
           </div>
         ) : (
@@ -1585,9 +1505,19 @@ export default function PedidosPage() {
             const totalItens = itensDoCard.reduce((acc: number, i: any) => acc + (Number(i.quantidade) || 1), 0)
 
             return (
+              <div key={pedido.id} className="wd-order-pair">
+                <MerchantOrderCard pedido={pedido} items={itensCache[pedido.id]} statusLabel={config.label}
+                  nextLabel={nextStatus ? STATUS_CONFIG[nextStatus].label : undefined}
+                  onAdvance={() => { if (nextStatus) updateStatus(pedido, nextStatus) }}
+                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => togglePago(pedido)}
+                  onWhatsApp={() => confirmarPedidoWPP(pedido)} onPrint={() => imprimirPedido(pedido)}
+                  onDiscount={() => abrirModalDesconto(pedido)} onCancel={() => abrirModalCancelamento(pedido)}
+                  onDelete={() => apagarPedido(pedido)} onDetails={() => loadDetalhesPedido(pedido)}
+                  onReview={() => gerarConviteAvaliacao(pedido.id)}>
+                  {pedido.status !== 'entregue' && pedido.status !== 'cancelado' && <TempoAlerta dataCriacao={pedido.data_criacao} tempoEstimadoMin={(pedido as any).tempo_estimado_min} />}
+                </MerchantOrderCard>
               <div
-                key={pedido.id}
-                className={`order-card-redesign bg-white rounded-[18px] border overflow-hidden flex flex-col transition-all shadow-sm ${
+                className={`wd-order-desktop-card order-card-redesign bg-white rounded-[18px] border overflow-hidden flex flex-col transition-all shadow-sm ${
                   isNovo ? 'ring-2 ring-orange-300' : ''
                 }`}
                 style={{ borderColor: '#E4E8EE' }}
@@ -1869,6 +1799,7 @@ export default function PedidosPage() {
                     )}
                   </div>
                 </div>
+              </div>
               </div>
             )
           })
@@ -2331,21 +2262,19 @@ export default function PedidosPage() {
 
       {/* MODAL DE EDIÇÃO */}
       {modalEditarAberto && pedidoEditando && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-auto">
-            <div className="p-4 border-b sticky top-0 bg-white z-10 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Editar pedido {pedidoEditando.codigo || pedidoEditando.id.slice(0, 8)}</h2>
-              <button onClick={() => setModalEditarAberto(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+        <div className="wd-order-editor fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div ref={orderEditorRef} role="dialog" aria-modal="true" aria-labelledby="wd-order-edit-title" className="wd-oe-panel bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-auto">
+            <div className="wd-oe-header p-4 border-b sticky top-0 bg-white z-10 flex items-center justify-between">
+              <h2 id="wd-order-edit-title" className="text-xl font-bold">Editar pedido {pedidoEditando.codigo || pedidoEditando.id.slice(0, 8)}</h2>
+              <button type="button" aria-label="Voltar aos pedidos" disabled={salvandoEdicao} onClick={() => setModalEditarAberto(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="wd-oe-body p-4 space-y-4">
               {/* BLOCO 1: DADOS DO CLIENTE */}
-              <div className="bg-blue-50 rounded-xl p-4">
-                <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
-                  <span>👤</span> Dados do Cliente
-                </h3>
+              <MerchantDisclosure title="Dados do cliente" className="wd-oe-group" initiallyOpen>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm">
                     <span className="font-medium block mb-1">Nome</span>
@@ -2364,13 +2293,11 @@ export default function PedidosPage() {
                     />
                   </label>
                 </div>
-              </div>
+              </MerchantDisclosure>
 
               {/* BLOCO 2: ENDEREÇO DE ENTREGA */}
-              <div className="bg-green-50 rounded-xl p-4">
-                <h3 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
-                  <span>📍</span> Endereço de Entrega
-                </h3>
+              <MerchantDisclosure title="Endereço e observações" className="wd-oe-group">
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm md:col-span-2">
                     <span className="font-medium block mb-1">Endereço</span>
@@ -2414,13 +2341,11 @@ export default function PedidosPage() {
                     />
                   </label>
                 </div>
-              </div>
+              </MerchantDisclosure>
 
               {/* BLOCO 3: VALORES */}
-              <div className="bg-yellow-50 rounded-xl p-4">
-                <h3 className="font-semibold text-yellow-800 mb-3 flex items-center gap-2">
-                  <span>💰</span> Valores
-                </h3>
+              <MerchantDisclosure title="Taxa e desconto" className="wd-oe-group">
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm">
                     <span className="font-medium block mb-1">Taxa de entrega (R$)</span>
@@ -2443,12 +2368,12 @@ export default function PedidosPage() {
                     />
                   </label>
                 </div>
-              </div>
+              </MerchantDisclosure>
 
               {/* BLOCO 4: ITENS */}
-              <div className="border-t pt-4">
+              <MerchantDisclosure title="Itens do pedido" className="wd-oe-group" initiallyOpen>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">Itens do pedido</h3>
+                  <span />
                   <button
                     onClick={() => {
                       const novoItem = { produto_id: '', nome: '', quantidade: 1, valor_unitario: 0, complementos: [] }
@@ -2501,10 +2426,10 @@ export default function PedidosPage() {
                     )
                   })()}
                 </div>
-              </div>
+              </MerchantDisclosure>
             </div>
 
-            <div className="p-4 border-t sticky bottom-0 bg-white flex justify-end gap-2">
+            <div className="wd-oe-footer p-4 border-t sticky bottom-0 bg-white flex justify-end gap-2">
               <button
                 onClick={() => setModalEditarAberto(false)}
                 className="px-4 py-2 border rounded-lg text-sm"
@@ -2513,11 +2438,11 @@ export default function PedidosPage() {
               </button>
               <button
                 onClick={salvarEdicao}
-                disabled={salvandoEdicao}
+                disabled={salvandoEdicao || carregandoItensEdicao}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-1"
               >
                 <Save className="w-4 h-4" />
-                {salvandoEdicao ? 'Salvando...' : 'Salvar alterações'}
+                {salvandoEdicao ? 'Salvando...' : carregandoItensEdicao ? 'Carregando itens...' : 'Salvar alterações'}
               </button>
             </div>
           </div>

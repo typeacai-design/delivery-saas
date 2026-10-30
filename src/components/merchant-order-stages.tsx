@@ -16,7 +16,7 @@ export default function MerchantOrderStages({ stages, selected, onSelect }: {
     <div className="wd-stage-select">
       <button type="button" onClick={() => choose(stages[index - 1].id)} disabled={index === 0} aria-label="Etapa anterior"><ChevronLeft size={20} /></button>
       <button type="button" className="wd-stage-current" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} aria-controls="merchant-order-stage-options">
-        <span><small>Etapa do pedido</small><strong>{current.label} · {current.count}</strong></span><ChevronDown size={18} aria-hidden="true" />
+        <span><strong>{current.label} · {current.count}</strong></span><ChevronDown size={18} aria-hidden="true" />
       </button>
       <button type="button" onClick={() => choose(stages[index + 1].id)} disabled={index === stages.length - 1} aria-label="Próxima etapa"><ChevronRight size={20} /></button>
     </div>
