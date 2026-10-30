@@ -64,7 +64,7 @@ export default async function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="wd-admin-page-header">
         <div>
           <div className="eyebrow mb-2 flex items-center gap-1.5">
             <Store size={11} />
@@ -82,7 +82,7 @@ export default async function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="wd-admin-stats">
         <StatCard icon={Store} label="Lojistas" value={totalLojistas} color="green" />
         <StatCard icon={TrendingUp} label="Ativos (30d)" value={lojistasAtivos} color="white" />
         <StatCard icon={DollarSign} label="Faturamento mês" value={formatCurrency(faturamentoMes)} color="green" isCurrency />
@@ -111,7 +111,21 @@ export default async function AdminDashboard() {
             </Link>
           </div>
         ) : (
-          <div className="glass-soft rounded-2xl overflow-hidden">
+          <>
+          <div className="wd-admin-shop-cards">
+            {lojistasComMetricas.slice(0, 10).map(tenant => (
+              <Link key={tenant.id} href={'/painel-admin/lojistas?loja=' + encodeURIComponent(tenant.id)} className="wd-admin-shop-card">
+                <div className="wd-admin-shop-card-header">
+                  <div><strong>{tenant.nome}</strong><small>@{tenant.slug} · {tenant.cidade || 'Sem cidade'}</small></div>
+                  <span className={`chip ${tenant.statusPagamento === 'pago' ? 'chip--positive' : 'chip--negative'}`}>
+                    {tenant.statusPagamento === 'pago' ? 'Em dia' : 'Pendente'}
+                  </span>
+                </div>
+                <dl><div><dt>Vendas no mês</dt><dd>{formatCurrency(tenant.vendasMes)}</dd></div><div><dt>Pedidos no mês</dt><dd>{tenant.pedidosMes}</dd></div></dl>
+              </Link>
+            ))}
+          </div>
+          <div className="wd-admin-shop-table wd-admin-table glass-soft rounded-2xl">
             <table className="w-full">
               <thead>
                 <tr className="border-b" style={{ borderColor: 'var(--line)' }}>
@@ -155,6 +169,7 @@ export default async function AdminDashboard() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
@@ -185,14 +200,13 @@ function StatCard({ icon: Icon, label, value, color, isCurrency }: {
   }
 
   return (
-    <div className="glass-soft p-4 rounded-2xl">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="size-7 rounded-lg flex items-center justify-center" style={{ background: colorMap[color] }}>
+    <div className={`wd-admin-stat ${isCurrency ? 'wd-admin-stat--currency' : ''}`}>
+        <div className="wd-admin-stat-icon" style={{ background: colorMap[color] }}>
           <Icon size={14} style={{ color: iconMap[color] }} />
         </div>
-      </div>
-      <p className={`text-xl font-bold ${textMap[color]}`}>{value}</p>
-      <p className="hint text-xs mt-0.5">{label}</p>
+      <p className={`wd-admin-stat-value ${textMap[color]}`}>{value}</p>
+      <p className="wd-admin-stat-label">{label}</p>
     </div>
   )
 }
+

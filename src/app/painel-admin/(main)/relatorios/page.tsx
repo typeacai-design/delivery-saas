@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react'
 import { BarChart3, TrendingUp, Download, Calendar, DollarSign, Users, ShoppingBag, AlertTriangle, ArrowUpRight } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { adminFetch } from '@/lib/admin-fetch'
+import { useToast } from '@/components/toast'
 
 export default function RelatoriosPage() {
+  const { error: toastError } = useToast()
   const [data, setData] = useState<any>({
     tenants: [],
     pedidos: [],
@@ -25,6 +27,9 @@ export default function RelatoriosPage() {
         adminFetch('/api/admin/pedidos'),
         adminFetch('/api/admin/pagamentos')
       ])
+      if (![tenantsRes, pedidosRes, pagamentosRes].every(response => response.ok)) {
+        throw new Error('Não foi possível carregar os relatórios')
+      }
       const tenantsData = await tenantsRes.json()
       const pedidosData = await pedidosRes.json()
       const pagamentosData = await pagamentosRes.json()
@@ -36,6 +41,7 @@ export default function RelatoriosPage() {
       })
     } catch (error) {
       console.error('Erro:', error)
+      toastError('Não foi possível carregar os relatórios. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -73,17 +79,46 @@ export default function RelatoriosPage() {
   // Dados para gráfico de top lojistas
   const topLojistas = getTopLojistas(pedidosPeriodo, data.tenants)
 
+  const exportarCsv = () => {
+    // All text cells are quoted and protected against spreadsheet formula injection.
+    const cell = (value: unknown) => {
+      let text = String(value ?? '')
+      if (/^[\s]*[=+@-]/.test(text)) text = "'" + text
+      return '"' + text.replace(/"/g, '""') + '"'
+    }
+    const lojas = new Map<string, string>(data.tenants.map((tenant: any) => [tenant.id, tenant.nome] as [string, string]))
+    const rows = [
+      ['Pedido', 'Data', 'Lojista', 'Status', 'Valor (R$)'],
+      ...pedidosPeriodo.map((pedido: any) => [
+        pedido.codigo || pedido.id,
+        new Date(pedido.data_criacao).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+        lojas.get(pedido.tenant_id) || 'Lojista',
+        pedido.status,
+        Number(pedido.valor_total || 0).toFixed(2).replace('.', ','),
+      ]),
+    ]
+    const csv = '\uFEFF' + rows.map(row => row.map(cell).join(';')).join('\r\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `we-delivery-pedidos-${periodo}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="wd-admin-page-header">
         <div>
           <div className="eyebrow mb-2">Análises</div>
           <h1 className="text-2xl font-semibold" style={{ color: 'var(--ink)' }}>Relatórios</h1>
           <p className="hint mt-1">Dados e métricas do seu SaaS</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn-ghost flex items-center gap-2">
+          <button type="button" onClick={exportarCsv} disabled={loading || pedidosPeriodo.length === 0} className="btn-ghost flex items-center gap-2">
             <Download size={14} />
             Exportar CSV
           </button>
@@ -91,7 +126,7 @@ export default function RelatoriosPage() {
       </div>
 
       {/* Seletor de Período */}
-      <div className="glass p-4 rounded-2xl flex items-center gap-3">
+      <div className="glass p-4 rounded-2xl wd-admin-filter-row">
         <Calendar size={18} style={{ color: 'var(--ink-muted)' }} />
         <span className="hint font-medium">Período:</span>
         {(['7d', '30d', '90d', 'ano'] as const).map(p => (
@@ -283,3 +318,4 @@ function getTopLojistas(pedidos: any[], tenants: any[]) {
     .filter(t => t.total > 0)
     .sort((a, b) => b.total - a.total)
 }
+

@@ -1,97 +1,104 @@
 'use client'
 
-import {
-  LayoutDashboard,
-  Users,
-  BarChart3,
-  Settings,
-  Shield,
-  LogOut,
-  Store,
-  DollarSign,
-} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { LayoutDashboard, Users, BarChart3, Settings, Shield, LogOut, Store, DollarSign, Menu, X } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
-// Layout client-side do painel admin.
-// Auth já foi validada pelo middleware server-side, então
-// não precisa de loading state. Isso evita hidratação dupla
-// que estava crashando.
-export default function AdminShell({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+const navItems = [
+  { href: '/painel-admin', label: 'Visão geral', mobileLabel: 'Início', icon: LayoutDashboard },
+  { href: '/painel-admin/lojistas', label: 'Lojistas', mobileLabel: 'Lojistas', icon: Users },
+  { href: '/painel-admin/faturamento', label: 'Cobrança 1%', mobileLabel: 'Cobranças', icon: DollarSign },
+  { href: '/painel-admin/relatorios', label: 'Relatórios', mobileLabel: 'Relatórios', icon: BarChart3 },
+  { href: '/painel-admin/configuracoes', label: 'Configurações', icon: Settings },
+  { href: '/painel-admin/configuracoes?tab=admin', label: 'Perfil e segurança', icon: Shield },
+]
+
+export default function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [logoutError, setLogoutError] = useState('')
+
+  useEffect(() => { setMenuOpen(false) }, [pathname])
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [menuOpen])
 
   const handleLogout = async () => {
+    setLoggingOut(true)
+    setLogoutError('')
     try {
-      await fetch('/api/admin/login', { method: 'DELETE', credentials: 'include' })
-    } catch {}
-    router.replace('/painel-admin/login')
+      const response = await fetch('/api/admin/login', { method: 'DELETE', credentials: 'include' })
+      if (!response.ok) throw new Error('Não foi possível sair.')
+      router.replace('/painel-admin/login')
+      router.refresh()
+    } catch {
+      setLogoutError('Não foi possível sair. Tente novamente.')
+      setLoggingOut(false)
+    }
   }
 
-  const navItems = [
-    { href: '/painel-admin', label: 'Visão Geral', icon: LayoutDashboard },
-    { href: '/painel-admin/lojistas', label: 'Lojistas', icon: Users },
-    { href: '/painel-admin/faturamento', label: 'Cobrança 1%', icon: DollarSign },
-    { href: '/painel-admin/relatorios', label: 'Relatórios', icon: BarChart3 },
-    { href: '/painel-admin/configuracoes', label: 'Configurações', icon: Settings },
-    { href: '/painel-admin/configuracoes?tab=admin', label: 'Perfil e segurança', icon: Shield },
-  ]
+  const isActive = (href: string) => href === '/painel-admin'
+    ? pathname === href
+    : !href.includes('?') && (pathname === href || pathname.startsWith(href + '/'))
 
   return (
-    <div className="app-shell">
-      <div className="app-shell-inner">
-        <div className="glass p-6 rounded-3xl mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className="size-10 rounded-xl flex items-center justify-center text-white font-bold"
-                style={{
-                  background: 'var(--green)',
-                  boxShadow: '0 8px 22px -10px rgba(22,163,74,.55)',
-                }}
-              >
-                <Store size={18} />
-              </div>
-              <div>
-                <h1 className="font-bold" style={{ color: 'var(--ink)' }}>We Delivery</h1>
-                <p className="text-xs hint">Painel Admin</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="btn-ghost flex items-center gap-2"
-            >
-              <LogOut className="w-4 h-4" />
-              Sair
-            </button>
-          </div>
-        </div>
+    <div className="wd-admin">
+      <div className="wd-admin-container">
+        <header className="wd-admin-header">
+          <Link href="/painel-admin" className="wd-admin-brand" aria-label="We Delivery — início do administrador">
+            <span className="wd-admin-logo"><Store size={22} aria-hidden="true" /></span>
+            <span><strong>We Delivery</strong><small>Administração</small></span>
+          </Link>
+          <button type="button" onClick={handleLogout} disabled={loggingOut} className="wd-admin-logout">
+            <LogOut size={18} aria-hidden="true" />{loggingOut ? 'Saindo…' : 'Sair'}
+          </button>
+        </header>
+        {logoutError && <p role="alert" className="wd-admin-error">{logoutError}</p>}
 
-        {/* Nav Pills */}
-        <div className="flex items-center gap-2 mb-6 flex-wrap">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="btn-ghost flex items-center gap-2"
-              >
-                <Icon className="w-4 h-4" />
-                {item.label}
-              </Link>
-            )
-          })}
-        </div>
+        <nav className="wd-admin-desktop-nav" aria-label="Navegação administrativa">
+          {navItems.map(item => (
+            <Link key={item.href} href={item.href} className={isActive(item.href) ? 'is-active' : ''}
+              aria-current={isActive(item.href) ? 'page' : undefined}>
+              <item.icon size={18} aria-hidden="true" />{item.label}
+            </Link>
+          ))}
+        </nav>
 
-        {/* Content */}
-        <div className="glass p-6 rounded-3xl">
-          {children}
-        </div>
+        <main id="admin-content" className="wd-admin-content">{children}</main>
       </div>
+
+      {menuOpen && (
+        <>
+          <button type="button" className="wd-admin-menu-backdrop" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />
+          <div id="admin-more-menu" className="wd-admin-more-menu" aria-label="Mais opções">
+            <div className="wd-admin-menu-title"><strong>Mais opções</strong><button type="button" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X size={20} /></button></div>
+            {navItems.slice(4).map(item => (
+              <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}><item.icon size={20} aria-hidden="true" />{item.label}</Link>
+            ))}
+          </div>
+        </>
+      )}
+      <nav className="wd-admin-mobile-nav" aria-label="Navegação administrativa no celular">
+        {navItems.slice(0, 4).map(item => (
+          <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={isActive(item.href) && !menuOpen ? 'is-active' : ''}
+            aria-current={isActive(item.href) ? 'page' : undefined}>
+            <item.icon size={21} aria-hidden="true" /><span>{item.mobileLabel}</span>
+          </Link>
+        ))}
+        <button type="button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-controls="admin-more-menu"
+          className={menuOpen || pathname.startsWith('/painel-admin/configuracoes') ? 'is-active' : ''}>
+          {menuOpen ? <X size={21} aria-hidden="true" /> : <Menu size={21} aria-hidden="true" />}<span>Mais</span>
+        </button>
+      </nav>
     </div>
   )
 }
+
