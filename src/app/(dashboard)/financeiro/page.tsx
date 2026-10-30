@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { WalletCards, Receipt, CreditCard, Plus, X, ArrowUpRight, ArrowDownRight, TrendingUp, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useToast } from '@/components/toast'
+import MerchantDisclosure from '@/components/merchant-disclosure'
 
 type Tab = 'cashflow'|'accounts'|'payments'
 type Order = { id:string; codigo:string|null; created_at:string; valor_total:number; taxa_entrega:number; forma_pagamento:string; status:string; pago:boolean|null }
@@ -68,11 +69,11 @@ export default function FinanceiroPage(){
 
   if(loading)return <div className="hint p-8">Carregando dados financeiros…</div>
 
-  return <div className="space-y-5">
-    <header>
+  return <div className="wd-finance-page space-y-5">
+    <header className="wd-page-heading">
       <div className="eyebrow mb-2">Financeiro</div>
-      <h1 className="text-3xl font-semibold">Gestão financeira</h1>
-      <div className="flex items-center gap-4 mt-2">
+      <h1 className="text-3xl font-semibold">Financeiro</h1><p className="wd-mobile-subtitle">Seu dinheiro, sem complicação</p>
+      <div className="wd-finance-desktop-balance flex items-center gap-4 mt-2">
         <span className={`text-2xl font-bold ${saldoTotal>=0?'text-green-600':'text-red-600'}`}>
           Saldo: {formatCurrency(saldoTotal)}
         </span>
@@ -81,7 +82,12 @@ export default function FinanceiroPage(){
         </span>
       </div>
     </header>
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+    <div className="wd-finance-summary">
+      <section className="wd-sales"><div className="wd-sales-top">Recebido · todo o período disponível</div><strong className="wd-total">{formatCurrency(orders.filter(o => o.pago === true && o.status !== 'cancelado').reduce((sum, o) => sum + Number(o.valor_total || 0), 0))}</strong><p>Somente pedidos marcados como pagos</p></section>
+      <div className="wd-finance-metrics"><div className="wd-metric"><span>A receber em pedidos</span><b>{formatCurrency(orders.filter(o => o.pago !== true && o.status !== 'cancelado').reduce((sum, o) => sum + Number(o.valor_total || 0), 0))}</b></div><div className="wd-metric"><span>Saldo do fluxo de caixa</span><b>{formatCurrency(saldoTotal)}</b></div></div>
+      <button type="button" className="wd-action wd-primary" onClick={() => setShowLancar(true)}><Plus size={18} aria-hidden="true" />Lançar movimentação</button>
+    </div>
+    <div className="wd-finance-tabs grid grid-cols-2 md:grid-cols-3 gap-3">
       {tabs.map(([id,label,Icon])=><button key={id} onClick={()=>setTab(id)} className={`glass-soft min-h-24 rounded-2xl p-4 text-left transition ${tab===id?'ring-2 ring-green-500':''}`}><Icon size={18}/><span className="block text-sm font-semibold mt-2">{label}</span></button>)}
     </div>
     {tab==='cashflow'&&<CashFlow orders={orders} expenses={expenses} transactions={transactions} onNewTransaction={()=>setShowLancar(true)} onSaved={()=>{setShowLancar(false);window.location.reload()}}/>}
@@ -141,7 +147,7 @@ function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{order
     }))
   ].sort((a,b)=>+new Date(b.date)-+new Date(a.date))
 
-  return <section className="glass p-5">
+  return <MerchantDisclosure title="Movimentações" className="wd-finance-movements"><section className="glass p-5">
     <div className="flex justify-between items-center mb-4">
       <h2 className="font-semibold">Fluxo de caixa</h2>
       <button onClick={onNewTransaction} className="btn-primary flex items-center gap-1 text-sm">
@@ -171,7 +177,7 @@ function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{order
       </div>:
       <Empty text="Sem lançamentos para exibir."/>
     }
-  </section>
+  </section></MerchantDisclosure>
 }
 
 function Accounts({orders,expenses,onNewExpense}:{orders:Order[];expenses:Expense[];onNewExpense:()=>void}){
@@ -357,3 +363,4 @@ function LancarModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
     </div>
   </div>
 }
+
