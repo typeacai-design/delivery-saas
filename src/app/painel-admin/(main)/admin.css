@@ -1,5 +1,5 @@
 /* Only authenticated administration; login and restaurant pages are unaffected. */
-.wd-admin { min-height: 100vh; min-height: 100svh; background: #f5f8f6; color: #17261e; }
+.wd-admin { width: 100%; max-width: 100%; overflow-x: clip; min-height: 100vh; min-height: 100svh; background: #f5f8f6; color: #17261e; }
 .wd-admin, .wd-admin * { box-sizing: border-box; }
 .wd-admin-container { width: min(100%, 1240px); margin: 0 auto; padding: 24px; }
 .wd-admin-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; background: #fff; border: 1px solid #e3eae5; border-radius: 20px; }
@@ -11,7 +11,7 @@
 .wd-admin-desktop-nav { display: flex; flex-wrap: wrap; gap: 6px; padding: 16px 0; }
 .wd-admin-desktop-nav a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 14px; border-radius: 12px; text-decoration: none; color: #65736b; font-size: 14px; }
 .wd-admin-desktop-nav a:hover, .wd-admin-desktop-nav .is-active { color: #126b36; background: #e4f4e9; }
-.wd-admin-content { min-width: 0; padding: 24px; background: #fff; border: 1px solid #e3eae5; border-radius: 20px; }
+.wd-admin-content { width: 100%; max-width: 100%; min-width: 0; padding: 24px; background: #fff; border: 1px solid #e3eae5; border-radius: 20px; }
 .wd-admin-content > * { min-width: 0; }
 .wd-admin-mobile-nav, .wd-admin-more-menu, .wd-admin-menu-backdrop { display: none; }
 .wd-admin-error { padding: 12px 16px; border: 1px solid #fecaca; border-radius: 12px; background: #fff1f2; color: #a51d2d; font-size: 14px; }
@@ -32,6 +32,8 @@
   .wd-admin-stat-value { font-size: 22px; }
 }
 @media (max-width: 767px) {
+  .wd-admin { overflow-wrap: anywhere; }
+  .wd-admin-content .overflow-x-auto { min-width: 0; max-width: 100%; overscroll-behavior-x: contain; }
   .wd-admin-container { padding: max(12px, env(safe-area-inset-top)) 14px calc(100px + env(safe-area-inset-bottom)); }
   .wd-admin-header { padding: 12px; gap: 10px; border-radius: 16px; margin-bottom: 22px; }
   .wd-admin-brand { gap: 10px; }

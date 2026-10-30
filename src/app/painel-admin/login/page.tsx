@@ -80,6 +80,7 @@ export default function AdminLoginPage() {
               <label>E-mail</label>
               <input
                 type="email"
+                style={{ fontSize: 16 }}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
@@ -92,6 +93,7 @@ export default function AdminLoginPage() {
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  style={{ fontSize: 16 }}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Digite sua senha"
