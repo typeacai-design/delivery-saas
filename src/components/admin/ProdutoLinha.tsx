@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Edit, Trash2, Image as ImageIcon, Copy, Check, X, Save } from 'lucide-react'
+import { Edit, Trash2, Image as ImageIcon, Copy, Check, X, Save, ArrowUp, ArrowDown, EllipsisVertical, Wallet, ListOrdered, Star } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 type Props = {
@@ -13,6 +13,10 @@ type Props = {
   onUpdate: (field: string, value: any) => void | Promise<void>
   onDelete: () => void // Ag不下去 = inativar
   onExcluir: () => void // Excluir = realmente apagar
+  onMoveUp?: () => void | Promise<void>
+  onMoveDown?: () => void | Promise<void>
+  canMoveUp?: boolean
+  canMoveDown?: boolean
 }
 
 /**
@@ -30,6 +34,10 @@ export default function ProdutoLinha({
   onUpdate,
   onDelete,
   onExcluir,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
 }: Props) {
   const [editandoCampo, setEditandoCampo] = useState<string | null>(null)
   const [valorTemp, setValorTemp] = useState<string>('')
@@ -99,7 +107,29 @@ export default function ProdutoLinha({
   }
 
   return (
-    <div className="wd-product-line bg-white rounded-2xl border p-3 flex items-center gap-3 hover:shadow-md transition" style={{ borderColor: '#E5E7EB' }}>
+    <>
+    <article className="wd-floating-product" aria-label={produto.nome} data-active={!!produto.ativo}>
+      {!produto.ativo && <span className="wd-fp-inactive">Inativo</span>}
+      <div className="wd-fp-body">
+        {produto.imagem_url ? <img className="wd-fp-photo" src={produto.imagem_url} alt={produto.nome} /> : <div className="wd-fp-photo wd-fp-placeholder"><ImageIcon size={27} aria-hidden="true" /></div>}
+        <div className="wd-fp-info">
+          <div className="wd-fp-title"><h3>{produto.nome}</h3><button type="button" onClick={onEdit} aria-label={`Mais opções de ${produto.nome}`}><EllipsisVertical size={18} /></button></div>
+          <div className="wd-fp-channels">{produto.disponivel_mesa && <span data-channel="mesa">Mesa</span>}{produto.disponivel_delivery && <span data-channel="delivery">Delivery</span>}{produto.disponivel_retirada && <span data-channel="retirada">Retirada</span>}</div>
+          <div className="wd-fp-stats">
+            <div><small><Wallet size={12} aria-hidden="true" />Preço</small><b>{formatCurrency(Number(produto.preco))}</b></div>
+            <div><small><ListOrdered size={12} aria-hidden="true" />Ordem</small><b>{produto.ordem ?? 0}</b></div>
+            <div><small><Star size={12} aria-hidden="true" />Pontos</small><b className="wd-fp-points">{Number(produto.pontos) || 0}</b></div>
+          </div>
+          {complementosCount > 0 && <small className="wd-fp-count">{complementosCount} complementos</small>}
+        </div>
+      </div>
+      <footer className="wd-fp-footer">
+        <button type="button" className="wd-fp-availability" aria-label={produto.ativo ? 'Desativar produto' : 'Ativar produto'} aria-pressed={!!produto.ativo} onClick={onToggleAtivo}><span className="wd-fp-toggle"><span /></span><small>{produto.ativo ? 'Ativo' : 'Inativo'}</small></button>
+        <div className="wd-fp-actions"><button type="button" onClick={onEdit} aria-label="Editar"><Edit size={19} /></button><button type="button" onClick={onDuplicate} aria-label="Duplicar"><Copy size={19} /></button><button type="button" onClick={onExcluir} aria-label="Excluir permanentemente"><Trash2 size={19} /></button></div>
+        <div className="wd-fp-sort"><button type="button" onClick={onMoveUp} disabled={!canMoveUp} aria-label="Subir produto"><ArrowUp size={18} /></button><button type="button" onClick={onMoveDown} disabled={!canMoveDown} aria-label="Descer produto"><ArrowDown size={18} /></button></div>
+      </footer>
+    </article>
+    <div className="wd-product-desktop-line wd-product-line bg-white rounded-2xl border p-3 flex items-center gap-3 hover:shadow-md transition" style={{ borderColor: '#E5E7EB' }}>
       {/* Foto */}
       {produto.imagem_url ? (
         <img src={produto.imagem_url} alt={produto.nome} className="wd-product-photo size-12 rounded-lg object-cover shrink-0" />
@@ -187,6 +217,7 @@ export default function ProdutoLinha({
         </button>
       </div>
     </div>
+    </>
   )
 }
 
