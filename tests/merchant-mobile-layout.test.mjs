@@ -89,6 +89,8 @@ test('product row retains edit, duplicate, active switch and delete controls', a
   }))
   for (const label of ['Editar', 'Duplicar', 'Desativar produto', 'Excluir permanentemente']) assert.ok(html.includes('aria-label="' + label + '"'))
   assert.match(html, /Produto de teste/)
+  assert.equal((html.match(/R\$/g) || []).length, 1, 'price must display the currency symbol once')
+  assert.match(html, /wd-product-photo/, 'photo and placeholder share the same layout slot')
 })
 
 function elements(node) {
