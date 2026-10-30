@@ -14,6 +14,7 @@ import ComplementosTab from '@/components/admin/ComplementosTab'
 import ProdutoLinha from '@/components/admin/ProdutoLinha'
 import { getCardapioTheme } from '@/lib/cardapio-theme'
 import { useToast } from '@/components/toast'
+import MerchantDisclosure from '@/components/merchant-disclosure'
 
 type Tab = 'design' | 'produtos' | 'complementos'
 type ColorKey = 'primary' | 'secondary' | 'accent'
@@ -60,8 +61,8 @@ export default function CardapioPage() {
   ] as const
 
   return (
-    <div>
-      <div className="glass-iridescent px-7 py-7 mb-5 relative">
+    <div className="wd-catalog-page">
+      <div className="wd-page-heading glass-iridescent px-7 py-7 mb-5 relative">
         <div className="relative z-10">
           <div className="eyebrow mb-2 flex items-center gap-1.5">
             <Sparkles size={11} />
@@ -75,13 +76,14 @@ export default function CardapioPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-2">
+      <div className="wd-catalog-tabs flex gap-2 mb-5 overflow-x-auto pb-2">
         {tabs.map((t) => {
           const active = tab === t.id
           const Icon = t.icon
           return (
             <button
               key={t.id}
+              aria-selected={active}
               onClick={() => setTab(t.id)}
               className="flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-medium transition whitespace-nowrap"
               style={
@@ -159,14 +161,14 @@ function DesignTab() {
 
   if (loading) return <div className="text-center py-8 hint">Carregando...</div>
   return <div className="space-y-5">
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+    <MerchantDisclosure title="Logomarca e banners" className="wd-design-section" initiallyOpen><div className="wd-assets-grid grid grid-cols-1 md:grid-cols-2 gap-5">
       <AssetUpload tipo="logo" titulo="Logomarca do negocio" url={tenant?.logo_url || ''} onChanged={(url) => setTenant((t: any) => ({ ...t, logo_url: url }))} slug={tenant?.slug} />
       {[0,1,2].map((slot) => <AssetUpload key={slot} tipo="banner" slot={slot} titulo={'Banner principal ' + (slot + 1)} url={tenant?.banners?.[slot] || ''} onChanged={(url) => setTenant((t: any) => { const banners = [...(t?.banners || ['', '', ''])]; banners[slot] = url; return { ...t, banners } })} slug={tenant?.slug} />)}
-    </div>
-    <div className="glass p-6 space-y-4"><div className="eyebrow">Aparencia</div><h2 className="text-lg font-semibold">Layout do cardapio</h2><div className="grid md:grid-cols-3 gap-3">{[{id:'classico',nome:'Classico',desc:'Layout completo'},{id:'moderno',nome:'Moderno',desc:'Visual contemporaneo',disabled:true},{id:'minimalista',nome:'Minimalista',desc:'Visual limpo',disabled:true}].map((l) => <button key={l.id} disabled={l.disabled} onClick={() => setLayout(l.id)} className="text-left p-4 rounded-2xl border" style={{ opacity: l.disabled ? .5 : 1, borderColor: layout === l.id ? 'var(--green)' : 'var(--line)' }}><b>{l.nome}</b><div className="hint text-xs">{l.desc}</div></button>)}</div></div>
-    <div className="glass p-6 space-y-4"><div className="eyebrow">Atendimento</div><h2 className="text-lg font-semibold">Botao do WhatsApp</h2><label className="flex items-center gap-2"><input type="checkbox" checked={whatsapp.ativo} onChange={(e) => setWhatsapp({ ...whatsapp, ativo: e.target.checked })} /> Ativar botao</label><div className="grid md:grid-cols-2 gap-3"><input value={whatsapp.numero} onChange={(e) => setWhatsapp({ ...whatsapp, numero: e.target.value })} placeholder="Numero com DDD" /><input value={whatsapp.mensagem} onChange={(e) => setWhatsapp({ ...whatsapp, mensagem: e.target.value })} placeholder="Mensagem predefinida" /></div>{whatsapp.ativo && <div className="rounded-xl p-3 bg-green-500 text-white text-center font-semibold">WhatsApp - {whatsapp.mensagem}</div>}</div>
-    <div className="glass p-6 space-y-4"><div className="eyebrow">Comunicacao</div><h2 className="text-lg font-semibold">Faixa de avisos</h2><label className="flex items-center gap-2"><input type="checkbox" checked={aviso.ativo} onChange={(e) => setAviso({ ...aviso, ativo: e.target.checked })} /> Ativar faixa</label><input value={aviso.mensagem} onChange={(e) => setAviso({ ...aviso, mensagem: e.target.value })} placeholder="Mensagem principal" /><textarea rows={3} value={faixas.topoTextos} onChange={(e) => setFaixas({ ...faixas, topoTextos: e.target.value })} placeholder="Textos do topo, um por linha" /><div className="grid md:grid-cols-2 gap-3"><label>Animacao<select value={faixas.topoAnimacao} onChange={(e) => setFaixas({ ...faixas, topoAnimacao: e.target.value })}><option value="continuo">Continuo</option><option value="onda">Onda</option><option value="piscar">Piscar</option></select></label><label>Velocidade ({faixas.velocidade}s)<input type="range" min="4" max="30" value={faixas.velocidade} onChange={(e) => setFaixas({ ...faixas, velocidade: Number(e.target.value) })} /></label></div><label className="flex items-center gap-2"><input type="checkbox" checked={faixas.segundaAtiva} onChange={(e) => setFaixas({ ...faixas, segundaAtiva: e.target.checked })} /> Ativar segunda faixa</label><input value={faixas.segundaMensagem} onChange={(e) => setFaixas({ ...faixas, segundaMensagem: e.target.value })} placeholder="Mensagem da segunda faixa" /><input value={faixas.segundaLink} onChange={(e) => setFaixas({ ...faixas, segundaLink: e.target.value })} placeholder="Link opcional" /><div className="grid md:grid-cols-3 gap-3"><HexColorField label="Cor do fundo" value={aviso.fundo} onChange={(fundo) => setAviso({ ...aviso, fundo })} /><HexColorField label="Cor do texto" value={aviso.texto} onChange={(texto) => setAviso({ ...aviso, texto })} /><input value={aviso.link} onChange={(e) => setAviso({ ...aviso, link: e.target.value })} placeholder="Link opcional" /></div></div>
-    <div className="glass p-6 space-y-4">
+    </div></MerchantDisclosure>
+    <MerchantDisclosure title="Layout do cardapio" className="wd-design-section"><div className="glass p-6 space-y-4"><div className="eyebrow">Aparencia</div><h2 className="text-lg font-semibold">Layout do cardapio</h2><div className="grid md:grid-cols-3 gap-3">{[{id:'classico',nome:'Classico',desc:'Layout completo'},{id:'moderno',nome:'Moderno',desc:'Visual contemporaneo',disabled:true},{id:'minimalista',nome:'Minimalista',desc:'Visual limpo',disabled:true}].map((l) => <button key={l.id} disabled={l.disabled} onClick={() => setLayout(l.id)} className="text-left p-4 rounded-2xl border" style={{ opacity: l.disabled ? .5 : 1, borderColor: layout === l.id ? 'var(--green)' : 'var(--line)' }}><b>{l.nome}</b><div className="hint text-xs">{l.desc}</div></button>)}</div></div></MerchantDisclosure>
+    <MerchantDisclosure title="Botao do WhatsApp" className="wd-design-section"><div className="glass p-6 space-y-4"><div className="eyebrow">Atendimento</div><h2 className="text-lg font-semibold">Botao do WhatsApp</h2><label className="flex items-center gap-2"><input type="checkbox" checked={whatsapp.ativo} onChange={(e) => setWhatsapp({ ...whatsapp, ativo: e.target.checked })} /> Ativar botao</label><div className="grid md:grid-cols-2 gap-3"><input value={whatsapp.numero} onChange={(e) => setWhatsapp({ ...whatsapp, numero: e.target.value })} placeholder="Numero com DDD" /><input value={whatsapp.mensagem} onChange={(e) => setWhatsapp({ ...whatsapp, mensagem: e.target.value })} placeholder="Mensagem predefinida" /></div>{whatsapp.ativo && <div className="rounded-xl p-3 bg-green-500 text-white text-center font-semibold">WhatsApp - {whatsapp.mensagem}</div>}</div></MerchantDisclosure>
+    <MerchantDisclosure title="Faixa de avisos" className="wd-design-section"><div className="glass p-6 space-y-4"><div className="eyebrow">Comunicacao</div><h2 className="text-lg font-semibold">Faixa de avisos</h2><label className="flex items-center gap-2"><input type="checkbox" checked={aviso.ativo} onChange={(e) => setAviso({ ...aviso, ativo: e.target.checked })} /> Ativar faixa</label><input value={aviso.mensagem} onChange={(e) => setAviso({ ...aviso, mensagem: e.target.value })} placeholder="Mensagem principal" /><textarea rows={3} value={faixas.topoTextos} onChange={(e) => setFaixas({ ...faixas, topoTextos: e.target.value })} placeholder="Textos do topo, um por linha" /><div className="grid md:grid-cols-2 gap-3"><label>Animacao<select value={faixas.topoAnimacao} onChange={(e) => setFaixas({ ...faixas, topoAnimacao: e.target.value })}><option value="continuo">Continuo</option><option value="onda">Onda</option><option value="piscar">Piscar</option></select></label><label>Velocidade ({faixas.velocidade}s)<input type="range" min="4" max="30" value={faixas.velocidade} onChange={(e) => setFaixas({ ...faixas, velocidade: Number(e.target.value) })} /></label></div><label className="flex items-center gap-2"><input type="checkbox" checked={faixas.segundaAtiva} onChange={(e) => setFaixas({ ...faixas, segundaAtiva: e.target.checked })} /> Ativar segunda faixa</label><input value={faixas.segundaMensagem} onChange={(e) => setFaixas({ ...faixas, segundaMensagem: e.target.value })} placeholder="Mensagem da segunda faixa" /><input value={faixas.segundaLink} onChange={(e) => setFaixas({ ...faixas, segundaLink: e.target.value })} placeholder="Link opcional" /><div className="grid md:grid-cols-3 gap-3"><HexColorField label="Cor do fundo" value={aviso.fundo} onChange={(fundo) => setAviso({ ...aviso, fundo })} /><HexColorField label="Cor do texto" value={aviso.texto} onChange={(texto) => setAviso({ ...aviso, texto })} /><input value={aviso.link} onChange={(e) => setAviso({ ...aviso, link: e.target.value })} placeholder="Link opcional" /></div></div></MerchantDisclosure>
+    <MerchantDisclosure title="Cores personalizadas e tipografia" className="wd-design-section"><div className="glass p-6 space-y-4">
       <div className="eyebrow">Identidade</div>
       <h2 className="text-lg font-semibold">Cores personalizadas e tipografia</h2>
       <p className="hint text-xs">A previa abaixo acompanha instantaneamente suas escolhas.</p>
@@ -176,7 +178,7 @@ function DesignTab() {
         <div className="p-5" style={{ background: preview.primary, color: '#fff' }}><div className="text-xs uppercase tracking-wider opacity-80">Previa do seu cardapio</div><div className="text-2xl font-bold mt-1" style={{ fontFamily: tipografia === 'classica' ? 'Georgia, serif' : tipografia === 'moderna' ? 'Arial, sans-serif' : 'Verdana, sans-serif' }}>Sua loja</div><div className="text-sm opacity-90">Identidade visual aplicada em tempo real</div></div>
         <div className="p-5 space-y-3"><div className="flex items-center justify-between"><span className="px-2 py-1 rounded-full text-xs font-bold" style={{ background: preview.accent, color: preview.text }}>DESTAQUE</span><span className="text-sm" style={{ color: preview.secondary }}>Aberto agora</span></div><div><h3 className="text-xl font-bold" style={{ fontFamily: tipografia === 'classica' ? 'Georgia, serif' : tipografia === 'moderna' ? 'Arial, sans-serif' : 'Verdana, sans-serif' }}>Produto especial</h3><p className="text-sm opacity-70">Descricao, categorias e produtos usam sua identidade.</p></div><div className="flex items-center justify-between"><b className="text-lg" style={{ color: preview.secondary }}>R$ 29,90</b><button className="px-4 py-2 rounded-xl text-white font-semibold" style={{ background: preview.button }}>Adicionar</button></div></div>
       </div> })()}
-    </div>    <button onClick={salvarDesign} disabled={saving} className="btn-primary w-full justify-center">{saving ? 'Salvando...' : saved ? 'Salvo!' : 'Salvar design'}</button>{message && <div className="text-sm text-center p-3 rounded-2xl">{message.text}</div>}
+    </div></MerchantDisclosure>    <button onClick={salvarDesign} disabled={saving} className="btn-primary w-full justify-center">{saving ? 'Salvando...' : saved ? 'Salvo!' : 'Salvar design'}</button>{message && <div className="text-sm text-center p-3 rounded-2xl">{message.text}</div>}
   </div>
 }
 
@@ -184,7 +186,7 @@ function AssetUpload({ tipo, titulo, url, onChanged, slug, slot = 0 }: { tipo: '
   const [uploading, setUploading] = useState(false); const [error, setError] = useState('')
   const upload = async (file: File) => { setError(''); if (!['image/jpeg','image/png','image/webp'].includes(file.type)) return setError('Use JPG, PNG ou WebP.'); if (file.size > 5 * 1024 * 1024) return setError('A imagem deve ter no maximo 5MB.'); setUploading(true); try { const form = new FormData(); form.append('file', file); form.append('tipo', tipo); form.append('slot', String(slot)); const response = await fetch('/api/upload-cardapio-asset', { method: 'POST', body: form }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Erro no upload'); onChanged(result.url); if (slug) await fetch('/api/revalidate-cardapio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug }) }) } catch (e: any) { setError(e.message) } finally { setUploading(false) } }
   const inputId = 'cardapio-' + tipo + '-' + slot + '-input'
-  return <div className="glass p-6"><div className="eyebrow mb-1">Identidade visual</div><h2 className="text-lg font-semibold mb-4">{titulo}</h2><button type="button" onClick={() => document.getElementById(inputId)?.click()} className="w-full min-h-36 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden">{url ? <img src={url} alt={titulo} className={tipo === 'banner' ? 'w-full h-40 object-cover' : 'size-28 object-contain'} /> : <span className="hint">{uploading ? 'Enviando...' : 'Clique para enviar'}</span>}</button><input id={inputId} className="hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.currentTarget.value = '' }} />{url && <button type="button" onClick={async () => { setUploading(true); const r = await fetch('/api/upload-cardapio-asset?tipo=' + tipo + '&slot=' + slot, { method: 'DELETE' }); if (r.ok) onChanged(''); setUploading(false) }} disabled={uploading} className="mt-3 text-sm text-red-600">Remover imagem</button>}{error && <p className="text-sm text-red-600 mt-2">{error}</p>}<p className="hint text-xs mt-2">{tipo === 'banner' ? '1080 x 600 px' : '1080 x 1080 px'} - JPG, PNG ou WebP - ate 5MB.</p></div>
+  return <div className="wd-asset-tile glass p-6"><div className="eyebrow mb-1">Identidade visual</div><h2 className="text-lg font-semibold mb-4">{titulo}</h2><button type="button" onClick={() => document.getElementById(inputId)?.click()} className="w-full min-h-36 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden">{url ? <img src={url} alt={titulo} className={tipo === 'banner' ? 'w-full h-40 object-cover' : 'size-28 object-contain'} /> : <span className="hint">{uploading ? 'Enviando...' : 'Clique para enviar'}</span>}</button><input id={inputId} className="hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.currentTarget.value = '' }} />{url && <button type="button" onClick={async () => { setUploading(true); const r = await fetch('/api/upload-cardapio-asset?tipo=' + tipo + '&slot=' + slot, { method: 'DELETE' }); if (r.ok) onChanged(''); setUploading(false) }} disabled={uploading} className="mt-3 text-sm text-red-600">Remover imagem</button>}{error && <p className="text-sm text-red-600 mt-2">{error}</p>}<p className="hint text-xs mt-2">{tipo === 'banner' ? '1080 x 600 px' : '1080 x 1080 px'} - JPG, PNG ou WebP - ate 5MB.</p></div>
 }
 function ProdutosTab() {
   const { error: toastError } = useToast()
@@ -408,7 +410,8 @@ function ProdutosTab() {
 
       {/* Lista de sessões */}
       {categorias.map((cat, idx) => (
-        <div key={cat.id} className="glass p-5">
+        <MerchantDisclosure key={cat.id} title={cat.nome} count={`${produtos[cat.id]?.length || 0} produtos cadastrados`} className="wd-category-group">
+        <div className="glass p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               {/* Botões de ordem */}
@@ -430,7 +433,7 @@ function ProdutosTab() {
                   <ArrowDown size={14} />
                 </button>
               </div>
-              <h2 className="text-lg font-semibold">{cat.nome}</h2>
+              <h2 className="wd-category-title text-lg font-semibold">{cat.nome}</h2>
               <span className="text-xs text-gray-400">#{idx + 1}</span>
             </div>
             <div className="flex gap-2">
@@ -452,7 +455,7 @@ function ProdutosTab() {
             <div className="space-y-2">
               {produtos[cat.id]
                 .map((prod, prodIdx) => (
-                <div key={prod.id} className={`flex items-center gap-2 rounded-lg p-2 border ${prod.ativo === false ? 'bg-gray-100 opacity-75 border-gray-300' : 'bg-white'}`}>
+                <div key={prod.id} className={`wd-product-wrap flex items-center gap-2 rounded-lg p-2 border ${prod.ativo === false ? 'bg-gray-100 opacity-75 border-gray-300' : 'bg-white'}`}>
                   {/* Badge inativo */}
                   {prod.ativo === false && (
                     <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full mr-1 font-medium">
@@ -495,6 +498,7 @@ function ProdutosTab() {
             <p className="hint text-center py-4">Nenhum produto nesta sessão</p>
           )}
         </div>
+        </MerchantDisclosure>
       ))}
 
       {/* Modal nova/editar sessão — padrão visual de ModalShell + ModalFooter */}
