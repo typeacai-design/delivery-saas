@@ -42,9 +42,11 @@ export default function FaturamentoPage() {
     try {
       const res = await adminFetch('/api/admin/faturamento')
       const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Não foi possível carregar as cobranças')
       setData(json)
     } catch (error) {
       console.error('Erro:', error)
+      toastError('Não foi possível carregar as cobranças')
     } finally {
       setLoading(false)
     }
@@ -59,6 +61,7 @@ export default function FaturamentoPage() {
         headers: { 'Content-Type': 'application/json' }
       })
       const json = await res.json()
+      if (!res.ok) throw new Error(json.error || json.message || 'Não foi possível gerar as comissões')
       if (json.geradas > 0) {
         toastSuccess(`${json.geradas} comissões geradas`, json.message)
       } else {
@@ -66,7 +69,7 @@ export default function FaturamentoPage() {
       }
       fetchFaturamento()
     } catch (err) {
-      toastError('Erro ao gerar comissões')
+      toastError(err instanceof Error ? err.message : 'Erro ao gerar comissões')
     } finally {
       setGerando(false)
     }
@@ -84,15 +87,17 @@ export default function FaturamentoPage() {
     if (!confirm(`Marcar como paga a comissão de ${formatCurrency(tenant.comissao_1_percent)} de ${tenant.nome}?`)) return
     setProcessing(tenant.id)
     try {
-      await adminFetch('/api/admin/faturamento', {
+      const response = await adminFetch('/api/admin/faturamento', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenant_id: tenant.id, pago: true }),
       })
-      fetchFaturamento()
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Não foi possível registrar o pagamento')
+      await fetchFaturamento()
       toastSuccess(`Comissão de ${tenant.nome} marcada como paga`)
     } catch (error) {
-      toastError('Erro ao marcar como pago')
+      toastError(error instanceof Error ? error.message : 'Erro ao marcar como pago')
     } finally {
       setProcessing(null)
     }
@@ -102,12 +107,16 @@ export default function FaturamentoPage() {
     if (!confirm(`Desmarcar pagamento da comissão de ${tenant.nome}?`)) return
     setProcessing(tenant.id)
     try {
-      await adminFetch('/api/admin/faturamento', {
+      const response = await adminFetch('/api/admin/faturamento', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenant_id: tenant.id, pago: false }),
       })
-      fetchFaturamento()
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Não foi possível desmarcar o pagamento')
+      await fetchFaturamento()
+    } catch (error) {
+      toastError(error instanceof Error ? error.message : 'Não foi possível desmarcar o pagamento')
     } finally {
       setProcessing(null)
     }
@@ -116,7 +125,7 @@ export default function FaturamentoPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="wd-admin-page-header">
         <div>
           <div className="eyebrow mb-2">Financeiro</div>
           <h1 className="text-2xl font-semibold" style={{ color: 'var(--ink)' }}>Cobrança 1%</h1>
@@ -276,3 +285,4 @@ export default function FaturamentoPage() {
     </div>
   )
 }
+

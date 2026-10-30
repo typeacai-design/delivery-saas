@@ -1,0 +1,90 @@
+/* Only authenticated administration; login and restaurant pages are unaffected. */
+.wd-admin { min-height: 100vh; min-height: 100svh; background: #f5f8f6; color: #17261e; }
+.wd-admin, .wd-admin * { box-sizing: border-box; }
+.wd-admin-container { width: min(100%, 1240px); margin: 0 auto; padding: 24px; }
+.wd-admin-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; background: #fff; border: 1px solid #e3eae5; border-radius: 20px; }
+.wd-admin-brand { display: flex; align-items: center; gap: 12px; min-width: 0; color: inherit; text-decoration: none; }
+.wd-admin-brand strong { display: block; font-size: 18px; line-height: 1.3; }
+.wd-admin-brand small { display: block; color: #69796f; font-size: 12px; margin-top: 2px; }
+.wd-admin-logo { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 14px; background: #16a34a; color: white; }
+.wd-admin-logout { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 8px 14px; border: 1px solid #e3eae5; border-radius: 12px; background: white; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+.wd-admin-desktop-nav { display: flex; flex-wrap: wrap; gap: 6px; padding: 16px 0; }
+.wd-admin-desktop-nav a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 14px; border-radius: 12px; text-decoration: none; color: #65736b; font-size: 14px; }
+.wd-admin-desktop-nav a:hover, .wd-admin-desktop-nav .is-active { color: #126b36; background: #e4f4e9; }
+.wd-admin-content { min-width: 0; padding: 24px; background: #fff; border: 1px solid #e3eae5; border-radius: 20px; }
+.wd-admin-content > * { min-width: 0; }
+.wd-admin-mobile-nav, .wd-admin-more-menu, .wd-admin-menu-backdrop { display: none; }
+.wd-admin-error { padding: 12px 16px; border: 1px solid #fecaca; border-radius: 12px; background: #fff1f2; color: #a51d2d; font-size: 14px; }
+.wd-admin button:disabled { cursor: wait; opacity: .55; }
+.wd-admin :is(a, button, input, select, textarea):focus-visible { outline: 3px solid #4ade80; outline-offset: 3px; }
+.wd-admin-page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.wd-admin-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.wd-admin-stat { min-width: 0; padding: 18px; border: 1px solid #e3eae5; border-radius: 16px; background: #fff; }
+.wd-admin-stat-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; margin-bottom: 12px; }
+.wd-admin-stat-value { font-size: clamp(20px, 2.4vw, 30px); font-weight: 750; line-height: 1.2; letter-spacing: -.04em; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.wd-admin-stat-label { font-size: 12px; margin-top: 6px; color: #69796f; }
+.wd-admin-shop-cards { display: none; }
+.wd-admin-table { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.wd-admin-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wd-admin-content :is(button, a.btn-primary, a.btn-ghost) { min-height: 44px; }
+@media (min-width: 1100px) {
+  .wd-admin-stats { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .wd-admin-stat-value { font-size: 22px; }
+}
+@media (max-width: 767px) {
+  .wd-admin-container { padding: max(12px, env(safe-area-inset-top)) 14px calc(100px + env(safe-area-inset-bottom)); }
+  .wd-admin-header { padding: 12px; gap: 10px; border-radius: 16px; margin-bottom: 22px; }
+  .wd-admin-brand { gap: 10px; }
+  .wd-admin-brand strong { font-size: 17px; }
+  .wd-admin-logout { padding: 8px 11px; }
+  .wd-admin-content { padding: 0; border: 0; background: transparent; border-radius: 0; }
+  .wd-admin-desktop-nav { display: none; }
+  .wd-admin-mobile-nav { position: fixed; z-index: 70; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 8px 6px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid #dce7df; background: rgba(255,255,255,.98); box-shadow: 0 -4px 24px #132b1810; }
+  .wd-admin-mobile-nav :is(a, button) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 0; min-height: 52px; padding: 6px 1px; border: 0; border-radius: 12px; background: transparent; color: #64736a; text-decoration: none; font-size: 10px; font-weight: 600; line-height: 1.2; cursor: pointer; }
+  .wd-admin-mobile-nav .is-active { background: #e6f5eb; color: #13783b; }
+  .wd-admin-menu-backdrop { display: block; position: fixed; z-index: 60; inset: 0; border: 0; background: rgba(15,33,22,.3); }
+  .wd-admin-more-menu { display: block; position: fixed; z-index: 65; bottom: calc(84px + env(safe-area-inset-bottom)); left: 14px; right: 14px; padding: 12px; border: 1px solid #e3eae5; border-radius: 20px; background: white; box-shadow: 0 12px 40px #132b1820; }
+  .wd-admin-menu-title { display: flex; justify-content: space-between; align-items: center; padding-left: 12px; }
+  .wd-admin-menu-title button { display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; border-radius: 12px; }
+  .wd-admin-more-menu > a { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px; border-radius: 12px; color: #203c2a; text-decoration: none; font-size: 15px; }
+  .wd-admin-more-menu > a:hover { background: #eef7f0; }
+  .wd-admin-content h1 { font-size: 25px; line-height: 1.2; letter-spacing: -.025em; }
+  .wd-admin-page-header { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .wd-admin-page-header > div { min-width: 0; max-width: 100%; }
+  .wd-admin-page-header > div.flex { flex-wrap: wrap; }
+  .wd-admin-page-header > .btn-primary { width: 100%; justify-content: center; }
+  .wd-admin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .wd-admin-stat { padding: 15px; border-radius: 16px; }
+  .wd-admin-stat-value { font-size: 26px; }
+  .wd-admin-stat--currency { grid-column: 1 / -1; display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: 12px; align-items: center; }
+  .wd-admin-stat--currency .wd-admin-stat-icon { grid-row: 1 / 3; margin: 0; }
+  .wd-admin-stat--currency .wd-admin-stat-value { font-size: clamp(23px, 7vw, 30px); }
+  .wd-admin-stat--currency .wd-admin-stat-label { margin-top: 3px; }
+  .wd-admin-shop-table { display: none; }
+  .wd-admin-shop-cards { display: grid; gap: 10px; }
+  .wd-admin-shop-card { min-width: 0; display: block; padding: 16px; background: #fff; border: 1px solid #e3eae5; border-radius: 16px; text-decoration: none; color: inherit; }
+  .wd-admin-shop-card-header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+  .wd-admin-shop-card-header > div { min-width: 0; }
+  .wd-admin-shop-card strong { font-size: 15px; overflow-wrap: anywhere; }
+  .wd-admin-shop-card small { display: block; font-size: 12px; color: #69796f; margin-top: 3px; overflow-wrap: anywhere; }
+  .wd-admin-shop-card dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 16px; }
+  .wd-admin-shop-card dt { font-size: 11px; color: #69796f; }
+  .wd-admin-shop-card dd { font-size: 16px; font-weight: 650; margin: 3px 0 0; overflow-wrap: anywhere; }
+  .wd-admin-content :is(input, select, textarea) { font-size: 16px; min-width: 0; max-width: 100%; }
+  .wd-admin-content :is(.btn-primary, .btn-ghost) { white-space: normal; line-height: 1.35; }
+  .wd-admin-content .grid > * { min-width: 0; }
+  .wd-admin-content .text-2xl { font-size: 22px; overflow-wrap: anywhere; }
+  .wd-admin-content .text-xl { overflow-wrap: anywhere; }
+  .wd-admin-content .glass.p-6 { padding: 16px; }
+  .wd-admin-content .grid-cols-3 { grid-template-columns: minmax(0, 1fr); }
+  .wd-admin-content .fixed.inset-0 { padding: 12px; z-index: 80; }
+  .wd-admin-content .fixed.inset-0 > .glass { padding: 18px; max-height: 85vh; max-height: 85dvh; border-radius: 20px; }
+  .wd-admin-content .fixed.inset-0 :is(.grid-cols-2, .grid-cols-3) { grid-template-columns: minmax(0, 1fr); }
+  .wd-admin-content .fixed.inset-0 .flex { flex-wrap: wrap; }
+  .wd-admin-filter-row { align-items: stretch; }
+  .wd-admin-content table { min-width: 640px; }
+  .wd-admin-content table td, .wd-admin-content table th { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wd-admin *, .wd-admin *::before, .wd-admin *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}

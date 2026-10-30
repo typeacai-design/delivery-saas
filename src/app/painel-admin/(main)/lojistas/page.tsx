@@ -54,9 +54,18 @@ export default function LojistasPage() {
     try {
       const res = await adminFetch('/api/admin/tenants')
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Não foi possível carregar os lojistas')
       setTenants(data.tenants || [])
+      const id = new URLSearchParams(window.location.search).get('loja')
+      const selected = id && (data.tenants || []).find((tenant: any) => tenant.id === id)
+      if (selected) {
+        setSelectedTenant(selected)
+        setShowModal(true)
+        window.history.replaceState({}, '', '/painel-admin/lojistas')
+      }
     } catch (error) {
       console.error('Erro:', error)
+      toastError('Não foi possível carregar os lojistas')
     } finally {
       setLoading(false)
     }
@@ -77,21 +86,27 @@ export default function LojistasPage() {
 
   const atualizarStatus = async (id: string, updates: any) => {
     try {
-      await adminFetch('/api/admin/tenants', {
+      const response = await adminFetch('/api/admin/tenants', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, ...updates }),
       })
-      fetchTenants()
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Não foi possível salvar a alteração')
+      await fetchTenants()
+      return true
     } catch (error) {
       console.error('Erro:', error)
+      toastError(error instanceof Error ? error.message : 'Não foi possível salvar a alteração')
+      return false
     }
   }
 
   const handleAprovar = async (tenant: any) => {
     if (!confirm(`Aprovar o cadastro de "${tenant.nome}"?\n\nEle(a) poderá fazer login imediatamente após a aprovação.`)) return
-    await atualizarStatus(tenant.id, { status: 'active' })
-    toastSuccess(`Lojista "${tenant.nome}" aprovado!`)
+    if (await atualizarStatus(tenant.id, { status: 'active' })) {
+      toastSuccess(`Lojista "${tenant.nome}" aprovado!`)
+    }
   }
 
   const handleSuspender = async (tenant: any) => {
@@ -107,7 +122,7 @@ export default function LojistasPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="wd-admin-page-header">
         <div>
           <div className="eyebrow mb-2">Gestão</div>
           <h1 className="text-2xl font-semibold" style={{ color: 'var(--ink)' }}>Lojistas</h1>
@@ -208,9 +223,11 @@ export default function LojistasPage() {
           tenant={selectedTenant}
           onClose={() => { setShowModal(false); setSelectedTenant(null) }}
           onSave={async (updates: any) => {
-            await atualizarStatus(selectedTenant.id, updates)
+            const saved = await atualizarStatus(selectedTenant.id, updates)
+            if (!saved) return false
             setShowModal(false)
             setSelectedTenant(null)
+            return true
           }}
           onAprovar={() => handleAprovar(selectedTenant)}
           onSuspender={() => handleSuspender(selectedTenant)}
@@ -313,6 +330,8 @@ function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReat
       estado: form.estado,
       cidade: form.cidade,
       endereco: form.endereco,
+      numero: form.numero,
+      complemento: form.complemento,
       nome_responsavel: form.nome_responsavel,
       cpf: form.cpf,
       valor_mensalidade: Number(form.valor_mensalidade) || 99.90,
@@ -321,8 +340,11 @@ function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReat
     }
     if (form.senha) updates.password = form.senha
 
-    await onSave(updates)
-    setSaving(false)
+    try {
+      await onSave(updates)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -810,3 +832,4 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+
