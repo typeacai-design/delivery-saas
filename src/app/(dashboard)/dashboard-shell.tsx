@@ -23,6 +23,8 @@ import { createClient } from '@/lib/supabase/client'
 import GlobalSomPedidos from '@/components/global-som-pedidos'
 import { ToastProvider } from '@/components/toast'
 import { ConfirmSairModal } from '@/components/confirm-sair-modal'
+import MerchantMobileNav from '@/components/merchant-mobile-nav'
+import './merchant.css'
 
 export default function DashboardShell({
   children,
@@ -135,7 +137,7 @@ export default function DashboardShell({
   return (
     <ToastProvider>
     <GlobalSomPedidos>
-    <div className="app-shell">
+    <div className="app-shell wd-merchant">
       <div className="app-shell-inner">
         <div className="app-grid">
           {/* SIDEBAR — desktop only. Escondido por padrão via CSS; aparece só em >=1024px. */}
@@ -170,7 +172,7 @@ export default function DashboardShell({
           </aside>
 
           <div className="app-content">
-            <header className="glass px-3 sm:px-5 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4 sticky top-0 z-30 mb-2 sm:mb-3">
+            <header className="wd-shell-toolbar glass px-3 sm:px-5 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4 sticky top-0 z-30 mb-2 sm:mb-3">
               <div className="lg:hidden flex items-center gap-2 shrink-0">
                 <div
                   className="size-7 sm:size-8 rounded-xl flex items-center justify-center text-white font-bold text-[11px]"
@@ -198,11 +200,12 @@ export default function DashboardShell({
               </button>
             </header>
 
-            <main className="flex-1 min-w-0"><ErrorBoundary>{children}</ErrorBoundary></main>
+            <main className="wd-merchant-main flex-1 min-w-0" data-merchant-route={pathname.split('/')[1]}><ErrorBoundary>{children}</ErrorBoundary></main>
           </div>
         </div>
       </div>
 
+      {!ehPerfilOperacional && <MerchantMobileNav onLogout={() => setConfirmSairOpen(true)} />}
       {ehPerfilOperacional && (
         <nav className="app-bottom-nav">
           <div className="grid grid-cols-2 gap-1 px-1.5 py-1">
@@ -258,3 +261,4 @@ export default function DashboardShell({
     </ToastProvider>
   )
 }
+
