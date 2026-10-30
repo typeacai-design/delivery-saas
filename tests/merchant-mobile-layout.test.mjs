@@ -35,7 +35,7 @@ function load(file, react = React) {
     if (name === '@/components/sidebar-nav') return { SidebarNav: () => null }
     if (name === '@/components/confirm-sair-modal') return { ConfirmSairModal: () => null }
     if (['@/components/error-boundary', '@/components/global-som-pedidos'].includes(name)) return { __esModule: true, default: passthrough }
-    if (name.startsWith('@/')) return load('src/' + name.slice(2) + '.tsx', react)
+    if (name.startsWith('@/')) { const path = 'src/' + name.slice(2); return load(path + (fs.existsSync(new URL('../' + path + '.tsx', import.meta.url)) ? '.tsx' : '.ts'), react) }
     throw new Error('Unexpected dependency: ' + name)
   }
   new Function('require', 'module', 'exports', outputText)(resolve, module, module.exports)
@@ -76,8 +76,8 @@ test('all secondary tools remain reachable through More', async () => {
 test('product editor keeps every field group mounted inside mobile disclosures', async () => {
   const Form = load('src/components/admin/ProdutoFormModal.tsx').default
   const html = await render(React.createElement(Form, { categorias: [{ id: 'food', nome: 'Pratos' }], onClose() {}, onSaved() {} }))
-  for (const label of ['Dados básicos', 'Foto do item', 'Pontos de fidelidade', 'Visibilidade no cardápio', 'Limites de venda', 'Controle de estoque', 'Divisão em sabores', 'Complementos vinculados', 'Ingredientes / Matéria-prima', 'Salvar item', 'Cancelar']) assert.ok(html.includes(label), label)
-  assert.equal((html.match(/<details/g) || []).length, 9)
+  for (const label of ['Dados básicos', 'Foto do item', 'Fidelidade e limites de venda', 'Visibilidade e etiquetas', 'Controle de estoque', 'Divisão em sabores', 'Complementos vinculados', 'Ingredientes / Matéria-prima', 'Salvar produto', 'Cancelar']) assert.ok(html.includes(label), label)
+  assert.equal((html.match(/<details/g) || []).length, 8)
   assert.ok(html.includes('type="file"'))
 })
 
@@ -89,8 +89,8 @@ test('product row retains edit, duplicate, active switch and delete controls', a
   }))
   for (const label of ['Editar', 'Duplicar', 'Desativar produto', 'Excluir permanentemente']) assert.ok(html.includes('aria-label="' + label + '"'))
   assert.match(html, /Produto de teste/)
-  assert.equal((html.match(/R\$/g) || []).length, 1, 'price must display the currency symbol once')
-  assert.match(html, /wd-product-photo/, 'photo and placeholder share the same layout slot')
+  const card = html.slice(html.indexOf('<article'), html.indexOf('</article>')); assert.equal((card.match(/R\$/g) || []).length, 1, 'card price displays currency once'); assert.match(card, /wd-fp-stats/); assert.match(card, /Subir produto/); assert.match(card, /Descer produto/)
+  assert.match(html, /wd-fp-photo/, 'card photo or placeholder remains present')
 })
 
 function elements(node) {
@@ -128,4 +128,17 @@ test('disclosure toggle preserves its existing form subtree', () => {
   tree().props.onToggle({ currentTarget: { open: false } })
   assert.equal(tree().props.open, false)
   assert.ok(elements(tree()).includes(child))
+})
+
+
+test('list selection adds/removes a whole list and preserves unrelated existing links', () => {
+  const { toggleComplementList, complementListState } = load('src/lib/product-complement-selection.ts')
+  const complements = [{ id: 'banana', categoria_id: 'fruit' }, { id: 'apple', categoria_id: 'fruit' }, { id: 'juice', categoria_id: 'drinks' }]
+  const legacy = ['banana', 'juice', 'inactive-legacy']
+  assert.equal(complementListState(legacy, complements, 'fruit').partial, true)
+  const selected = toggleComplementList(legacy, complements, 'fruit')
+  assert.deepEqual(new Set(selected), new Set(['banana', 'apple', 'juice', 'inactive-legacy']))
+  assert.deepEqual(new Set(toggleComplementList(selected, complements, 'fruit')), new Set(['juice', 'inactive-legacy']))
+  assert.deepEqual(toggleComplementList(legacy, complements, 'empty'), legacy)
+  assert.deepEqual(legacy, ['banana', 'juice', 'inactive-legacy'])
 })

@@ -483,7 +483,11 @@ function ProdutosTab() {
                   </div>
                   <ProdutoLinha
                     produto={prod}
-                    complementosCount={0}
+                    complementosCount={complementosPorProduto[prod.id]?.length || 0}
+                    onMoveUp={() => reordenarProduto(cat.id, prodIdx, 'up')}
+                    onMoveDown={() => reordenarProduto(cat.id, prodIdx, 'down')}
+                    canMoveUp={prodIdx > 0}
+                    canMoveDown={prodIdx < produtos[cat.id].length - 1}
                     onEdit={() => abrirModalProduto(prod)}
                     onToggleAtivo={async () => { await supabase.from('produtos').update({ ativo: !prod.ativo }).eq('id', prod.id); loadData(); }}
                     onDuplicate={async () => { /* no-op */ }}
