@@ -382,3 +382,24 @@
   .wd-merchant .wd-assets-grid { padding:10px; gap:8px; }
 }
 @media (prefers-reduced-motion:reduce) { .wd-merchant .wd-disclosure>summary>svg { transition:none; } }
+@media (max-width:767px) {
+  .wd-merchant .wd-category-toolbar { display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:10px; padding-bottom:12px; border-bottom:1px solid #e7eee9; }
+  .wd-merchant .wd-category-sort { flex-direction:row; gap:8px; }
+  .wd-merchant .wd-product-wrap { position:relative; display:flex; flex-direction:column; align-items:stretch; gap:0; padding:12px 0; }
+  .wd-merchant .wd-product-wrap>.wd-product-sort { order:2; display:flex; flex-direction:row; justify-content:center; gap:12px; margin:0; padding:0; }
+  .wd-merchant .wd-product-wrap>span { order:0; align-self:center; margin:0 0 8px; }
+  .wd-merchant .wd-product-line { order:1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-areas:'photo photo photo' 'info info info' 'price order points' 'actions actions actions'; gap:8px 10px; align-items:center; padding:0 8px 6px; border:0; width:100%; min-width:0; }
+  .wd-merchant .wd-product-line>.wd-product-photo { grid-area:photo; width:48px; height:48px; justify-self:center; margin:0; border-radius:12px; object-fit:cover; }
+  .wd-merchant .wd-product-line>.wd-product-info { grid-area:info; width:100%; text-align:center; }
+  .wd-merchant .wd-product-info button { min-height:36px; padding:2px 0; }
+  .wd-merchant .wd-product-info>.flex { margin-top:2px; gap:4px; }
+  .wd-merchant .wd-product-line>.wd-product-price { grid-area:price; min-width:0; text-align:center; }
+  .wd-merchant .wd-product-line>.wd-product-order { grid-area:order; min-width:0; }
+  .wd-merchant .wd-product-line>.wd-product-points { grid-area:points; min-width:0; }
+  .wd-merchant .wd-product-line:not(:has(>.wd-product-points)) { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-areas:'photo photo' 'info info' 'price order' 'actions actions'; }
+  .wd-merchant .wd-product-line>.wd-product-actions { grid-area:actions; display:flex; justify-content:center; align-items:center; gap:12px; padding-top:4px; }
+  .wd-merchant .wd-product-price button { font-size:14px; min-height:36px; padding:2px 0; }
+  .wd-merchant .wd-product-order button { min-height:36px; padding:2px 0; }
+  .wd-merchant .wd-product-points>span:last-child { width:30px; height:30px; font-size:14px; }
+  .wd-merchant .wd-product-info .text-\[10px\] { font-size:10px; }
+}
