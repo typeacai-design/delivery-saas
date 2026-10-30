@@ -77,7 +77,7 @@
   .wd-admin-content .text-xl { overflow-wrap: anywhere; }
   .wd-admin-content .glass.p-6 { padding: 16px; }
   .wd-admin-content .grid-cols-3 { grid-template-columns: minmax(0, 1fr); }
-  .wd-admin-content .fixed.inset-0 { padding: 12px; }
+  .wd-admin-content .fixed.inset-0 { padding: 12px; z-index: 80; }
   .wd-admin-content .fixed.inset-0 > .glass { padding: 18px; max-height: 85vh; max-height: 85dvh; border-radius: 20px; }
   .wd-admin-content .fixed.inset-0 :is(.grid-cols-2, .grid-cols-3) { grid-template-columns: minmax(0, 1fr); }
   .wd-admin-content .fixed.inset-0 .flex { flex-wrap: wrap; }
