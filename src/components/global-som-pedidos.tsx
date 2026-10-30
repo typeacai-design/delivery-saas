@@ -1,216 +1,105 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { Volume2, VolumeX, Bell } from 'lucide-react'
+import { activeTenantId } from '@/lib/active-tenant-client'
+import { OrderAlertTracker, type AlertOrder } from '@/lib/order-alert-tracker'
 
 export default function GlobalSomPedidos({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const [somAtivado, setSomAtivado] = useState(true)
-  const [showNotif, setShowNotif] = useState(false)
-  const [notifMsg, setNotifMsg] = useState('')
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const channelRef = useRef<any>(null)
-  const initAudioDone = useRef(false)
-
-  // Inicializar audio
+  const [pendingCount, setPendingCount] = useState(0)
   useEffect(() => {
-    // Criar elemento de audio
-    audioRef.current = new Audio('/sounds/pedido-novo.mp3')
-    audioRef.current.volume = 0.7
-
-    // Habilitar audio na primeira interacao do usuario (browser policy)
-    const initAudio = () => {
-      if (audioRef.current && !initAudioDone.current) {
-        audioRef.current.play().then(() => {
-          audioRef.current?.pause()
-          if (audioRef.current) audioRef.current.currentTime = 0
-          initAudioDone.current = true
-        }).catch((err) => {
-          console.warn('Audio nao pode ser iniciado:', err.message)
-        })
-      }
-      document.removeEventListener('click', initAudio)
-      document.removeEventListener('touchstart', initAudio)
+    let disposed = false, channel: ReturnType<ReturnType<typeof createClient>['channel']> | undefined
+    let tenantId: string | null = null
+    let polling = false, context: AudioContext | undefined, buffer: AudioBuffer | undefined
+    let source: AudioBufferSourceNode | undefined, decoding: Promise<void> | undefined
+    const controller = new AbortController(), tracker = new OrderAlertTracker(), supabase = createClient()
+    const queued: { order: AlertOrder; isArrival: boolean }[] = []
+    const bytes = fetch('/sounds/pedido-novo.mp3', { signal: controller.signal })
+      .then(response => response.ok ? response.arrayBuffer() : undefined).catch(() => undefined)
+    const stop = () => { if (source) { source.stop(); source.disconnect(); source = undefined } }
+    const sync = () => {
+      if (disposed) return
+      setPendingCount(tracker.pending.size)
+      if (!tracker.pending.size) { stop(); return }
+      if (!context || context.state !== 'running' || !buffer || source) return
+      source = context.createBufferSource(); source.buffer = buffer; source.loop = true
+      const gain = context.createGain(); gain.gain.value = 0.7
+      source.connect(gain); gain.connect(context.destination); source.start()
+      source.onended = () => gain.disconnect()
     }
-
-    document.addEventListener('click', initAudio, { once: true })
-    document.addEventListener('touchstart', initAudio, { once: true })
-
-    return () => {
-      document.removeEventListener('click', initAudio)
-      document.removeEventListener('touchstart', initAudio)
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.currentTime = 0
-      }
+    // User gestures unlock a silent audio context. No order sound is played as a test.
+    const unlock = () => {
+      if (disposed) return
+      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!AudioContextClass) return
+      if (!context) context = new AudioContextClass()
+      void context.resume().then(sync).catch(() => {})
+      if (!decoding) decoding = bytes.then(async data => {
+        if (!disposed && data && context) buffer = await context.decodeAudioData(data)
+        sync()
+      }).catch(() => {})
     }
-  }, [])
-
-  // Listener GLOBAL de novos pedidos via Supabase Realtime
-  useEffect(() => {
-    let mounted = true
-
-    const setupRealtime = async () => {
+    const receive = (order: AlertOrder, isArrival = true) => {
+      if (disposed) return
+      if (!tracker.initialized) { queued.push({ order, isArrival }); return }
+      tracker.receive(order, isArrival); sync()
+    }
+    const snapshot = async () => {
+      if (polling || disposed || !tenantId) return
+      polling = true
       try {
-        const supabase = createClient()
-
-        // Verificar autenticacao
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        if (authError) {
-          console.error('Erro de autenticacao no som:', authError)
-          return
+        const response = await fetch('/api/pedidos/list', { cache: 'no-store', signal: controller.signal })
+        const result = await response.json()
+        if (disposed || !response.ok || !result.ok || result.tenantId !== tenantId) return
+        const initial = !tracker.initialized
+        tracker.snapshot(result.pedidos || [])
+        for (const { order, isArrival } of queued.splice(0)) {
+          if (initial && isArrival && order.status === 'novo' && !order.deleted_at) tracker.pending.add(order.id)
+          tracker.receive(order, isArrival)
         }
-        if (!user) {
-          return
+        sync()
+        const listed = new Set((result.pedidos || []).map((order: AlertOrder) => order.id))
+        const missing = [...tracker.pending].filter(id => !listed.has(id))
+        if (missing.length) {
+          const { data } = await supabase.from('pedidos').select('id,status,deleted_at').eq('tenant_id', tenantId).in('id', missing)
+          if (!disposed) { for (const order of data || []) tracker.receive(order, false); sync() }
         }
-
-        // Buscar tenant_id do usuario
-        const { data: tenant, error: tenantError } = await supabase
-          .from('usuarios_loja')
-          .select('tenant_id')
-          .eq('user_id', user.id)
-          .eq('ativo', true)
-          .single()
-
-        if (tenantError) {
-          console.error('Erro ao buscar tenant:', tenantError)
-          return
-        }
-        if (!tenant) {
-          return
-        }
-
-        // Criar canal de realtime
-        const channelName = `global-pedidos-som-${tenant.tenant_id}`
-
-        if (channelRef.current) {
-          supabase.removeChannel(channelRef.current)
-        }
-
-        channelRef.current = supabase
-          .channel(channelName)
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'pedidos',
-              filter: `tenant_id=eq.${tenant.tenant_id}`,
-            },
-            (payload) => {
-              if (!mounted) return
-              const novo = payload.new as any
-
-              // Tocar som
-              if (somAtivado && audioRef.current) {
-                audioRef.current.currentTime = 0
-                audioRef.current.play().catch((err) => {
-                  console.warn('Erro ao tocar audio:', err.message)
-                })
-              }
-
-              // Mostrar notificacao visual
-              const codigo = novo.codigo || `#${novo.id?.slice(0, 8) || 'novo'}`
-              setNotifMsg(`Novo pedido! ${codigo}`)
-              setShowNotif(true)
-
-              // Vibrar
-              if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-                (navigator as any).vibrate([200, 100, 200])
-              }
-
-              // Auto-hide notificacao
-              setTimeout(() => setShowNotif(false), 5000)
-            }
-          )
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'pedidos',
-              filter: `tenant_id=eq.${tenant.tenant_id}`,
-            },
-            (payload) => {
-              if (!mounted) return
-              const updated = payload.new as any
-
-              // Se saiu do status "novo", parar o som
-              if (updated.status !== 'novo' && audioRef.current) {
-                audioRef.current.pause()
-                audioRef.current.currentTime = 0
-              }
-            }
-          )
-          .subscribe((status: string) => {
-            if (status !== 'SUBSCRIBED') {
-              console.warn('Realtime som status:', status)
-            }
-          })
-
-      } catch (err) {
-        console.error('Erro ao configurar Realtime:', err)
-      }
+      } catch { /* Retry on the next poll/reconnection; keep Realtime active. */ }
+      finally { polling = false }
     }
-
-    setupRealtime()
-
+    const setup = async () => {
+      tenantId = await activeTenantId()
+      if (disposed || !tenantId) return
+      channel = supabase.channel(`merchant-order-alerts-${tenantId}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos', filter: `tenant_id=eq.${tenantId}` }, payload => receive(payload.new as AlertOrder))
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `tenant_id=eq.${tenantId}` }, payload => receive(payload.new as AlertOrder, false))
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pedidos' }, payload => { tracker.remove((payload.old as AlertOrder).id); sync() })
+        .subscribe(status => { if (status === 'SUBSCRIBED') void snapshot() })
+      void snapshot()
+    }
+    const onUpdated = (event: Event) => { const order = (event as CustomEvent<AlertOrder>).detail; if (order?.id) receive(order, false) }
+    const onVisible = () => { if (document.visibilityState === 'visible') { void snapshot(); unlock() } }
+    document.addEventListener('pointerdown', unlock)
+    document.addEventListener('touchstart', unlock, { passive: true })
+    document.addEventListener('keydown', unlock)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', snapshot)
+    window.addEventListener('wd:order-updated', onUpdated)
+    const timer = window.setInterval(snapshot, 30000)
+    void setup().catch(() => {})
     return () => {
-      mounted = false
-      if (channelRef.current) {
-        const supabase = createClient()
-        supabase.removeChannel(channelRef.current)
-        channelRef.current = null
-      }
+      disposed = true; controller.abort(); clearInterval(timer); stop()
+      if (channel) void supabase.removeChannel(channel)
+      if (context) void context.close().catch(() => {})
+      document.removeEventListener('pointerdown', unlock); document.removeEventListener('touchstart', unlock)
+      document.removeEventListener('keydown', unlock); document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', snapshot); window.removeEventListener('wd:order-updated', onUpdated)
     }
-  }, [somAtivado])
-
-  const toggleSom = useCallback(() => {
-    setSomAtivado((prev) => {
-      const novo = !prev
-      if (!novo && audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.currentTime = 0
-      }
-      return novo
-    })
   }, [])
-
-  const irParaPedidos = () => {
-    router.push('/pedidos')
-    setShowNotif(false)
-  }
-
-  return (
-    <>
-      {children}
-
-      {/* Botao flutuante de som - visivel apenas no desktop */}
-      <button
-        onClick={toggleSom}
-        className={`hidden md:flex fixed bottom-20 right-6 z-50 size-12 rounded-full shadow-2xl items-center justify-center transition-all hover:scale-110 ${
-          somAtivado ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'
-        }`}
-        title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som silenciado - clique para ativar'}
-      >
-        {somAtivado ? <Volume2 size={20} /> : <VolumeX size={20} />}
-      </button>
-
-      {/* Notificacao de novo pedido - clickavel */}
-      {showNotif && (
-        <button
-          onClick={irParaPedidos}
-          className="fixed top-6 right-6 z-50 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-pulse hover:scale-105 transition-transform"
-        >
-          <Bell size={24} className="animate-bounce" />
-          <div className="text-left">
-            <p className="font-bold text-sm">{notifMsg}</p>
-            <p className="text-xs opacity-90">Clique para ver →</p>
-          </div>
-        </button>
-      )}
-    </>
-  )
+  return <>{children}{pendingCount > 0 && <button type="button" className="wd-new-order-notification" onClick={() => router.push('/pedidos')}>
+    <Bell size={22} aria-hidden="true" /><span><strong>{pendingCount === 1 ? 'Novo pedido!' : `${pendingCount} novos pedidos!`}</strong><small>Toque para atender</small></span>
+  </button>}</>
 }

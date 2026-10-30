@@ -14,7 +14,7 @@ const icon = () => React.createElement('span', { 'aria-hidden': true })
 const icons = new Proxy({}, { get: (_, key) => key === '__esModule' ? true : icon })
 let pathname = '/dashboard'
 
-function load(file, react = React) {
+function load(file, react = React, overrides = {}) {
   const source = fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
     fileName: file,
@@ -22,6 +22,7 @@ function load(file, react = React) {
   })
   const module = { exports: {} }
   const resolve = name => {
+    if (Object.hasOwn(overrides, name)) return overrides[name]
     if (name === 'react') return react
     if (name === 'react/jsx-runtime') return runtime
     if (name === 'lucide-react') return icons
@@ -30,7 +31,7 @@ function load(file, react = React) {
     if (name === 'next/link') return { __esModule: true, default: ({ children, href, ...props }) => React.createElement('a', { href, ...props }, children) }
     if (name === '@/lib/supabase/client') return { createClient: () => ({}) }
     if (name === '@/lib/active-tenant-client') return { activeTenantId: () => { throw new Error('Data access forbidden in layout test') } }
-    if (name === '@/lib/utils') return { formatCurrency: v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
+    if (name === '@/lib/utils') return { formatarCodigoPedido: (id, date, code) => code || id, formatCurrency: v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
     if (name === '@/components/toast') return { ToastProvider: passthrough, useToast: () => ({ error() {}, success() {} }) }
     if (name === '@/components/sidebar-nav') return { SidebarNav: () => null }
     if (name === '@/components/confirm-sair-modal') return { ConfirmSairModal: () => null }
@@ -65,6 +66,82 @@ test('merchant shell retains authenticated navigation and mounts every child', a
   assert.match(html, /wd-merchant-nav/)
   for (const href of ['/dashboard', '/pedidos', '/cardapio', '/financeiro', '/mais']) assert.ok(html.includes('href="' + href + '"'))
   assert.match(html, /Existing action/)
+})
+
+test('order card displays all operational information before actions and forwards every action', async () => {
+  const Card = load('src/components/merchant-order-card.tsx').default
+  const invoked = []
+  const callbacks = Object.fromEntries(['onAdvance','onEdit','onPaid','onWhatsApp','onPrint','onDiscount','onCancel','onDelete','onDetails','onReview'].map(name => [name, () => invoked.push(name)]))
+  const props = { pedido: { id: 'test', codigo: '01234/26', data_criacao: '2026-10-30T20:38:00Z', status: 'novo', cliente_nome: 'Cliente teste', forma_pagamento: 'dinheiro', troco_para: 100, endereco_entrega: 'Rua de teste', numero_entrega: '12', bairro_entrega: 'Centro', complemento_entrega: 'Portão azul', observacoes: 'Sem colher', valor_total: 58, pago: false }, items: [{ id: 'one', nome: 'Casadinho', quantidade: 2, valor_unitario: 29, complementos: [{ nome: 'Granola', quantidade: 2, valor: 0 }] }], statusLabel: 'Novo', nextLabel: 'Preparando', ...callbacks }
+  const html = await render(React.createElement(Card, props))
+  const action = html.indexOf('Aceitar pedido')
+  for (const label of ['Casadinho','Granola','FORMA DE PAGAMENTO','Rua de teste','Portão azul','Sem colher','Troco para']) { assert.ok(html.indexOf(label) >= 0, label); assert.ok(html.indexOf(label) < action, label + ' before actions') }
+  const tree = Card(props)
+  for (const button of elements(tree).filter(node => node.type === 'button')) button.props.onClick()
+  assert.deepEqual(new Set(invoked), new Set(['onAdvance','onEdit','onPaid','onWhatsApp','onPrint','onDiscount','onCancel','onDetails']))
+  const pickup = await render(React.createElement(Card, { ...props, pedido: { ...props.pedido, tipo_entrega: 'retirada', status: 'cancelado' }, nextLabel: undefined, statusLabel: 'Cancelado' }))
+  assert.match(pickup, /Retirada no balcão/); assert.match(pickup, /Apagar/); assert.doesNotMatch(pickup, /ENDEREÇO DE ENTREGA/)
+})
+
+test('alarm ignores initial/old/duplicate orders and waits for every new arrival to be resolved', () => {
+  const { OrderAlertTracker } = load('src/lib/order-alert-tracker.ts')
+  const tracker = new OrderAlertTracker(new Date('2026-10-30T20:00:00Z').getTime())
+  tracker.snapshot([{ id: 'old', status: 'novo' }]); assert.equal(tracker.pending.size, 0)
+  tracker.receive({ id: 'old', status: 'novo' }); assert.equal(tracker.pending.size, 0)
+  tracker.snapshot([{ id: 'historical', status: 'novo', data_criacao: '2026-10-29T20:00:00Z' }]); assert.equal(tracker.pending.size, 0)
+  tracker.receive({ id: 'unknown-update', status: 'novo' }, false); assert.equal(tracker.pending.size, 0)
+  tracker.receive({ id: 'new-a', status: 'novo' }); tracker.receive({ id: 'new-a', status: 'novo' }); tracker.receive({ id: 'new-b', status: 'novo' })
+  assert.equal(tracker.pending.size, 2)
+  tracker.receive({ id: 'old', status: 'preparando' }, false); assert.equal(tracker.pending.size, 2)
+  tracker.receive({ id: 'new-a', status: 'preparando' }, false); assert.deepEqual([...tracker.pending], ['new-b'])
+  tracker.snapshot([]); assert.deepEqual([...tracker.pending], ['new-b'], 'paginated fetch cannot silence a pending order')
+  tracker.receive({ id: 'new-b', status: 'cancelado' }, false); assert.equal(tracker.pending.size, 0)
+  tracker.snapshot([{ id: 'missed-realtime', status: 'novo' }]); assert.equal(tracker.pending.size, 1, 'polling recovers a missed INSERT')
+  tracker.receive({ id: 'missed-realtime', status: 'novo', deleted_at: 'now' }, false); assert.equal(tracker.pending.size, 0)
+  const reload = new OrderAlertTracker(); reload.snapshot([{ id: 'old', status: 'novo' }]); assert.equal(reload.pending.size, 0, 'reload is silent')
+})
+
+test('Hoje/Ontem use exact calendar days, including month and year boundaries', () => {
+  const { orderPeriodRange } = load('src/lib/order-period.ts')
+  assert.deepEqual(orderPeriodRange('hoje', new Date(2026, 9, 30, 23, 59)), { from: '2026-10-30', to: '2026-10-30' })
+  assert.deepEqual(orderPeriodRange('ontem', new Date(2026, 9, 30, 0, 1)), { from: '2026-10-29', to: '2026-10-29' })
+  assert.deepEqual(orderPeriodRange('ontem', new Date(2027, 0, 1)), { from: '2026-12-31', to: '2026-12-31' })
+  assert.deepEqual(orderPeriodRange('ontem', new Date(2026, 2, 1)), { from: '2026-02-28', to: '2026-02-28' })
+})
+
+test('global audio stays silent on load/first touch, loops for arrivals, and stops only after the last resolution', async t => {
+  const original = Object.fromEntries(['window','document','fetch'].map(key => [key, globalThis[key]]))
+  t.after(() => { for (const [key, value] of Object.entries(original)) { if (value === undefined) delete globalThis[key]; else globalThis[key] = value } })
+  const events = {}, listeners = {}, states = [], sources = []
+  let effect, removed = false
+  const channel = { on(kind, filter, callback) { events[filter.event] = callback; return this }, subscribe(callback) { callback('SUBSCRIBED'); return this } }
+  class AudioContextMock {
+    state = 'suspended'; destination = {}
+    resume() { this.state = 'running'; return Promise.resolve() }
+    decodeAudioData() { return Promise.resolve({ decoded: true }) }
+    createGain() { return { gain: { value: 0 }, connect() {}, disconnect() {} } }
+    createBufferSource() { const source = { loop: false, starts: 0, stops: 0, connect() {}, disconnect() {}, start() { this.starts++ }, stop() { this.stops++; this.onended?.() } }; sources.push(source); return source }
+    close() { return Promise.resolve() }
+  }
+  globalThis.window = { AudioContext: AudioContextMock, addEventListener(name, cb) { listeners[name] = cb }, removeEventListener(name) { delete listeners[name] }, setInterval() { return 1 } }
+  globalThis.document = { visibilityState: 'visible', addEventListener(name, cb) { listeners[name] = cb }, removeEventListener(name) { delete listeners[name] } }
+  globalThis.fetch = async url => url.includes('/sounds/') ? { ok: true, arrayBuffer: async () => new ArrayBuffer(1) } : { ok: true, json: async () => ({ ok: true, tenantId: 'store', pedidos: [{ id: 'old', status: 'novo', data_criacao: '2026-01-01T00:00:00Z' }] }) }
+  const react = { ...React, useEffect(cb) { effect = cb }, useState: () => [0, n => states.push(n)] }
+  const Global = load('src/components/global-som-pedidos.tsx', react, {
+    '@/lib/active-tenant-client': { activeTenantId: async () => 'store' },
+    '@/lib/supabase/client': { createClient: () => ({ channel: () => channel, removeChannel() { removed = true } }) },
+  }).default
+  Global({ children: null }); const cleanup = effect()
+  const flush = () => new Promise(resolve => setImmediate(resolve))
+  await flush(); assert.equal(sources.length, 0)
+  listeners.pointerdown(); await flush(); assert.equal(sources.length, 0, 'unlock never plays the alert')
+  events.INSERT({ new: { id: 'a', status: 'novo', data_criacao: new Date(Date.now() + 1000).toISOString() } }); await flush()
+  assert.equal(sources.length, 1); assert.equal(sources[0].starts, 1); assert.equal(sources[0].loop, true)
+  events.INSERT({ new: { id: 'b', status: 'novo' } }); events.UPDATE({ new: { id: 'old', status: 'preparando' } }); assert.equal(sources[0].stops, 0)
+  events.UPDATE({ new: { id: 'a', status: 'preparando' } }); assert.equal(states.at(-1), 1); assert.equal(sources[0].stops, 0)
+  events.UPDATE({ new: { id: 'b', status: 'cancelado' } }); assert.equal(states.at(-1), 0); assert.equal(sources[0].stops, 1)
+  events.INSERT({ new: { id: 'c', status: 'novo' } }); assert.equal(sources.length, 2)
+  cleanup(); assert.equal(sources[1].stops, 1); assert.equal(removed, true); assert.equal(Object.keys(listeners).length, 0)
 })
 
 test('all secondary tools remain reachable through More', async () => {
