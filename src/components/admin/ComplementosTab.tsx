@@ -1,10 +1,11 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import { useToast } from '@/components/toast'
 import { formatCurrency } from '@/lib/utils'
+import MerchantDisclosure from '@/components/merchant-disclosure'
 import {
   Plus, Edit, Trash2, Search, X, Save, Upload, Image as ImageIcon,
   Check, Layers, Box, AlertCircle, Copy, ArrowRight
@@ -212,12 +213,13 @@ export default function ComplementosTab() {
           {listasFiltradas.map((lista) => {
             const items = compsPorLista(lista.id)
             return (
-              <div key={lista.id} className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: '#E5E7EB' }}>
+              <MerchantDisclosure key={lista.id} title={lista.nome} count={`${items.length} complementos cadastrados`} className="wd-complement-group">
+              <div className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: '#E5E7EB' }}>
                 {/* Header da lista */}
                 <div className="bg-gray-50 px-5 py-4 flex flex-wrap items-center justify-between gap-3 border-b" style={{ borderColor: '#E5E7EB' }}>
                   <div className="flex-1 min-w-[200px]">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-gray-900">{lista.nome}</h3>
+                      <h3 className="wd-complement-title font-semibold text-gray-900">{lista.nome}</h3>
                       <button
                         onClick={() => { setEditingLista(lista); setShowListaModal(true) }}
                         className="text-gray-400 hover:text-gray-700"
@@ -279,7 +281,7 @@ export default function ComplementosTab() {
 
                 {/* Tabela de complementos */}
                 {items.length > 0 ? (
-                  <table className="w-full">
+                  <table className="wd-complement-table w-full">
                     <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                       <tr>
                         <th className="text-left px-5 py-3">Img</th>
@@ -360,6 +362,7 @@ export default function ComplementosTab() {
                   </div>
                 )}
               </div>
+              </MerchantDisclosure>
             )
           })}
         </div>
@@ -1045,4 +1048,5 @@ function TogglePill({ label, ativo, onClick }: any) {
     </button>
   )
 }
+
 

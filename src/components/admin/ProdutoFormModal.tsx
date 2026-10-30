@@ -1,4 +1,6 @@
-﻿'use client'
+'use client'
+
+import MerchantDisclosure from '@/components/merchant-disclosure'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -1022,13 +1024,15 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
    =========================================================== */
 function CardSection({ title, icon: Icon, children }: { title: string; icon?: any; children: React.ReactNode }) {
   return (
+    <MerchantDisclosure title={title} initiallyOpen={title === 'Dados básicos'} className="wd-product-form-section">
     <div className="bg-white rounded-2xl border p-5 mb-4" style={{ borderColor: '#E5E7EB' }}>
-      <div className="flex items-center gap-2 mb-4">
+      <div className="wd-form-section-title flex items-center gap-2 mb-4">
         {Icon && <Icon size={16} style={{ color: 'var(--green)' }} />}
         <h2 className="text-base font-semibold text-gray-900">{title}</h2>
       </div>
       <div className="space-y-4">{children}</div>
     </div>
+    </MerchantDisclosure>
   )
 }
 
@@ -1208,4 +1212,5 @@ function ImageUploader({ value, onChange }: { value: string; onChange: (url: str
     </div>
   )
 }
+
 
