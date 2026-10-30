@@ -93,7 +93,7 @@ export default function ProdutoLinha({
         title="Clique para editar"
       >
         {prefixo && <span className="hint text-xs mr-0.5">{prefixo}</span>}
-        {valor}
+        {campo === 'preco' ? formatCurrency(Number(valor)) : valor}
       </button>
     )
   }
@@ -102,9 +102,9 @@ export default function ProdutoLinha({
     <div className="wd-product-line bg-white rounded-2xl border p-3 flex items-center gap-3 hover:shadow-md transition" style={{ borderColor: '#E5E7EB' }}>
       {/* Foto */}
       {produto.imagem_url ? (
-        <img src={produto.imagem_url} alt={produto.nome} className="size-12 rounded-lg object-cover shrink-0" />
+        <img src={produto.imagem_url} alt={produto.nome} className="wd-product-photo size-12 rounded-lg object-cover shrink-0" />
       ) : (
-        <div className="size-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+        <div className="wd-product-photo size-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
           <ImageIcon size={18} className="text-gray-400" />
         </div>
       )}
@@ -144,8 +144,7 @@ export default function ProdutoLinha({
         <div className="hint text-xs font-normal">Preço</div>
         <EditavelInline
           campo="preco"
-          valor={formatCurrency(Number(produto.preco))}
-          prefixo="R$"
+          valor={Number(produto.preco)}
         />
       </div>
 

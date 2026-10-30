@@ -412,10 +412,10 @@ function ProdutosTab() {
       {categorias.map((cat, idx) => (
         <MerchantDisclosure key={cat.id} title={cat.nome} count={`${produtos[cat.id]?.length || 0} produtos cadastrados`} className="wd-category-group">
         <div className="glass p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="wd-category-toolbar flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               {/* Botões de ordem */}
-              <div className="flex flex-col gap-1">
+              <div className="wd-category-sort flex flex-col gap-1">
                 <button
                   onClick={() => reordenarCategoria(idx, 'up')}
                   disabled={idx === 0}
@@ -463,7 +463,7 @@ function ProdutosTab() {
                     </span>
                   )}
                   {/* Botões de ordem do produto */}
-                  <div className="flex flex-col gap-0.5">
+                  <div className="wd-product-sort flex flex-col gap-0.5">
                     <button
                       onClick={() => reordenarProduto(cat.id, prodIdx, 'up')}
                       disabled={prodIdx === 0}
