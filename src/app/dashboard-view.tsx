@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
-import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power } from 'lucide-react'
+import { Copy, ShoppingCart, Check, ArrowUpRight, TrendingUp, Calendar, Power, Store, Plus, ExternalLink, BellRing, ChevronRight, X } from 'lucide-react'
+import Link from 'next/link'
+import MerchantDisclosure from '@/components/merchant-disclosure'
 import { formatCurrency } from '@/lib/utils'
 
 // Função para verificar se a loja está aberta baseado no horário configurado (mesma lógica do cardápio público)
@@ -170,6 +172,11 @@ export default function VisaoGeralPage() {
   const [pedidosHoje, setPedidosHoje] = useState(0)
   const [pedidosMes, setPedidosMes] = useState(0)
   const [slug, setSlug] = useState('')
+  const [nomeLoja, setNomeLoja] = useState('Sua loja')
+  const [logoLoja, setLogoLoja] = useState('')
+  const [novosHoje, setNovosHoje] = useState(0)
+  const [andamentoHoje, setAndamentoHoje] = useState(0)
+  const [showCardapioLink, setShowCardapioLink] = useState(false)
   const [copied, setCopied] = useState(false)
   const [lojaAberta, setLojaAberta] = useState<boolean | null>(null) // null = seguir horário
   const [horarios, setHorarios] = useState<any>(null)
@@ -187,11 +194,13 @@ export default function VisaoGeralPage() {
 
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('slug, config')
+        .select('slug, config, nome, logo_url')
         .eq('id', tenantId)
         .single()
       if (tenant) {
         setSlug(tenant.slug)
+        setNomeLoja(tenant.nome || 'Sua loja')
+        setLogoLoja(tenant.logo_url || '')
         const config = (tenant.config as any) || {}
         const horariosDias = config.horarios_dias || null
         setHorarios(horariosDias)
@@ -258,6 +267,8 @@ export default function VisaoGeralPage() {
       )
       setTotalHoje(vendasHoje.reduce((s, p) => s + Number(p.valor_total), 0))
       setPedidosHoje(vendasHoje.length)
+      setNovosHoje((vendasHojeRaw || []).filter(p => p.status === 'novo').length)
+      setAndamentoHoje((vendasHojeRaw || []).filter(p => ['novo', 'preparando', 'pronto', 'saiu'].includes(p.status)).length)
 
       // Primeiro dia do mês em São Paulo → UTC
       // 01/09 00:00:00 BRT → 01/09 03:00:00 UTC
@@ -387,6 +398,22 @@ export default function VisaoGeralPage() {
 
   return (
     <div>
+      <section className="wd-mobile-home">
+        <header className="wd-top">
+          <div className="wd-brand"><span className="wd-logo">{logoLoja ? <img src={logoLoja} alt={`Logo de ${nomeLoja}`} /> : <Store size={22} aria-hidden="true" />}</span><div><strong>{nomeLoja}</strong><small>We Delivery · Painel da loja</small></div></div>
+          <div className="wd-store-bar"><span className="wd-status" data-open={lojaEstaAberta}><span className="wd-dot" />Loja {lojaEstaAberta ? 'aberta' : 'fechada'}</span><button type="button" className="wd-store-toggle" onClick={lojaEstaAberta ? fecharLoja : abrirLoja} disabled={toggleLoading}>{toggleLoading ? 'Aguarde…' : lojaEstaAberta ? 'Fechar loja' : 'Abrir loja'}</button></div>
+          {(horarioMsg || temOverride) && <p className="wd-store-hours">{horarioMsg}{temOverride ? ' · Alterada manualmente até o próximo horário programado' : ''}</p>}
+        </header>
+        <div className="wd-home-body">
+          <div className="wd-page-heading"><h1>Sua loja, em dia.</h1><p>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' })}</p></div>
+          <section className="wd-sales"><div className="wd-sales-top"><span>Vendas de hoje</span><TrendingUp size={20} aria-hidden="true" /></div><strong className="wd-total">{formatCurrency(totalHoje)}</strong><p>Pedidos pagos não cancelados</p><div className="wd-sales-bottom"><div><b>{pedidosHoje}</b>pedidos</div><div><b>{formatCurrency(pedidosHoje ? totalHoje / pedidosHoje : 0)}</b>ticket médio</div></div></section>
+          <div className="wd-actions"><Link href="/pedidos/novo" className="wd-action wd-primary"><Plus size={20} aria-hidden="true" />Novo pedido</Link><button type="button" className="wd-action" onClick={() => setShowCardapioLink(true)}><ExternalLink size={20} aria-hidden="true" />Meu cardápio</button></div>
+          <section className="wd-section"><h2>Agora na cozinha</h2><Link href="/pedidos" className="wd-home-link">Ver pedidos</Link><Link href="/pedidos" className="wd-queue"><span className="wd-queue-icon"><BellRing size={20} aria-hidden="true" /></span><span><strong>{novosHoje} pedido{novosHoje !== 1 ? 's' : ''} novo{novosHoje !== 1 ? 's' : ''}</strong><small>{andamentoHoje} pedido{andamentoHoje !== 1 ? 's' : ''} em andamento hoje</small></span><ChevronRight size={18} aria-hidden="true" /></Link></section>
+          <MerchantDisclosure title="Resumo do mês" className="wd-month-summary"><div className="wd-metric"><span>Faturamento do mês</span><b>{formatCurrency(totalMes)}</b></div><div className="wd-metric"><span>Pedidos no mês</span><b>{pedidosMes}</b></div></MerchantDisclosure>
+        </div>
+        {showCardapioLink && <div className="wd-home-overlay" onClick={() => setShowCardapioLink(false)}><section role="dialog" aria-modal="true" aria-labelledby="wd-share-title" className="wd-home-sheet" onClick={event => event.stopPropagation()}><div className="wd-sheet-title"><h2 id="wd-share-title">Meu cardápio</h2><button type="button" aria-label="Fechar" onClick={() => setShowCardapioLink(false)}><X size={20} /></button></div><p>wedelivery.site/{slug}</p><button type="button" onClick={copiarLink} className="wd-action wd-primary"><Copy size={18} aria-hidden="true" />{copied ? 'Link copiado!' : 'Copiar link'}</button><a href={'/' + slug} target="_blank" rel="noopener noreferrer" className="wd-action">Abrir cardápio</a></section></div>}
+      </section>
+      <div className="wd-desktop-home">
       {/* Hero iridescente + botão loja */}
       <div className="glass-iridescent px-7 py-7 mb-5 relative">
         <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
@@ -518,6 +545,8 @@ export default function VisaoGeralPage() {
           <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: 'var(--ink-faint)' }} />
         </a>
       </div>
+      </div>
     </div>
   )
 }
+
