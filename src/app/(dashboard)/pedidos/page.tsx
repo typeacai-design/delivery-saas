@@ -12,6 +12,7 @@ import { gerarMensagemWhatsApp, formatarFormaPagamentoDisplay, normalizarFormaPa
 import { useToast } from '@/components/toast'
 import { flavorLabel, parseComplements, flavorCount } from '@/lib/flavor-pricing'
 import { ProdutoModal } from '@/components/checkout-flow'
+import MerchantOrderStages from '@/components/merchant-order-stages'
 
 // Componente de alerta de tempo
 function TempoAlerta({ dataCriacao, tempoEstimadoMin }: { dataCriacao: string; tempoEstimadoMin?: number }) {
@@ -1161,9 +1162,9 @@ export default function PedidosPage() {
   }
 
   return (
-    <div className="px-3 md:px-0">
+    <div className="wd-orders-page px-3 md:px-0">
       <div className="mb-3 md:mb-4">
-        <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="wd-orders-heading flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <div className="eyebrow mb-1" style={{ color: '#16A34A' }}>ATENDIMENTO</div>
             <h1 className="text-3xl font-semibold tracking-tight mb-1 flex items-center gap-2 flex-wrap" style={{ color: 'var(--ink)' }}>
@@ -1209,7 +1210,7 @@ export default function PedidosPage() {
         </div>
 
         {/* TABS - inline no desktop, grid no mobile */}
-        <div className="grid grid-cols-3 md:flex md:gap-1 gap-1 bg-white rounded-2xl border p-1 mb-3">
+        <div className="wd-orders-tabs grid grid-cols-3 md:flex md:gap-1 gap-1 bg-white rounded-2xl border p-1 mb-3">
           <button
             onClick={() => { setPedidosTab('fluxo'); setFiltroStatus('') }}
             className={`px-2 md:px-4 py-2.5 md:py-2 rounded-xl text-sm font-medium transition flex items-center justify-center gap-1.5 md:gap-2 ${
@@ -1332,8 +1333,26 @@ export default function PedidosPage() {
         </div>
       </div>
 
+      {pedidosTab !== 'mesas' && <MerchantOrderStages
+        selected={filtroStatus}
+        onSelect={setFiltroStatus}
+        stages={(pedidosTab === 'fluxo'
+          ? [{ id: '', label: 'Todos' }, ...(['novo', 'preparando', 'pronto', 'saiu', 'entregue'] as const).map(id => ({ id, label: STATUS_CONFIG[id].label }))]
+          : [{ id: '', label: 'Todos' }, { id: 'concluidos', label: 'Entregue' }, { id: 'cancelado', label: 'Cancelado' }]
+        ).map(stage => ({ ...stage, count: pedidos.filter(p => {
+          if (pedidosTab === 'fluxo' && ((p as any).tipo_pedido === 'mesa' || (p as any).tipo_pedido === 'consolidado')) return false
+          if (stage.id === 'concluidos' && p.status !== 'entregue') return false
+          if (stage.id && stage.id !== 'concluidos' && p.status !== stage.id) return false
+          if (pedidosTab === 'historico' && !stage.id && p.status === 'cancelado') return false
+          const date = new Date(p.data_criacao)
+          if (Number.isNaN(date.getTime())) return true
+          const local = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+          return (!filtroDataDe || local >= filtroDataDe) && (!filtroDataAte || local <= filtroDataAte)
+        }).length }))}
+      />}
+
       {/* Stats Bar - BOTOES POR ABA */}
-      <div className="flex flex-wrap items-center justify-start gap-2 mb-3 md:mb-4">
+      <div className="wd-order-stats-desktop flex flex-wrap items-center justify-start gap-2 mb-3 md:mb-4">
         {pedidosTab === 'fluxo' && (() => {
           // Usa o mesmo filtro aplicado ao grid (status + período) para que os
           // contadores batam com o que está exibido.
@@ -2908,4 +2927,5 @@ function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura 
     </div>
   )
 }
+
 
