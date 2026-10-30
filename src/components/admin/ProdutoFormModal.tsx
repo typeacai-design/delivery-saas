@@ -2,13 +2,14 @@
 
 import MerchantDisclosure from '@/components/merchant-disclosure'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { complementListState, toggleComplementList } from '@/lib/product-complement-selection'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import { formatCurrency } from '@/lib/utils'
 import {
   X, Upload, Image as ImageIcon, Info, Check, Save, Trash2,
-  ChevronDown, Clock, Tag, Star, Box, Layers, Search, Package, Plus
+  ChevronDown, Clock, Tag, Star, Box, Layers, Search, Package, Plus, ArrowLeft
 } from 'lucide-react'
 
 type FormState = {
@@ -131,11 +132,36 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
   const [dividirSabores, setDividirSabores] = useState(Boolean(produto?.sabores_grupo_id))
   const [complementos, setComplementos] = useState<any[]>([])
   const [categoriasComp, setCategoriasComp] = useState<any[]>([])
-  const [categoriaFiltro, setCategoriaFiltro] = useState<string>('')
-  const [buscaComplemento, setBuscaComplemento] = useState<string>('')
   const [slug, setSlug] = useState<string>('')
   const [insumos, setInsumos] = useState<any[]>([])
   const supabase = createClient()
+  const modalRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onClose)
+  const busyRef = useRef(salvando)
+  useEffect(() => { closeRef.current = onClose; busyRef.current = salvando }, [onClose, salvando])
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const scrollY = window.scrollY
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    modalRef.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true })
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busyRef.current) closeRef.current()
+      if (event.key !== 'Tab') return
+      const focusable = [...(modalRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href]') || [])].filter(node => node.getClientRects().length > 0)
+      const first = focusable[0], last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    }
+    document.addEventListener('keydown', keydown)
+    return () => {
+      document.body.style.overflow = overflow
+      document.removeEventListener('keydown', keydown)
+      window.scrollTo(0, scrollY)
+      if (previous?.isConnected) previous.focus({ preventScroll: true })
+    }
+  }, [])
+
 
   const carregarSlug = async () => {
     const tenantId = await activeTenantId()
@@ -420,49 +446,28 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
     }))
   }
 
-  const toggleComplemento = (id: string) => {
-    setForm((f) => ({
-      ...f,
-      complemento_ids: f.complemento_ids.includes(id)
-        ? f.complemento_ids.filter((c) => c !== id)
-        : [...f.complemento_ids, id],
-    }))
-  }
-
-  // Filtrar complementos por categoria E busca
-  const complementoFiltrado = complementos.filter((c) => {
-    // Filtro por categoria
-    if (categoriaFiltro && c.categoria_id !== categoriaFiltro) return false
-    // Filtro por busca de nome
-    if (buscaComplemento && buscaComplemento.trim().length > 0) {
-      const termo = buscaComplemento.trim().toLowerCase()
-      const nome = (c.nome || '').toLowerCase()
-      const desc = (c.descricao || '').toLowerCase()
-      if (!nome.includes(termo) && !desc.includes(termo)) return false
-    }
-    return true
-  })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center p-4 sm:p-6 overflow-y-auto" style={{ background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(4px)' }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col" style={{ maxHeight: 'calc(100vh - 48px)' }}>
+    <div className="wd-product-editor fixed inset-0 z-50 flex items-stretch justify-center p-4 sm:p-6 overflow-y-auto" style={{ background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(4px)' }}>
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="wd-product-editor-title" className="wd-product-editor-panel bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col" style={{ maxHeight: 'calc(100vh - 48px)' }}>
         {/* ============ HEADER ============ */}
-        <div className="flex items-start justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--line-strong)' }}>
+        <div className="wd-product-editor-header flex items-start justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--line-strong)' }}>
+          <button type="button" onClick={onClose} disabled={salvando} aria-label="Voltar aos produtos" className="wd-editor-back"><ArrowLeft size={20} /></button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              {produto ? 'Editar item' : 'Criar item'}
+            <h1 id="wd-product-editor-title" className="text-xl font-bold text-gray-900">
+              {produto ? 'Editar produto' : 'Novo produto'}
             </h1>
             <p className="text-sm text-gray-500 mt-1">
               Configure os detalhes do item
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1">
+          <button type="button" onClick={onClose} disabled={salvando} aria-label="Fechar edição" className="text-gray-400 hover:text-gray-700 p-1">
             <X size={20} />
           </button>
         </div>
 
         {/* ============ BODY SCROLL ============ */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 bg-gray-50">
+        <div className="wd-product-editor-body flex-1 overflow-y-auto px-6 py-5 bg-gray-50">
           {/* ====== CARD 1: Dados básicos ====== */}
           <CardSection title="Dados básicos">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -595,7 +600,20 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
           </CardSection>
 
           {/* ====== CARD 3: Pontos ====== */}
-          <CardSection title="Pontos de fidelidade" icon={Star}>
+
+
+          {/* ====== CARD 4: Canais e etiquetas ====== */}
+          <CardSection title="Visibilidade e etiquetas">
+            <div className="wd-visibility-grid">
+              <ToggleCanal label="Mesa" checked={form.disponivel_mesa} onChange={v => setForm({ ...form, disponivel_mesa: v })} />
+              <ToggleCanal label="Delivery" checked={form.disponivel_delivery} onChange={v => setForm({ ...form, disponivel_delivery: v })} />
+              <ToggleCanal label="Retirada" checked={form.disponivel_retirada} onChange={v => setForm({ ...form, disponivel_retirada: v })} />
+              {ETIQUETAS_OPCOES.map(et => <ToggleCanal key={et.id} label={et.label} checked={form.etiquetas.includes(et.id)} onChange={checked => setForm(f => ({ ...f, etiquetas: checked ? [...new Set([...f.etiquetas, et.id])] : f.etiquetas.filter(id => id !== et.id) }))} />)}
+            </div>
+          </CardSection>
+
+          {/* ====== CARD 6: Limites de venda ====== */}
+          <CardSection title="Fidelidade e limites de venda" icon={Star}>
             <p className="text-sm text-gray-500 mb-3 -mt-1">
               Quantos pontos o cliente ganha ao comprar este item.
             </p>
@@ -609,66 +627,7 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
                 className="form-input max-w-[200px]"
               />
             </Field>
-          </CardSection>
-
-          {/* ====== CARD 4: Canais e etiquetas ====== */}
-          <CardSection title="Visibilidade no cardápio">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <ToggleCanal
-                label="Mesa"
-                checked={form.disponivel_mesa}
-                onChange={(v) => setForm({ ...form, disponivel_mesa: v })}
-              />
-              <ToggleCanal
-                label="Delivery"
-                checked={form.disponivel_delivery}
-                onChange={(v) => setForm({ ...form, disponivel_delivery: v })}
-              />
-              <ToggleCanal
-                label="Retirada"
-                checked={form.disponivel_retirada}
-                onChange={(v) => setForm({ ...form, disponivel_retirada: v })}
-              />
-            </div>
-
-            <div className="mt-5">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Etiquetar este item como:
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {ETIQUETAS_OPCOES.map((et) => {
-                  const ativo = form.etiquetas.includes(et.id)
-                  return (
-                    <button
-                      key={et.id}
-                      type="button"
-                      onClick={() => {
-                        const next = ativo
-                          ? form.etiquetas.filter((e) => e !== et.id)
-                          : [...form.etiquetas, et.id]
-                        setForm({ ...form, etiquetas: next })
-                      }}
-                      className="px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-1.5"
-                      style={
-                        ativo
-                          ? { background: et.bg, color: et.color, border: `1.5px solid ${et.border}` }
-                          : { background: 'white', color: '#374151', border: '1px solid #D1D5DB' }
-                      }
-                    >
-                      <span>{et.icone}</span>
-                      {et.label}
-                    </button>
-                  )
-                })}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                As etiquetas selecionadas aparecem como tag no cardápio do cliente.
-              </p>
-            </div>
-          </CardSection>
-
-          {/* ====== CARD 6: Limites de venda ====== */}
-          <CardSection title="Limites de venda">
+          
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Vendidos diariamente" hint="(vazio = sem limite)">
                 <input
@@ -774,122 +733,21 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
             {!dividirSabores && produto?.sabores_grupo_id && <p className="text-sm text-amber-700 mt-3">Ao salvar sem divisão, este produto voltará ao preço base mais a soma dos complementos vinculados. Revise os preços e vínculos antes de salvar. Pedidos existentes permanecem como foram vendidos.</p>}
           </CardSection>
           <CardSection title="Complementos vinculados" icon={Layers}>
-            <p className="text-sm text-gray-500 mb-3 -mt-1">
-              Clique em uma lista para vincular todos os complementos de uma vez, ou selecione individualmente.
-              Gerencie em <strong>Cardápio → Complementos</strong>.
-            </p>
-
-            {/* Seleção por listas */}
-            {categoriasComp.length > 0 && (
-              <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                <h4 className="text-sm font-semibold text-blue-800 mb-2">🎯 Selecionar por lista</h4>
-                <p className="text-xs text-blue-600 mb-3">Clique em uma lista para vincular todos os seus complementos de uma vez:</p>
-                <div className="flex flex-wrap gap-2">
-                  {categoriasComp.map((cat) => {
-                    const compsDaLista = complementos.filter(c => c.categoria_id === cat.id)
-                    const todosSelecionados = compsDaLista.length > 0 && compsDaLista.every(c => form.complemento_ids.includes(c.id))
-                    const algunsSelecionados = compsDaLista.some(c => form.complemento_ids.includes(c.id)) && !todosSelecionados
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => {
-                          const idsAtuais = new Set(form.complemento_ids)
-                          compsDaLista.forEach(c => idsAtuais.add(c.id))
-                          setForm((f: any) => ({ ...f, complemento_ids: [...idsAtuais] }))
-                        }}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
-                          todosSelecionados
-                            ? 'bg-green-500 text-white'
-                            : algunsSelecionados
-                            ? 'bg-yellow-100 border-2 border-yellow-400 text-yellow-800'
-                            : 'bg-white border border-blue-300 text-blue-700 hover:bg-blue-100'
-                        }`}
-                      >
-                        {todosSelecionados && <Check size={14} />}
-                        <span>{cat.nome}</span>
-                        {cat.descricao && (
-                          <span className="text-xs opacity-75">({cat.descricao})</span>
-                        )}
-                        <span className="text-xs opacity-60">({compsDaLista.length})</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 mb-3">
-              {/* Busca por nome */}
-              <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={buscaComplemento}
-                  onChange={(e) => setBuscaComplemento(e.target.value)}
-                  placeholder="Buscar complemento..."
-                  className="form-input pl-9 w-full"
-                />
-              </div>
-              {/* Filtro por categoria */}
-              <div className="relative">
-                <select
-                  value={categoriaFiltro}
-                  onChange={(e) => setCategoriaFiltro(e.target.value)}
-                  className="form-input"
-                >
-                  <option value="">Todas</option>
-                  {categoriasComp.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.nome}</option>
-                  ))}
-                </select>
-              </div>
-              <span className="text-xs text-gray-500 whitespace-nowrap">
-                {form.complemento_ids.length} sel.
-              </span>
+            <p className="text-sm text-gray-500 text-center">Selecione as listas que deseja vincular a este produto. Gerencie as listas em Cardápio → Complementos.</p>
+            <div className="wd-complement-list-tiles" role="group" aria-label="Listas de complementos">
+              {categoriasComp.map(cat => {
+                const state = complementListState(form.complemento_ids, complementos, cat.id)
+                const flavorList = dividirSabores && form.sabores_grupo_id === cat.id
+                return <button key={cat.id} type="button" className="wd-complement-list-tile" aria-pressed={flavorList || state.all} disabled={flavorList || !state.ids.length}
+                  onClick={() => setForm(f => ({ ...f, complemento_ids: toggleComplementList(f.complemento_ids, complementos, cat.id) }))}>
+                  <Layers size={23} aria-hidden="true" /><strong>{cat.nome}</strong>
+                  {cat.descricao && <small>{cat.descricao}</small>}
+                  <small>{flavorList ? 'Lista usada na divisão de sabores' : state.partial ? 'Seleção parcial existente · toque para selecionar toda a lista' : `${state.ids.length} complementos`}</small>
+                  {(flavorList || state.all) && <span className="wd-list-selected-mark"><Check size={13} aria-hidden="true" /></span>}
+                </button>
+              })}
             </div>
-
-            {complementoFiltrado.length === 0 ? (
-              <div className="text-center py-6 text-sm text-gray-400">
-                Nenhum complemento cadastrado.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {complementoFiltrado.map((c) => {
-                  const ativo = form.complemento_ids.includes(c.id)
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => toggleComplemento(c.id)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition"
-                      style={
-                        ativo
-                          ? { background: 'rgba(22,163,74,.08)', border: '1.5px solid var(--green)' }
-                          : { background: 'white', border: '1px solid #E5E7EB' }
-                      }
-                    >
-                      <div
-                        className="size-5 rounded-md flex items-center justify-center shrink-0"
-                        style={
-                          ativo
-                            ? { background: 'var(--green)' }
-                            : { border: '1.5px solid #D1D5DB' }
-                        }
-                      >
-                        {ativo && <Check size={12} color="white" strokeWidth={3} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate">{c.nome}</div>
-                      </div>
-                      <div className="text-xs text-gray-500 whitespace-nowrap">
-                        {formatCurrency(Number(c.preco))}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+            {!categoriasComp.length && <p className="text-sm text-center text-gray-500">Nenhuma lista cadastrada. Cadastre em Cardápio → Complementos.</p>}
           </CardSection>
 
           {/* ====== CARD 11: Matéria-prima / Ingredientes ====== */}
@@ -997,7 +855,7 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
         </div>
 
         {/* ============ FOOTER ============ */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t bg-white" style={{ borderColor: 'var(--line-strong)' }}>
+        <div className="wd-product-editor-footer flex items-center justify-between gap-3 px-6 py-4 border-t bg-white" style={{ borderColor: 'var(--line-strong)' }}>
           <div className="flex-1">
             {erro && (
               <div className="text-sm text-red-600 flex items-center gap-1.5">
@@ -1011,7 +869,7 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
           </button>
           <button onClick={salvar} className="btn-primary" disabled={salvando}>
             <Save size={14} />
-            {salvando ? 'Salvando...' : 'Salvar item'}
+            {salvando ? 'Salvando...' : 'Salvar produto'}
           </button>
         </div>
       </div>
@@ -1081,6 +939,7 @@ function ToggleCanal({ label, checked, onChange }: { label: string; checked: boo
   return (
     <button
       type="button"
+      aria-pressed={checked}
       onClick={() => onChange(!checked)}
       className="px-4 py-3 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2"
       style={
