@@ -571,3 +571,15 @@
 }
 .wd-oe-number{display:contents}.wd-oe-item-label{display:none}
 @media(max-width:767px){.wd-merchant .wd-oe-number{display:block;min-width:0;font-size:12px;color:#5d7063}.wd-merchant .wd-oe-item-label{display:block;margin-bottom:5px}.wd-merchant .wd-oe-item>.flex:first-child{align-items:end}.wd-merchant .wd-oe-item .form-input[placeholder="Buscar produto..."]{width:100%}}
+
+/* Restore legacy desktop controls; mobile keeps its approved presentation. */
+.wd-desktop-orders-only{display:contents}
+.wd-mobile-label{display:none}
+@media(max-width:767px){
+ .wd-merchant .wd-desktop-orders-controls,.wd-merchant .wd-desktop-orders-only,.wd-desktop-sound-toggle,.wd-merchant .wd-desktop-label{display:none!important}
+ .wd-merchant .wd-mobile-label{display:inline}
+}
+@media(min-width:768px){
+ .wd-merchant .wd-order-pair{display:contents}
+ .wd-new-order-notification{top:24px;right:24px;padding:16px 24px;border:0;background:linear-gradient(to right,#22c55e,#16a34a);box-shadow:0 25px 50px -12px #00000040}
+}

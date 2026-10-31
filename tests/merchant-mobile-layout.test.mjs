@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import { PassThrough } from 'node:stream'
+import { createHash } from 'node:crypto'
 
 const require = createRequire(import.meta.url)
 const React = require('react')
@@ -23,6 +24,7 @@ function load(file, react = React, overrides = {}) {
   const module = { exports: {} }
   const resolve = name => {
     if (Object.hasOwn(overrides, name)) return overrides[name]
+    if (name === '@/lib/use-merchant-mobile') return { useMerchantMobile: () => true }
     if (name === 'react') return react
     if (name === 'react/jsx-runtime') return runtime
     if (name === 'lucide-react') return icons
@@ -36,7 +38,7 @@ function load(file, react = React, overrides = {}) {
     if (name === '@/components/sidebar-nav') return { SidebarNav: () => null }
     if (name === '@/components/confirm-sair-modal') return { ConfirmSairModal: () => null }
     if (['@/components/error-boundary', '@/components/global-som-pedidos'].includes(name)) return { __esModule: true, default: passthrough }
-    if (name.startsWith('@/')) { const path = 'src/' + name.slice(2); return load(path + (fs.existsSync(new URL('../' + path + '.tsx', import.meta.url)) ? '.tsx' : '.ts'), react) }
+    if (name.startsWith('@/')) { const path = 'src/' + name.slice(2); return load(path + (fs.existsSync(new URL('../' + path + '.tsx', import.meta.url)) ? '.tsx' : '.ts'), react, overrides) }
     throw new Error('Unexpected dependency: ' + name)
   }
   new Function('require', 'module', 'exports', outputText)(resolve, module, module.exports)
@@ -126,7 +128,7 @@ test('global audio stays silent on load/first touch, loops for arrivals, and sto
   globalThis.window = { AudioContext: AudioContextMock, addEventListener(name, cb) { listeners[name] = cb }, removeEventListener(name) { delete listeners[name] }, setInterval() { return 1 } }
   globalThis.document = { visibilityState: 'visible', addEventListener(name, cb) { listeners[name] = cb }, removeEventListener(name) { delete listeners[name] } }
   globalThis.fetch = async url => url.includes('/sounds/') ? { ok: true, arrayBuffer: async () => new ArrayBuffer(1) } : { ok: true, json: async () => ({ ok: true, tenantId: 'store', pedidos: [{ id: 'old', status: 'novo', data_criacao: '2026-01-01T00:00:00Z' }] }) }
-  const react = { ...React, useEffect(cb) { effect = cb }, useState: () => [0, n => states.push(n)] }
+  const react = { ...React, useRef: initial => ({ current: initial }), useEffect(cb) { effect = cb }, useState: () => [0, n => states.push(n)] }
   const Global = load('src/components/global-som-pedidos.tsx', react, {
     '@/lib/active-tenant-client': { activeTenantId: async () => 'store' },
     '@/lib/supabase/client': { createClient: () => ({ channel: () => channel, removeChannel() { removed = true } }) },
@@ -156,6 +158,35 @@ test('product editor keeps every field group mounted inside mobile disclosures',
   for (const label of ['Dados básicos', 'Foto do item', 'Fidelidade e limites de venda', 'Visibilidade e etiquetas', 'Controle de estoque', 'Divisão em sabores', 'Complementos vinculados', 'Ingredientes / Matéria-prima', 'Salvar produto', 'Cancelar']) assert.ok(html.includes(label), label)
   assert.equal((html.match(/<details/g) || []).length, 8)
   assert.ok(html.includes('type="file"'))
+})
+
+test('desktop product editor is the original component and mobile editor is preserved verbatim', async () => {
+  const gitBlob = path => { const data = fs.readFileSync(new URL('../' + path, import.meta.url)); return createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex') }
+  assert.equal(gitBlob('src/components/admin/ProdutoFormModalDesktop.tsx'), '48072681c3b380f6df5372a53a1c6e272d24dcb3', 'desktop matches pre-redesign GitHub source')
+  assert.equal(gitBlob('src/components/admin/ProdutoFormModalMobile.tsx'), '2528dd101e558956ce9be593af28727286b4efcf', 'approved mobile source is unchanged')
+  const Form = load('src/components/admin/ProdutoFormModal.tsx', React, { '@/lib/use-merchant-mobile': { useMerchantMobile: () => false } }).default
+  const html = await render(React.createElement(Form, { categorias: [{ id: 'food', nome: 'Pratos' }], onClose() {}, onSaved() {} }))
+  for (const label of ['Pontos de fidelidade','Limites de venda','Visibilidade no cardápio','Buscar complemento...','Criar item']) assert.ok(html.includes(label), label)
+  assert.doesNotMatch(html, /wd-product-editor/)
+  assert.doesNotMatch(html, /<details/)
+})
+
+test('desktop disclosures render original children without adding layout wrappers', async () => {
+  const Disclosure = load('src/components/merchant-disclosure.tsx', React, { '@/lib/use-merchant-mobile': { useMerchantMobile: () => false } }).default
+  const child = React.createElement('section', { className: 'original-grid' }, React.createElement('input', { defaultValue: '25' }))
+  assert.equal(await render(React.createElement(Disclosure, { title: 'Produtos' }, child)), await render(child))
+})
+
+test('desktop order form body matches the original layout and mobile-only controls stay hidden', () => {
+  const page = fs.readFileSync(new URL('../src/app/(dashboard)/pedidos/page.tsx', import.meta.url), 'utf8')
+  const modal = page.indexOf('      {/* MODAL DE EDIÇÃO */}')
+  const start = page.indexOf('            ) : (', modal) + '            ) : ('.length
+  const end = page.indexOf('            )}', start)
+  const digest = createHash('sha256').update(page.slice(start, end).trim()).digest('hex')
+  assert.equal(digest, '1f1e1ecd970e37bb8626f310f6564c09638029b756a7fe910f1f4c9bc76d2ad6')
+  assert.match(page, /wd-desktop-orders-controls/); assert.match(page, /Mostrando/); assert.match(page, /Limpar filtro/)
+  const css = fs.readFileSync(new URL('../src/app/(dashboard)/merchant.css', import.meta.url), 'utf8')
+  assert.match(css, /wd-desktop-orders-controls[^}]+display:none!important/)
 })
 
 test('product row retains edit, duplicate, active switch and delete controls', async () => {
