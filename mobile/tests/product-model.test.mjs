@@ -1,0 +1,9 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {emptyProduct,productPayload,toggleList} from '../src/product-model.ts'
+const base=()=>({...emptyProduct,nome:'Pizza',preco:'30,50',categoria_id:'pizza',dias_disponiveis:[0,1,2],etiquetas:[]})
+test('Product price accepts Brazilian decimals without changing other fields',()=>{const p=productPayload(base(),[],[]);assert.equal(p.preco,30.5);assert.equal(p.sabores_grupo_id,null);assert.equal(p.preco_riscado,null);assert.deepEqual(p.dias_disponiveis,[0,1,2])})
+test('Rejects negative prices, noninteger limits and invalid availability before any write',()=>{for(const patch of [{preco:'-1'},{limite_vendas_dia:'1.5'},{horario_inicio:'25:00'},{dias_disponiveis:[8]}])assert.throws(()=>productPayload({...base(),...patch},[],[]))})
+test('Order conflict only considers other products in same section',()=>{assert.throws(()=>productPayload({...base(),ordem:1},[{id:'other',categoria_id:'pizza',ordem:1}],[]));assert.doesNotThrow(()=>productPayload({...base(),ordem:1},[{id:'self',categoria_id:'pizza',ordem:1}],[],'self'))})
+test('Flavor list enforces active flavor count and stock restriction',()=>{const form={...base(),sabores_grupo_id:'flavors',sabores_maximo:3};assert.throws(()=>productPayload(form,[],[{id:'a',categoria_id:'flavors'}]));const c=['a','b','c'].map(id=>({id,categoria_id:'flavors',ativo:true}));assert.equal(productPayload(form,[],c).sabores_maximo,3);assert.throws(()=>productPayload(form,[],c.map(x=>({...x,controlar_estoque:true}))))})
+test('Toggling lists preserves unrelated and partial legacy links',()=>{const c=[{id:'a',categoria_id:'fruit'},{id:'b',categoria_id:'fruit'},{id:'z',categoria_id:'drink'}];assert.deepEqual(new Set(toggleList(['a','z'],c,'fruit')),new Set(['a','b','z']));assert.deepEqual(toggleList(['a','b','z'],c,'fruit'),['z'])})
