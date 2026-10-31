@@ -1,27 +1,10 @@
-﻿import { authenticatedTenant } from '@/lib/tenant-auth'
+import { authenticatedTenant } from '@/lib/tenant-auth'
 import { NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp']
 const extFor = (type: string) => type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'
 
-async function tenantContext(request: Request) {
-  const bearer = request.headers.get('authorization')
-  if (!bearer?.startsWith('Bearer ')) return authenticatedTenant(['owner','manager'])
-  const token = bearer.slice(7).trim()
-  const admin = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } })
-  const { data: { user } } = await admin.auth.getUser(token)
-  if (!user) return { supabase: admin, tenantId: null, forbidden: false }
-  const selected = request.headers.get('cookie')?.match(/(?:^|;\s*)wd_active_tenant=([^;]+)/)?.[1]
-  const { data: members } = await admin.from('usuarios_loja').select('tenant_id,role').eq('user_id', user.id).eq('ativo', true)
-  const ordered = [...(members || [])].sort((a: any, b: any) =>
-    ((a.role === 'owner' ? 0 : 1) - (b.role === 'owner' ? 0 : 1)) || a.tenant_id.localeCompare(b.tenant_id)
-  )
-  const member = selected ? ordered.find((item: any) => item.tenant_id === decodeURIComponent(selected)) : ordered[0]
-  if (!member || !['owner', 'manager'].includes(member.role)) return { supabase: admin, tenantId: null, forbidden: true }
-  const { data: tenant } = await admin.from('tenants').select('status').eq('id', member.tenant_id).maybeSingle()
-  return { supabase: admin, tenantId: tenant?.status === 'active' ? member.tenant_id : null, forbidden: true }
-}
+async function tenantContext(_request: Request) { return authenticatedTenant(['owner','manager']) }
 
 export async function POST(request: Request) {
   const {supabase,tenantId,forbidden}=await tenantContext(request)

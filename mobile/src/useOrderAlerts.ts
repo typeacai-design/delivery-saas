@@ -7,7 +7,7 @@ export function useOrderAlerts(storeId:string,onError:(message:string)=>void){
  useEffect(()=>{
   const tracker=new OrderAlertTracker(),player=createAudioPlayer(require('../assets/order-alert.wav'));player.loop=true
   let alive=true,loading=false
-  function reconcile(){if(AppState.currentState==='active'&&tracker.pending.size){player.play()}else player.pause()}
+  function reconcile(){try{if(AppState.currentState==='active'&&tracker.pending.size){player.play()}else player.pause()}catch{if(alive)onError('Não foi possível tocar o alerta de novos pedidos.')}}
   void setAudioModeAsync({playsInSilentMode:true,shouldPlayInBackground:false}).catch(()=>{if(alive)onError('Não foi possível preparar o som de novos pedidos.')})
   async function sync(){if(loading)return;loading=true;try{
    const list:AlertOrder[]=[]

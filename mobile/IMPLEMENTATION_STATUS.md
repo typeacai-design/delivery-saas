@@ -16,22 +16,22 @@ O pedido é levar todas as funcionalidades do site ao aplicativo nativo. Esta br
 
 ## Pendente para paridade solicitada
 
-- Novo pedido manual, edição completa de composição e complementos, descontos, pagamentos idempotentes, WhatsApp e demais ações do desktop.
-- Fluxo e sessões de mesas, configurações de horários/entrega/perfil/capacidade/estoque, design do cardápio com banners.
-- Equipe e acessos operacionais, relatórios completos, marketing (fidelidade/disparos/recuperação), avaliações, embaixadores, sorteios e suporte.
+- Novo pedido manual, edição completa de composição e complementos, descontos, WhatsApp e demais ações do desktop. Pagamento idempotente e atômico foi adicionado com a função 095; faltam testes em aparelho.
+- Fluxo e sessões de mesas, configurações de horários/entrega/capacidade/estoque. Perfil e design (incluindo logo, três banners e faixas) já foram portados; aguardam validação real.
+- Acessos operacionais, relatórios completos, marketing (fidelidade/disparos/recuperação), avaliações, embaixadores e sorteios. Cadastros de equipe e abertura/consulta de suporte já foram portados; aguardam validação real.
 - Demais ações do cardápio: duplicação, reordenação, exclusão de produtos, clonagem de listas, imagens dos complementos e organização por listas no mobile.
 - Cadastro de loja e aprovação; áreas pública e de administrador, se incluídas no escopo final do aplicativo.
 - Push Android em segundo plano, configuração/credenciais FCM e teste de áudio com o app minimizado/encerrado.
 - Incluir `wedelivery://auth/callback` nas Redirect URLs do Supabase antes de testar Google no APK. O conector atual não oferece edição de Auth config.
-- Publicação/testes do backend compatível; assinatura final, validação em emulador/aparelho e entrega do APK.
+- Publicação/testes do backend compatível; validação em emulador/aparelho e entrega do APK de teste. Assinatura definitiva para distribuição pública permanece pendente.
 
 ## Evidências locais
 
 - TypeScript do app passou.
-- 28 testes de domínio, acesso, persistência criptografada, produtos e cadastros passaram.
+- 34 testes mobile passaram, incluindo SQL real em banco local isolado: pagamento/caixa, repetição sem duplicidade, rollback e negação de acesso.
 - Exportação Android/Hermes passou (bundle nativo, não APK).
 - Backend: TypeScript e build Next passaram; 69 testes passaram e 2 de DPAPI foram pulados no Linux. Fixtures de pedido manual foram atualizadas para simular o import de autenticação de funcionário existente em main.
-- Cinco testes adicionais de seleção/autorização nativa passaram.
-- Compilação Gradle/APK em andamento; ferramentas Android 37, NDK e CMake foram instaladas localmente.
+- Sete testes adicionais de seleção/autorização e isolamento de cookies/bearer passaram.
+- Duas compilações Gradle/APK concluídas; assinatura v2 verificada. Compilação final 0.2.0 em preparação. Android 7+ (API 24), ARM64; nenhuma validação em aparelho/emulador foi realizada.
 
-Nenhuma alteração desta etapa foi publicada em produção. Não incluir tokens privados, senhas, service role, keystore ou arquivos de ambiente em commits/artefatos.
+A migração 095 (nova função de pagamento nativo) foi aplicada em produção e suas ACLs verificadas. Nenhum pedido real foi alterado nos testes. APIs web desta branch foram publicadas somente em prévia até este registro. Não incluir tokens privados, senhas, service role, keystore ou arquivos de ambiente em commits/artefatos.

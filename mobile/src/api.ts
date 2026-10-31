@@ -37,3 +37,7 @@ export async function catalog(storeId: string, signal: AbortSignal) {
   }
   return { categories: (categories.data || []) as Category[], products }
 }
+export async function markPaid(storeId:string,orderId:string,paid:boolean){
+ const {error}=await supabase.rpc('mobile_marcar_pedido_pago',{p_tenant_id:storeId,p_pedido_id:orderId,p_pago:paid})
+ if(error)throw new Error('Não foi possível alterar o pagamento. Nenhum lançamento parcial foi confirmado. Atualize o pedido e tente novamente.')
+}

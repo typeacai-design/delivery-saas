@@ -2,7 +2,8 @@ export type AlertOrder = { id: string; status: string; deleted_at?: string | nul
 
 // The first successful fetch is a silent baseline, never a new-order notification.
 export class OrderAlertTracker {
-  constructor(readonly startedAt = Date.now()) {}
+  readonly startedAt: number
+  constructor(startedAt = Date.now()) { this.startedAt = startedAt }
   readonly seen = new Set<string>()
   readonly pending = new Set<string>()
   initialized = false

@@ -7,6 +7,7 @@ import type { Session } from '@supabase/supabase-js'
 import { Button, Notice, s } from './ui'
 import {useRemote} from './useRemote'
 import Finance from './Finance'
+import SettingsForms from './SettingsForms'
 import {useOrderAlerts} from './useOrderAlerts'
 import EntityScreen from './EntityScreen'
 import {entities} from './entities'
@@ -72,6 +73,7 @@ function Home({ store, pulse, openOrders }: { store: Store; pulse: number; openO
 function OrderCard({ order, storeId, refresh }: { order: Order; storeId:string;refresh():void }) {
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false)
   async function change(status:string){if(busy)return;setBusy(true);setError('');try{await request(storeId,`/api/pedidos/${order.id}/status`,'PATCH',{pedido_id:order.id,status});refresh()}catch(e:any){setError(e.message)}finally{setBusy(false)}}
+  async function paid(){if(busy)return;setBusy(true);setError('');try{await api.markPaid(storeId,order.id,!order.pago);refresh()}catch(e:any){setError(e.message)}finally{setBusy(false)}}
   async function print(){try{const esc=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));await Print.printAsync({html:`<html><meta charset="utf-8"><body><h1>Pedido #${esc(order.codigo)}</h1><p>${esc(order.cliente_nome)}</p>${order.pedido_itens.map(i=>`<h2>${i.quantidade}× ${esc(i.nome)}</h2>${addons(i).map(a=>`<p>+ ${a.quantidade}× ${esc(a.nome)}</p>`).join('')}`).join('')}<p>${esc(order.endereco_entrega)}</p><p>${esc(order.observacoes)}</p><h2>${esc(money(order.valor_total))}</h2></body></html>`})}catch(e:any){setError(e.message)}}
   const next=order.status==='novo'?'preparando':order.status==='preparando'?'pronto':order.status==='pronto'?(order.tipo_entrega==='delivery'?'saiu':'entregue'):order.status==='saiu'?'entregue':null
 
@@ -85,6 +87,7 @@ function OrderCard({ order, storeId, refresh }: { order: Order; storeId:string;r
     <View style={[s.between, s.total]}><Text style={s.label}>Total</Text><Text style={s.totalValue}>{money(order.valor_total)}</Text></View>
     {error?<Notice text={error}/>:null}
     {next?<Button title={order.status==='novo'?'Aceitar pedido':`Marcar como ${stageLabels[next as Stage].toLowerCase()}`} disabled={busy} onPress={()=>void change(next)}/>:null}
+    {order.status!=='cancelado'?<Button title={order.pago?'Marcar como não pago':'Marcar como pago'} secondary disabled={busy} onPress={()=>Alert.alert(order.pago?'Desmarcar pagamento?':'Confirmar pagamento?',`Pedido #${order.codigo||order.id.slice(0,8)} · ${money(order.valor_total)}`,[{text:'Voltar',style:'cancel'},{text:'Confirmar',onPress:()=>void paid()}])}/>:null}
     <View style={s.wrap}><Button title="Editar pedido" secondary disabled={busy} onPress={()=>setEditing(true)}/><Button title="Imprimir" secondary onPress={()=>void print()}/>{order.status!=='cancelado'&&order.status!=='entregue'?<Button title={order.status==='novo'?'Rejeitar':'Cancelar pedido'} secondary disabled={busy} onPress={()=>Alert.alert('Cancelar pedido?','O pedido será movido para Cancelados.',[{text:'Voltar',style:'cancel'},{text:'Confirmar cancelamento',style:'destructive',onPress:()=>void change('cancelado')}])}/>:null}</View>
     {editing?<OrderEditor storeId={storeId} order={order} close={()=>setEditing(false)} saved={refresh}/>:null}
   </View>
@@ -118,8 +121,8 @@ function Catalog({ store, pulse }: { store: Store; pulse: number }) {
 }
 function More({storeId}:{storeId:string}){
  const [page,setPage]=useState<string|null>(null)
- if(page)return <View style={s.flex}><View style={s.content}><Button title="Voltar" secondary onPress={()=>setPage(null)}/></View><EntityScreen key={page} storeId={storeId} entityId={page}/></View>
- return <ScrollView contentContainerStyle={s.content}><Heading title="Tudo da sua loja" subtitle="Organizado em um só lugar"/>{Object.entries(entities).map(([key,entity])=><Button key={key} title={entity.title} secondary onPress={()=>setPage(key)}/>)}</ScrollView>
+ if(page)return <View style={s.flex}><View style={s.content}><Button title="Voltar" secondary onPress={()=>setPage(null)}/></View>{page==='profile'||page==='design'?<SettingsForms key={page} storeId={storeId} mode={page}/>:<EntityScreen key={page} storeId={storeId} entityId={page}/>}</View>
+ return <ScrollView contentContainerStyle={s.content}><Heading title="Tudo da sua loja" subtitle="Organizado em um só lugar"/><Button title="Perfil da loja" secondary onPress={()=>setPage('profile')}/><Button title="Design do cardápio" secondary onPress={()=>setPage('design')}/>{Object.entries(entities).map(([key,entity])=><Button key={key} title={entity.title} secondary onPress={()=>setPage(key)}/>)}</ScrollView>
 }
 function Merchant({ store, changeStore }: { store: Store; changeStore?: () => void }) {
   const [tab, setTab] = useState<'home' | 'orders' | 'catalog' | 'finance' | 'more'>('home'), [pulse, setPulse] = useState(0),[alertError,setAlertError]=useState('')

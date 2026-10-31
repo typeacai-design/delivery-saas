@@ -1,44 +1,34 @@
-# We Delivery Android — primeira base nativa
+# We Delivery Android
 
-Projeto React Native + Expo SDK 58, independente do Next.js. Esta é uma prévia de desenvolvimento e consulta, ainda não substitui o painel do lojista. Não usa WebView. O navegador do sistema é aberto exclusivamente para consentimento do Google e retorna para telas nativas via PKCE.
+Aplicativo nativo em React Native + Expo; não utiliza WebView para implementar telas. O navegador do sistema é usado somente para OAuth Google e links externos.
 
-## Implementado nesta etapa
+**Versão 0.2.0 de testes, ainda sem paridade completa com o site.** Consulte [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) antes de testar ou publicar.
 
-- Login por e-mail/senha e fluxo Google com PKCE; sessão criptografada no SecureStore, fragmentada para suportar sessões grandes.
-- Associação às lojas do usuário autenticado pelo Supabase; seleção explícita quando há mais de uma. Somente lojistas/gerentes nesta fase. Lojas pendentes, suspensas ou bloqueadas não abrem o painel.
-- Início com nome/logo e contagens exatas dos pedidos do dia. Não soma faturamento a partir de uma lista truncada.
-- Consulta de pedidos, seis etapas, Hoje/Ontem, paginação de 25, produtos/complementos, pagamento, endereço, observações e total histórico.
-- Consulta de produtos com seções recolhíveis e cartões separados. Paginação interna evita truncar o catálogo.
-- Eventos Realtime de pedidos com filtro de loja, reconciliação a cada 30 segundos em primeiro plano e atualização ao retornar ao app. Não há áudio ou push nesta fase.
-- Leituras autenticadas usam chave pública e as políticas RLS existentes. Não há chave administrativa nem API que aceite identidade de funcionário informada pelo cliente. Não foram alterados site, tabelas ou políticas.
+## Desenvolvimento
 
-## Preparar e verificar
+```sh
+cd mobile
+npm ci
+cp .env.example .env.local
+npm run typecheck
+npm test
+npm run export:android
+```
 
-Node 24 recomendado. `npm ci`, `npm run typecheck`, `npm test`, `npm run export:android`.
+Use apenas URL e chave publicável do Supabase. Senhas, service role, tokens de gerenciamento e chaves privadas não pertencem ao app. Sessões são armazenadas em fragmentos criptografados no SecureStore. Cada mutação valida o vínculo com a loja e preserva RLS; APIs exigem bearer Supabase e `x-wd-tenant-id` explícito.
 
-Copie `.env.example` para `.env.local` e preencha apenas a chave pública do Supabase (publishable). Nunca coloque service_role, Google Client Secret, senha ou token EAS nas variáveis EXPO_PUBLIC.
+## APK
 
-Antes de testar Google no APK, adicione **exatamente** `wedelivery://auth/callback` às Redirect URLs do projeto Supabase em uso. Preserve as URLs atuais do site. O cliente OAuth Web existente pode ser reutilizado neste fluxo pelo navegador; esta entrega não implementa o SDK nativo de identidade Google, que exigiria configuração Android própria. A interface do aplicativo é nativa.
+Com SDK Android, NDK, CMake e JDK compatíveis instalados, `npx expo prebuild --platform android` e `cd android && ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a` geram um APK de testes com bundle embutido. A configuração gerada usa assinatura de desenvolvimento; configure uma chave definitiva antes de distribuição pública. O app exige Android 7+ e esta compilação local contém ARM64.
 
-O cadastro de novas lojas nesta prévia permanece no site. Não há criação automática de loja ao fazer login Google sem vínculo.
+O perfil `preview` de `eas.json` também gera APK; exige conta Expo, projeto EAS e variáveis públicas configuradas no ambiente de build. O app não depende do computador/Metro para executar o APK release.
 
-## Gerar o APK de teste
+## Google
 
-Ainda não foi gerado um APK nesta etapa. A exportação Metro/Hermes valida o código Android, mas não é um instalador nem um teste em aparelho.
+Adicione exatamente `wedelivery://auth/callback` nas Redirect URLs de Authentication > URL Configuration do projeto Supabase ativo. O login usa PKCE, troca o código uma vez e não aceita tokens enviados na URL.
 
-Faltam conta/projeto Expo EAS sob o e-mail do projeto e credencial de assinatura Android. Não foi encontrado EXPO_TOKEN configurado nesta sessão, nem SDK Android local. Não foi criada assinatura em nome de outra conta nem iniciado build pago.
+## Testes e operação
 
-Depois de conectar a conta Expo: vincule este diretório com `eas init`, configure `EXPO_OWNER` e `EAS_PROJECT_ID` conforme o projeto criado e cadastre as variáveis públicas no ambiente EAS selecionado. Execute `eas build --platform android --profile preview`. O perfil preview gera APK para instalação direta. O perfil production gera AAB para Play Store.
+Os testes mobile incluem banco Postgres isolado (PGlite) com a migração real de pagamento: pagamento + caixa são atômicos, repetição não duplica entrada, falha no caixa desfaz a transição e outro tenant/conta bloqueada/anon não podem agir.
 
-Use o ambiente EAS indicado pelo serviço para cada perfil; não presuma que `.env.local` viajará no upload: os arquivos `.env*` estão excluídos. A compilação deve receber EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY pelos ambientes EAS. Depois do vínculo, registre o projectId real no app.config.ts/extra.eas; não invente IDs. Preserve a chave de assinatura na conta do projeto.
-
-## Ainda falta para o aplicativo completo
-
-1. Adaptar APIs de escrita para sessão mobile verificável e reaproveitar regras atômicas de preços, sabores, estoque, fidelidade e financeiro. Implementar aceitar/rejeitar/avançar, editar, desconto, pago, novo pedido e impressão.
-2. Completar cardápio (editor, complementos, design), financeiro, clientes, estoque, equipe e demais funções da matriz original. As três abas atuais não representam o escopo final.
-3. Revisar as falhas de autenticação legada da equipe e as tabelas sem isolamento identificadas no mapeamento. Elas não foram transportadas para este aplicativo.
-4. Notificações Android/FCM, som apenas para novos pedidos, sincronização entre aparelhos e comportamento com tela bloqueada. Não prometer loop de som em segundo plano sem validação nativa.
-5. Verificar visualmente em Android real: tamanhos, teclado, acessibilidade, fontes, identidade visual/ícones definitivos e listas longas. O visual segue a direção verde aprovada, mas ainda não passou por homologação em aparelho.
-6. Homologar login/sessão/retorno Google, isolamento entre lojas, conta suspensa e reconexão com usuários de teste. Os testes automatizados usam adaptadores isolados; não utilizam contas pessoais ou clientes reais.
-
-Referências: https://docs.expo.dev/build-reference/apk/ · https://supabase.com/docs/guides/auth/native-mobile-deep-linking · https://docs.expo.dev/versions/latest/sdk/securestore/
+A conexão configurada usa os dados reais do sistema. Testes manuais de alteração devem ser feitos em uma loja de teste. Som contínuo funciona em primeiro plano; push e execução em segundo plano ainda não foram implementados.
