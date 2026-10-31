@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { getCidadesByEstado } from '@/lib/cidades-brasil'
 import Link from 'next/link'
+import GoogleSignInButton from '@/components/google-sign-in-button'
 import { ChefHat, ArrowRight, CheckCircle2, ChevronLeft, Eye, EyeOff } from 'lucide-react'
 import { InputField, SelectField, SearchableSelect } from '@/components/form-field'
 import { ESTADOS } from '@/lib/cidades-brasil'
@@ -26,6 +27,8 @@ export default function RegistroPage() {
   const [categoria, setCategoria] = useState('Outros')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [googleAccount, setGoogleAccount] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [telefone, setTelefone] = useState('')
 
@@ -41,6 +44,24 @@ export default function RegistroPage() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('google') !== '1') return
+    let active = true
+    setGoogleLoading(true)
+    fetch('/api/auth/google-profile', { cache: 'no-store', credentials: 'include' })
+      .then(async response => {
+        const profile = await response.json()
+        if (!response.ok) throw new Error('Sua sessão Google expirou. Clique em Continuar com Google.')
+        if (!active) return
+        setGoogleAccount(true)
+        setEmail(profile.email)
+        setNomeResponsavel(profile.nome || '')
+      })
+      .catch(err => { if (active) setError(err.message || 'Não foi possível verificar sua conta Google.') })
+      .finally(() => { if (active) setGoogleLoading(false) })
+    return () => { active = false }
+  }, [])
 
   const formatPhone = (v: string) => {
     const c = v.replace(/\D/g, '')
@@ -58,7 +79,7 @@ export default function RegistroPage() {
   }
 
   const canProceed = () => {
-    if (step === 'negocio') return nomeNegocio && categoria && email && password.length >= 6 && telefone
+    if (step === 'negocio') return nomeNegocio && categoria && email && (googleAccount || password.length >= 8) && telefone
     if (step === 'localizacao') return estado && cidade && endereco && numero
     if (step === 'responsavel') return nomeResponsavel && cpf.replace(/\D/g, '').length === 11
     return false
@@ -107,7 +128,7 @@ export default function RegistroPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug: nomeNegocio.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, ''),
-          nome: nomeNegocio, email, password, categoria, telefone, estado, cidade,
+          nome: nomeNegocio, email, password, auth_provider: googleAccount ? 'google' : 'password', categoria, telefone, estado, cidade,
           endereco: enderecoCompleto, numero, nome_responsavel: nomeResponsavel, cpf,
           referral_code: referralCode,
         }),
@@ -117,6 +138,7 @@ export default function RegistroPage() {
         setError(data.error || 'Não foi possível enviar o cadastro para análise.')
         return
       }
+      if (googleAccount) { window.location.href = '/aguardando-aprovacao'; return }
       setStep('sucesso')
     } catch {
       setError('Não foi possível conectar ao servidor. Tente novamente.')
@@ -209,6 +231,10 @@ export default function RegistroPage() {
                 <p className="hint">{stepTitles[step as keyof typeof stepTitles].subtitle}</p>
               </div>
 
+              {step === 'negocio' && !googleAccount && <GoogleSignInButton referralCode={referralCode} />}
+              {googleAccount && <p className="hint text-center mb-4">Conta Google conectada: {email}</p>}
+              {googleLoading && <p className="hint text-center mb-4" role="status">Verificando sua conta Google...</p>}
+
               <form onSubmit={(e) => { e.preventDefault(); handleNext() }} className="space-y-4">
                 {error && (
                   <div className="p-3 rounded-2xl text-[13px]" style={{ background: 'rgba(220,38,38,.08)', color: '#991B1B', border: '1px solid rgba(220,38,38,.25)' }}>
@@ -244,20 +270,21 @@ export default function RegistroPage() {
                     />
                     <InputField
                       label="E-mail"
+                      readOnly={googleAccount}
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="seu@email.com"
                       required
                     />
-                    <InputField
+                    {!googleAccount && <InputField
                       label="Senha de acesso"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Mínimo 6 caracteres"
+                      placeholder="Mínimo 8 caracteres"
                       required
-                      minLength={6}
+                      minLength={8}
                       rightAdornment={
                         <button
                           type="button"
@@ -268,7 +295,7 @@ export default function RegistroPage() {
                           {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
                       }
-                    />
+                    />}
                   </>
                 )}
 
@@ -342,7 +369,7 @@ export default function RegistroPage() {
                   )}
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || googleLoading}
                     className="btn-primary flex-1 justify-center"
                   >
                     {loading ? 'Criando...' : step === 'responsavel' ? 'Criar conta' : 'Continuar'}
@@ -369,3 +396,4 @@ export default function RegistroPage() {
     </div>
   )
 }
+

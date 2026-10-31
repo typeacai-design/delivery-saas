@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import GoogleSignInButton from '@/components/google-sign-in-button'
 import { Sparkles, Eye, EyeOff, ArrowRight } from 'lucide-react'
 
 export default function LoginPage() {
@@ -10,6 +11,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('oauth_error')
+    if (!code) return
+    const messages: Record<string, string> = {
+      unavailable: 'O login Google ainda não está disponível. Use e-mail e senha.',
+      cancelled: 'O login Google foi cancelado. Você pode tentar novamente.',
+      failed: 'Não foi possível concluir o login Google. Tente novamente.',
+      blocked: 'Este acesso ou sua loja estão inativos. Contate o suporte.',
+    }
+    setError(messages[code] || messages.failed)
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -68,6 +81,8 @@ export default function LoginPage() {
                 </h1>
                 <p className="hint">Entre pra gerenciar seus pedidos</p>
               </div>
+
+              <GoogleSignInButton />
 
               <form onSubmit={handleLogin} className="space-y-4">
                 {error && (
@@ -160,5 +175,6 @@ export default function LoginPage() {
     </div>
   )
 }
+
 
 
