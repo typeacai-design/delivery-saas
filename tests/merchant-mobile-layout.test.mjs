@@ -177,6 +177,43 @@ test('desktop disclosures render original children without adding layout wrapper
   assert.equal(await render(React.createElement(Disclosure, { title: 'Produtos' }, child)), await render(child))
 })
 
+test('compact range picker applies only complete ranges, supports reverse/cross-month selection, and cancels without applying', () => {
+  let values = [], cursor = 0, applied = { from: '2026-10-30', to: '2026-10-30' }, calls = 0
+  const react = { ...React, useId: () => 'period-test', useRef: () => ({ current: { focus() {} } }), useState(initial) { const index = cursor++; if (!(index in values)) values[index] = typeof initial === 'function' ? initial() : initial; return [values[index], value => { values[index] = typeof value === 'function' ? value(values[index]) : value }] } }
+  const Picker = load('src/components/merchant-date-range.tsx', react).default
+  const tree = () => { cursor = 0; return Picker({ ...applied, onApply(range) { applied = range; calls++ } }) }
+  const button = predicate => elements(tree()).find(node => node.type === 'button' && predicate(node.props))
+  const textButton = text => button(props => props.children === text)
+  button(props => props['aria-expanded'] !== undefined).props.onClick()
+  assert.equal(textButton('Aplicar período').props.disabled, true)
+  button(props => props['aria-label'] === '29 de outubro de 2026').props.onClick()
+  assert.equal(textButton('Aplicar período').props.disabled, true)
+  button(props => props['aria-label'] === '28 de outubro de 2026').props.onClick()
+  assert.equal(textButton('Aplicar período').props.disabled, false)
+  textButton('Aplicar período').props.onClick()
+  assert.deepEqual(applied, { from: '2026-10-28', to: '2026-10-29' }); assert.equal(calls, 1)
+  button(props => props['aria-expanded'] !== undefined).props.onClick()
+  button(props => props['aria-label'] === 'Mês anterior').props.onClick()
+  button(props => props['aria-label'] === '30 de setembro de 2026').props.onClick()
+  button(props => props['aria-label'] === 'Próximo mês').props.onClick()
+  button(props => props['aria-label'] === '1 de outubro de 2026').props.onClick()
+  textButton('Aplicar período').props.onClick()
+  assert.deepEqual(applied, { from: '2026-09-30', to: '2026-10-01' })
+  button(props => props['aria-expanded'] !== undefined).props.onClick()
+  button(props => props['aria-label'] === '4 de setembro de 2026').props.onClick()
+  textButton('Cancelar').props.onClick()
+  assert.equal(calls, 2); assert.deepEqual(applied, { from: '2026-09-30', to: '2026-10-01' })
+  assert.equal(button(props => props['aria-expanded'] !== undefined).props['aria-expanded'], false)
+})
+
+test('compact range formatting and one-day selection preserve dates across year boundaries', () => {
+  const { chooseOrderRange, formatOrderDateRange } = load('src/components/merchant-date-range.tsx')
+  assert.deepEqual(chooseOrderRange({ from: '2026-10-30', to: '' }, '2026-10-30'), { from: '2026-10-30', to: '2026-10-30' })
+  assert.deepEqual(chooseOrderRange({ from: '2026-12-31', to: '' }, '2027-01-02'), { from: '2026-12-31', to: '2027-01-02' })
+  const label = formatOrderDateRange({ from: '2026-12-31', to: '2027-01-02' }); assert.match(label, /2026/); assert.match(label, /2027/)
+  assert.equal(formatOrderDateRange({ from: '', to: '' }), 'Selecionar período')
+})
+
 test('desktop order form body matches the original layout and mobile-only controls stay hidden', () => {
   const page = fs.readFileSync(new URL('../src/app/(dashboard)/pedidos/page.tsx', import.meta.url), 'utf8')
   const modal = page.indexOf('      {/* MODAL DE EDIÇÃO */}')

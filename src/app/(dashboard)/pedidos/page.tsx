@@ -14,6 +14,7 @@ import { flavorLabel, parseComplements, flavorCount } from '@/lib/flavor-pricing
 import { ProdutoModal } from '@/components/checkout-flow'
 import { useMerchantMobile } from '@/lib/use-merchant-mobile'
 import { useOrderSound } from '@/components/global-som-pedidos'
+import MerchantDateRange from '@/components/merchant-date-range'
 import MerchantOrderStages from '@/components/merchant-order-stages'
 import { orderPeriodRange } from '@/lib/order-period'
 import MerchantOrderCard from '@/components/merchant-order-card'
@@ -1225,7 +1226,13 @@ export default function PedidosPage() {
 
         </div>
 
-      {/* Filtro de Data — FLUXO: só "Hoje" e "Ontem" | HISTÓRICO: inputs de data */}
+      {mobile && pedidosTab === 'historico' ? (
+        <MerchantDateRange from={filtroDataDe} to={filtroDataAte} onApply={({ from, to }) => {
+          setFiltroDataDe(from)
+          setFiltroDataAte(to)
+          setFiltroPeriodo('todos')
+        }} />
+      ) : (
       <div className="flex items-center justify-center md:justify-start gap-3 mb-3 md:mb-4 bg-white md:bg-transparent p-3 md:p-0 rounded-xl md:rounded-none border md:border-0 shadow-sm md:shadow-none flex-wrap">
         {pedidosTab === 'historico' && (
           <>
@@ -1293,6 +1300,8 @@ export default function PedidosPage() {
           )}
         </div>
       </div>
+
+      )}
 
       {pedidosTab !== 'mesas' && <MerchantOrderStages
         selected={filtroStatus}
