@@ -1,38 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 
-// Helper para pegar o tenant atual
-async function getTenantId(): Promise<string | null> {
-  const supabase = await import('@/lib/supabase/server').then(m => m.createClient())
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const cookieStore = await cookies()
-  const selected = cookieStore.get('wd_active_tenant')?.value
-
-  const { data: members } = await supabase
-    .from('usuarios_loja')
-    .select('tenant_id, role, ativo')
-    .eq('user_id', user.id)
-    .eq('ativo', true)
-
-  if (!members || members.length === 0) return null
-
-  const ordered = [...members].sort((a, b) => {
-    if (a.role === 'owner' && b.role !== 'owner') return -1
-    if (b.role === 'owner' && a.role !== 'owner') return 1
-    return a.tenant_id.localeCompare(b.tenant_id)
-  })
-
-  const member = selected ? ordered.find(m => m.tenant_id === selected) : ordered[0]
-  return member?.tenant_id || null
-}
+import { authenticatedTenant, SALES_ROLES } from '@/lib/tenant-auth'
 
 export async function PATCH(request: Request) {
   try {
     // Obter tenantId via cookie/session
-    const tenantId = await getTenantId()
+    const { tenantId } = await authenticatedTenant(SALES_ROLES)
     if (!tenantId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }

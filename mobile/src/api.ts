@@ -11,7 +11,7 @@ export async function stores(signal: AbortSignal): Promise<Store[]> {
   if (storeError) throw new Error('Não foi possível carregar suas lojas.')
   return data || []
 }
-const orderFields = 'id,codigo,status,valor_total,data_criacao,cliente_nome,forma_pagamento,endereco_entrega,numero_entrega,complemento_entrega,bairro_entrega,observacoes,tipo_entrega,pago,pedido_itens(id,nome,quantidade,observacao,variante_nome,complementos,pedido_complementos(nome,quantidade,valor))'
+const orderFields = 'id,codigo,status,valor_total,data_criacao,cliente_nome,cliente_whatsapp,forma_pagamento,endereco_entrega,numero_entrega,complemento_entrega,bairro_entrega,observacoes,tipo_entrega,pago,pedido_itens(id,nome,quantidade,observacao,variante_nome,complementos,pedido_complementos(nome,quantidade,valor))'
 export async function orders(storeId: string, period: Period, stage: Stage, page: number, signal: AbortSignal) {
   const range = dateRange(period)
   const { data, error, count } = await supabase.from('pedidos').select(orderFields, { count: 'exact' }).eq('tenant_id', storeId).is('deleted_at', null).eq('status', stage).gte('data_criacao', range.from).lt('data_criacao', range.until).order('data_criacao', { ascending: false }).order('id', { ascending: false }).range(page * 25, page * 25 + 24).abortSignal(signal)
@@ -30,7 +30,7 @@ export async function catalog(storeId: string, signal: AbortSignal) {
   if (categories.error) throw new Error('Não foi possível carregar as seções.')
   const products: Product[] = []
   for (let offset = 0; ; offset += 100) {
-    const { data, error } = await supabase.from('produtos').select('id,categoria_id,nome,imagem_url,preco,pontos,ativo,ordem,exibir_preco_a_partir_de').eq('tenant_id', storeId).is('deleted_at', null).order('ordem').order('id').range(offset, offset + 99).abortSignal(signal)
+    const { data, error } = await supabase.from('produtos').select('id,categoria_id,nome,descricao,imagem_url,imagem_path,preco,preco_riscado,pontos,ativo,ordem,exibir_preco_a_partir_de,codigo_externo,tempo_preparo_min,eh_adicional,disponivel_mesa,disponivel_delivery,disponivel_retirada,etiquetas,pode_ser_metade,texto_metade,fracionar_item,dias_disponiveis,horario_inicio,horario_fim,limite_vendas_dia,limite_vendas_turno,controlar_estoque,quantidade_estoque,sabores_grupo_id,sabores_maximo').eq('tenant_id', storeId).is('deleted_at', null).order('ordem').order('id').range(offset, offset + 99).abortSignal(signal)
     if (error) throw new Error('Não foi possível carregar os produtos.')
     products.push(...(data || []))
     if (!data || data.length < 100) break
