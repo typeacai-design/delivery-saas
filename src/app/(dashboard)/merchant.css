@@ -583,3 +583,26 @@
  .wd-merchant .wd-order-pair{display:contents}
  .wd-new-order-notification{top:24px;right:24px;padding:16px 24px;border:0;background:linear-gradient(to right,#22c55e,#16a34a);box-shadow:0 25px 50px -12px #00000040}
 }
+
+/* Approved compact period selector: history on mobile only. */
+@media(max-width:767px){
+ .wd-merchant .wd-period-filter{margin-bottom:16px}
+ .wd-merchant .wd-period-trigger{width:100%;display:grid;grid-template-columns:21px minmax(0,1fr) 15px;align-items:center;gap:10px;border:1px solid #dfe7e1;background:#fff;box-shadow:0 2px 5px #17251c08;border-radius:13px;padding:9px 13px;min-height:56px;text-align:left;color:#17251c}
+ .wd-merchant .wd-period-trigger>svg:first-child{color:#368b49}
+ .wd-merchant .wd-period-trigger small{display:block;font-size:11px;color:#748178;margin-bottom:2px}
+ .wd-merchant .wd-period-trigger strong{display:block;font-size:14px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+ .wd-merchant .wd-period-calendar{margin-top:10px;padding:13px;background:#fff;border:1px solid #e5ece7;border-radius:15px;box-shadow:0 3px 8px #17251c08}
+ .wd-merchant .wd-period-month{display:grid;grid-template-columns:40px minmax(0,1fr) 40px;align-items:center;gap:5px;margin-bottom:10px}
+ .wd-merchant .wd-period-month button{border:1px solid #e3eae5;background:#f7f9f7;color:#397346;border-radius:11px;min-height:40px;display:grid;place-items:center}
+ .wd-merchant .wd-period-month>strong{font-size:14px;text-align:center;font-weight:650;text-transform:capitalize}
+ .wd-merchant .wd-period-instruction{font-size:12px;color:#57705e;text-align:center;margin:10px 0 13px;min-height:18px}
+ .wd-merchant .wd-period-week,.wd-merchant .wd-period-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+ .wd-merchant .wd-period-week span{font-size:11px;color:#748178;text-align:center;padding:7px 0}
+ .wd-merchant .wd-period-days button{min-width:0;min-height:42px;padding:0;border:0;background:#fff;color:#243d2d;font-size:13px;border-radius:9px}
+ .wd-merchant .wd-period-days button[data-between=true]{background:#e4f2e8;color:#247239}
+ .wd-merchant .wd-period-days button[aria-pressed=true]{background:#119c48;color:#fff;font-weight:700}
+ .wd-merchant .wd-period-actions{display:grid;grid-template-columns:1fr 1.5fr;gap:9px;margin-top:17px}
+ .wd-merchant .wd-period-actions button{min-height:44px;border-radius:12px;font-size:13px;border:1px solid #dfe7e1;background:#fff;color:#5e7064}
+ .wd-merchant .wd-period-actions .wd-period-apply{border:0;background:linear-gradient(#16ae55,#09913f);color:#fff;font-weight:600;box-shadow:0 3px 0 #08732f}
+}
+@media(max-width:360px){.wd-merchant .wd-period-trigger{gap:7px;padding:9px 11px}.wd-merchant .wd-period-calendar{padding:10px}}
