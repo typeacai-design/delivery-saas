@@ -15,7 +15,7 @@ npm test
 npm run export:android
 ```
 
-Use apenas URL e chave publicável do Supabase. Senhas, service role, tokens de gerenciamento e chaves privadas não pertencem ao app. Sessões são armazenadas em fragmentos criptografados no SecureStore. Cada mutação valida o vínculo com a loja e preserva RLS; APIs exigem bearer Supabase e `x-wd-tenant-id` explícito.
+Use apenas URL e chave publicável do Supabase. Senhas, service role, tokens de gerenciamento e chaves privadas não pertencem ao app. Sessões são armazenadas em fragmentos criptografados no SecureStore. Cada mutação valida o vínculo com a loja e preserva as políticas RLS existentes. Não há chave privilegiada, nova API HTTP nem dependência de publicar o site para executar esta versão.
 
 ## APK
 
