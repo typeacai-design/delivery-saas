@@ -1,21 +1,23 @@
+import DateRangeFilter,{type DayRange} from './DateRangeFilter'
+import MoreScreen from './MoreScreen'
+import HomeScreen from './HomeScreen'
+import CatalogScreen from './CatalogScreen'
+import {BottomNav,PageHeading,Segments,m,palette} from './merchant-layout'
+import {Utensils,ChevronDown,ChevronLeft,ChevronRight,Activity,History,Plus,Box,CreditCard,MapPin,MessageSquare,Truck,Clock,Check,Pencil,Printer,XCircle} from 'lucide-react-native'
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, AppState, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import * as WebBrowser from 'expo-web-browser'
 import type { Session } from '@supabase/supabase-js'
-import { Button, Notice, s } from './ui'
+import {Text, Button, Notice, s } from './ui'
 import {useRemote} from './useRemote'
 import Finance from './Finance'
-import SettingsForms from './SettingsForms'
 import {useOrderAlerts} from './useOrderAlerts'
 import EntityScreen from './EntityScreen'
-import {entities} from './entities'
 import OrderEditor from './OrderEditor'
 import {request} from './transport'
 import * as Print from 'expo-print'
-import ProductEditor from './ProductEditor'
-import { productAction } from './catalog-api'
 import { configured, supabase } from './supabase'
 import * as api from './api'
 import { addons, canUseStore, money, oauthCode, stageLabels, stages, type Order, type Period, type Stage, type Store } from './domain'
@@ -61,15 +63,6 @@ function Login() {
     </View><Text style={s.footnote}>Prévia Android · Acesso do lojista</Text>
   </ScrollView></KeyboardAvoidingView>
 }
-function Home({ store, pulse, openOrders }: { store: Store; pulse: number; openOrders: () => void }) {
-  const load = useCallback((signal: AbortSignal) => api.counts(store.id, signal), [store.id, pulse]), state = useRemote(load)
-  return <ScrollView contentContainerStyle={s.content}>
-    <View style={[s.card, s.storeHeader]}>{store.logo_url ? <Image source={{ uri: store.logo_url }} style={s.storeLogo} /> : null}<Text style={s.cardTitle}>{store.nome}</Text><Text style={s.subtitle}>{store.loja_aberta_manual === null ? 'Horário automático' : store.loja_aberta_manual ? 'Aberta manualmente' : 'Fechada manualmente'}</Text></View>
-    <Heading title="Seu dia" subtitle="Acompanhe os pedidos de hoje" />
-    {state.loading ? <ActivityIndicator color="#19894e" /> : state.error ? <Notice text={state.error} retry={state.retry} /> : <View style={s.row}><View style={[s.card, s.metric]}><Text style={s.metricValue}>{state.data?.today}</Text><Text style={s.subtitle}>Pedidos hoje</Text></View><View style={[s.card, s.metric]}><Text style={s.metricValue}>{state.data?.fresh}</Text><Text style={s.subtitle}>Novos</Text></View></View>}
-    <Button title="Ver pedidos" onPress={openOrders} />
-  </ScrollView>
-}
 function OrderCard({ order, storeId, refresh }: { order: Order; storeId:string;refresh():void }) {
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false)
   async function change(status:string){if(busy)return;setBusy(true);setError('');try{await request(storeId,`/api/pedidos/${order.id}/status`,'PATCH',{pedido_id:order.id,status});refresh()}catch(e:any){setError(e.message)}finally{setBusy(false)}}
@@ -77,52 +70,42 @@ function OrderCard({ order, storeId, refresh }: { order: Order; storeId:string;r
   async function print(){try{const esc=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));await Print.printAsync({html:`<html><meta charset="utf-8"><body><h1>Pedido #${esc(order.codigo)}</h1><p>${esc(order.cliente_nome)}</p>${order.pedido_itens.map(i=>`<h2>${i.quantidade}× ${esc(i.nome)}</h2>${addons(i).map(a=>`<p>+ ${a.quantidade}× ${esc(a.nome)}</p>`).join('')}`).join('')}<p>${esc(order.endereco_entrega)}</p><p>${esc(order.observacoes)}</p><h2>${esc(money(order.valor_total))}</h2></body></html>`})}catch(e:any){setError(e.message)}}
   const next=order.status==='novo'?'preparando':order.status==='preparando'?'pronto':order.status==='pronto'?(order.tipo_entrega==='delivery'?'saiu':'entregue'):order.status==='saiu'?'entregue':null
 
-  return <View style={s.card}>
-    <View style={s.between}><Text style={s.orderCode}>#{order.codigo || order.id.slice(0, 8)}</Text><Text style={s.tag}>{order.tipo_entrega === 'retirada' ? 'Retirada' : order.tipo_entrega === 'mesa' ? 'Mesa' : 'Delivery'} · {new Date(order.data_criacao).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</Text></View>
-    <Text style={s.customer}>{order.cliente_nome || 'Cliente'}</Text>
-    {order.pedido_itens.map(item => <View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.quantidade}× {item.nome}{item.variante_nome ? ` · ${item.variante_nome}` : ''}</Text>{addons(item).map((extra, i) => <Text key={i} style={s.addon}>+ {extra.quantidade}× {extra.nome}</Text>)}{item.observacao ? <Text style={s.details}>{item.observacao}</Text> : null}</View>)}
-    <View style={s.infoBox}><Text style={s.label}>Pagamento</Text><Text style={s.details}>{order.forma_pagamento?.join(' + ') || 'Não informado'} · {order.pago ? 'Pago' : 'A receber'}</Text></View>
-    {order.tipo_entrega !== 'retirada' && order.endereco_entrega ? <View style={s.infoBox}><Text style={s.label}>Endereço</Text><Text style={s.details}>{[order.endereco_entrega, order.numero_entrega, order.complemento_entrega, order.bairro_entrega].filter(Boolean).join(', ')}</Text></View> : null}
-    {order.observacoes ? <View style={s.infoBox}><Text style={s.label}>Observações</Text><Text style={s.details}>{order.observacoes}</Text></View> : null}
-    <View style={[s.between, s.total]}><Text style={s.label}>Total</Text><Text style={s.totalValue}>{money(order.valor_total)}</Text></View>
+  const info=(title:string,text:string,Icon:any)=><View style={[s.infoBox,s.row,{gap:11,alignItems:'flex-start'}]}><View style={{width:34,height:34,borderRadius:10,backgroundColor:'#dcefe2',alignItems:'center',justifyContent:'center'}}><Icon size={18} color="#1b7437" strokeWidth={1.8}/></View><View style={s.flex}><Text style={{fontSize:11,fontWeight:'600',letterSpacing:0.8,color:'#5c7263',marginBottom:6}}>{title}</Text><Text style={s.details}>{text}</Text></View></View>
+  const phone=String(order.cliente_whatsapp||'').replace(/\D/g,'')
+  return <View style={[s.card,{padding:17,borderRadius:20,gap:10}]}>
+    <View style={s.between}><Text style={s.orderCode}>#{order.codigo || order.id.slice(0, 8)}</Text><Text style={{backgroundColor:order.status==='entregue'?'#dcefe2':order.status==='cancelado'?'#fff1ef':'#fff2d8',color:order.status==='entregue'?'#1b7437':order.status==='cancelado'?'#ae4c45':'#946020',paddingVertical:5,paddingHorizontal:9,fontSize:11,borderRadius:8,fontWeight:'600'}}>{stageLabels[order.status]}</Text></View>
+    <View style={{flexDirection:'row',gap:7,flexWrap:'wrap'}}><View style={{flexDirection:'row',alignItems:'center',gap:6,paddingVertical:6,paddingHorizontal:9,borderRadius:8,backgroundColor:'#dbeafe'}}><Truck size={14} color="#1d4ed8"/><Text style={{fontSize:12,fontWeight:'600',color:'#1d4ed8'}}>{order.tipo_entrega==='retirada'?'Retirada':order.tipo_entrega==='mesa'?'Mesa':'Delivery'}</Text></View><View style={{flexDirection:'row',alignItems:'center',gap:6,paddingVertical:6,paddingHorizontal:9,borderRadius:8,backgroundColor:'#edf0f4'}}><Clock size={14} color="#465368"/><Text style={{fontSize:12,fontWeight:'600',color:'#465368'}}>{new Date(order.data_criacao).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</Text></View></View>
+    <Text style={{fontSize:16,fontWeight:'600',letterSpacing:-0.2,marginBottom:4}}>{order.cliente_nome||'Cliente'}</Text>
+    <View style={{gap:9,marginBottom:9}}><Text style={{fontSize:11,fontWeight:'600',letterSpacing:1.4,color:'#64766a'}}>PRODUTOS</Text>{order.pedido_itens.map(item=><View key={item.id} style={s.item}><View style={[s.row,{gap:11,alignItems:'center'}]}><View style={{minWidth:34,height:34,paddingHorizontal:7,borderRadius:10,backgroundColor:'#dcefe2',justifyContent:'center',alignItems:'center'}}><Text style={{fontSize:16,fontWeight:'800',color:'#1b7437'}}>{item.quantidade}×</Text></View><View style={s.flex}><Text style={[s.itemTitle,{color:'#1b3525'}]}>{item.nome}</Text>{item.variante_nome?<Text style={{fontSize:13,color:'#31523b'}}>{item.variante_nome}</Text>:null}</View></View>{addons(item).length?<View style={{marginLeft:45,paddingTop:10,marginTop:5,borderTopWidth:1,borderTopColor:'#dde8e0',gap:6}}><Text style={{fontSize:11,fontWeight:'600',color:'#5c7263'}}>Complementos escolhidos</Text>{addons(item).map((extra,i)=><View key={i} style={{flexDirection:'row',gap:7}}><Text style={{fontSize:12,fontWeight:'700',color:'#21783d'}}>{extra.quantidade}×</Text><Text style={{flex:1,fontSize:13,lineHeight:18,color:'#31523b'}}>{extra.nome}</Text></View>)}</View>:null}{item.observacao?<Text style={{fontSize:13,color:'#31523b',lineHeight:20}}>{item.observacao}</Text>:null}</View>)}</View>
+    {info('PAGAMENTO',order.forma_pagamento?.join(' + ')||'Não informado',CreditCard)}<Text style={{alignSelf:'flex-start',marginTop:-3,marginLeft:57,fontSize:11,fontWeight:'600',paddingVertical:4,paddingHorizontal:7,borderRadius:6,backgroundColor:order.pago?'#dcefe2':'#fff0d3',color:order.pago?'#1b7437':'#89530b'}}>{order.pago?'Pago':'A receber'}</Text>
+    {order.tipo_entrega!=='retirada'&&order.endereco_entrega?info('ENDEREÇO',[order.endereco_entrega,order.numero_entrega,order.complemento_entrega,order.bairro_entrega].filter(Boolean).join(', '),MapPin):null}
+    {order.observacoes?info('OBSERVAÇÕES',order.observacoes,MessageSquare):null}
+    <View style={[s.between,s.total,{marginVertical:5}]}><Text style={{fontSize:13,color:'#6b7970'}}>Total</Text><Text style={{fontSize:20,fontWeight:'700',letterSpacing:-0.5,color:'#1a3825'}}>{money(order.valor_total)}</Text></View>
     {error?<Notice text={error}/>:null}
-    {next?<Button title={order.status==='novo'?'Aceitar pedido':`Marcar como ${stageLabels[next as Stage].toLowerCase()}`} disabled={busy} onPress={()=>void change(next)}/>:null}
-    {order.status!=='cancelado'?<Button title={order.pago?'Marcar como não pago':'Marcar como pago'} secondary disabled={busy} onPress={()=>Alert.alert(order.pago?'Desmarcar pagamento?':'Confirmar pagamento?',`Pedido #${order.codigo||order.id.slice(0,8)} · ${money(order.valor_total)}`,[{text:'Voltar',style:'cancel'},{text:'Confirmar',onPress:()=>void paid()}])}/>:null}
-    <View style={s.wrap}><Button title="Editar pedido" secondary disabled={busy} onPress={()=>setEditing(true)}/><Button title="Imprimir" secondary onPress={()=>void print()}/>{order.status!=='cancelado'&&order.status!=='entregue'?<Button title={order.status==='novo'?'Rejeitar':'Cancelar pedido'} secondary disabled={busy} onPress={()=>Alert.alert('Cancelar pedido?','O pedido será movido para Cancelados.',[{text:'Voltar',style:'cancel'},{text:'Confirmar cancelamento',style:'destructive',onPress:()=>void change('cancelado')}])}/>:null}</View>
+    {next?<Button title={order.status==='novo'?'Aceitar pedido':`Marcar como ${stageLabels[next as Stage].toLowerCase()}`} icon={Check} disabled={busy} onPress={()=>void change(next)}/>:null}
+    <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
+    {order.status!=='cancelado'?<View style={{width:'48%'}}><Button title={order.pago?'Marcar não pago':'Marcar como pago'} icon={CreditCard} secondary disabled={busy} onPress={()=>Alert.alert(order.pago?'Desmarcar pagamento?':'Confirmar pagamento?',`Pedido #${order.codigo||order.id.slice(0,8)} · ${money(order.valor_total)}`,[{text:'Voltar',style:'cancel'},{text:'Confirmar',onPress:()=>void paid()}])}/></View>:null}
+    <View style={{width:'48%'}}><Button title="WhatsApp" icon={MessageSquare} secondary disabled={!phone} onPress={()=>void Linking.openURL(`https://wa.me/${phone.length<=11?'55':''}${phone}`).catch(()=>setError('Não foi possível abrir o WhatsApp.'))}/></View>
+    <View style={{width:'48%'}}><Button title="Editar pedido" icon={Pencil} secondary disabled={busy} onPress={()=>setEditing(true)}/></View><View style={{width:'48%'}}><Button title="Imprimir" icon={Printer} secondary onPress={()=>void print()}/></View>
+    {order.status!=='cancelado'&&order.status!=='entregue'?<View style={{width:'48%'}}><Button title={order.status==='novo'?'Rejeitar':'Cancelar pedido'} icon={XCircle} secondary disabled={busy} onPress={()=>Alert.alert('Cancelar pedido?','O pedido será movido para Cancelados.',[{text:'Voltar',style:'cancel'},{text:'Confirmar cancelamento',style:'destructive',onPress:()=>void change('cancelado')}])}/></View>:null}</View>
     {editing?<OrderEditor storeId={storeId} order={order} close={()=>setEditing(false)} saved={refresh}/>:null}
   </View>
 }
 function Orders({ store, pulse }: { store: Store; pulse: number }) {
-  const [period, setPeriod] = useState<Period>('hoje'), [stage, setStage] = useState<Stage>('novo'), [page, setPage] = useState(0)
-  const load = useCallback((signal: AbortSignal) => api.orders(store.id, period, stage, page, signal), [store.id, period, stage, page, pulse]), state = useRemote(load), index = stages.indexOf(stage)
-  function move(n: number) { setStage(stages[(index + n + stages.length) % stages.length]); setPage(0) }
-  return <View style={s.flex}><Heading title="Pedidos" subtitle="Acompanhe seu atendimento" />
-    <View style={s.period}>{(['hoje', 'ontem'] as const).map(p => <Pressable accessibilityRole="button" accessibilityState={{ selected: period === p }} key={p} onPress={() => { setPeriod(p); setPage(0) }} style={[s.periodButton, period === p && s.periodActive]}><Text style={period === p ? s.selectedText : s.subtitle}>{p === 'hoje' ? 'Hoje' : 'Ontem'}</Text></Pressable>)}</View>
-    <View style={s.stages}><Button title="‹" secondary onPress={() => move(-1)} /><Text accessibilityRole="header" style={s.stageTitle}>{stageLabels[stage]}{state.data ? ` · ${state.data.count}` : ''}</Text><Button title="›" secondary onPress={() => move(1)} /></View>
-    <ScrollView contentContainerStyle={s.content}>
-      {state.loading ? <ActivityIndicator color="#19894e" /> : state.error ? <Notice text={state.error} retry={state.retry} /> : !state.data?.orders.length ? <View style={s.empty}><Text style={s.cardTitle}>Nenhum pedido nesta etapa</Text></View> : state.data.orders.map(order => <OrderCard key={order.id} order={order} storeId={store.id} refresh={state.retry} />)}
-      {state.data && state.data.count > 25 ? <View style={s.between}><Button title="Anterior" secondary disabled={page === 0} onPress={() => setPage(x => x - 1)} /><Text>{page + 1} / {Math.ceil(state.data.count / 25)}</Text><Button title="Próxima" secondary disabled={(page + 1) * 25 >= state.data.count} onPress={() => setPage(x => x + 1)} /></View> : null}
-    </ScrollView>
-  </View>
-}
-function Catalog({ store, pulse }: { store: Store; pulse: number }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({}), [editor,setEditor]=useState<any>(null), [actionError,setActionError]=useState('')
-  async function toggle(id:string,active:boolean){try{await productAction(store.id,id,{ativo:active});state.retry()}catch(e:any){setActionError(e.message)}}
-  const load = useCallback((signal: AbortSignal) => api.catalog(store.id, signal), [store.id, pulse]), state = useRemote(load)
-  const categories = state.data ? [...state.data.categories, ...(state.data.products.some(p => !state.data!.categories.some(c => c.id === p.categoria_id)) ? [{ id: 'other', nome: 'Sem seção', ordem: 9999 }] : [])] : []
-  return <View style={s.flex}><Heading title="Cardápio" subtitle="Seus produtos organizados por seção" /><ScrollView contentContainerStyle={s.content}><Button title="Novo produto" onPress={()=>setEditor({})}/>{actionError?<Notice text={actionError}/>:null}
-    {state.loading ? <ActivityIndicator color="#19894e" /> : state.error ? <Notice text={state.error} retry={state.retry} /> : categories.length === 0 ? <Text style={s.subtitle}>Nenhuma seção cadastrada.</Text> : categories.map(category => {
-      const products = state.data!.products.filter(p => category.id === 'other' ? !state.data!.categories.some(c => c.id === p.categoria_id) : p.categoria_id === category.id)
-      return <View key={category.id} style={s.group}><Pressable accessibilityRole="button" accessibilityState={{ expanded: !!expanded[category.id] }} onPress={() => setExpanded(x => ({ ...x, [category.id]: !x[category.id] }))} style={s.groupHeading}><Text style={s.cardTitle}>{category.nome}</Text><Text style={s.subtitle}>{products.length} produtos · {expanded[category.id] ? 'Recolher' : 'Ver produtos'}</Text></Pressable>
-        {expanded[category.id] && products.map(p => <View style={s.product} key={p.id}><View style={s.row}>{p.imagem_url ? <Image source={{ uri: p.imagem_url }} style={s.productImage} /> : null}<View style={s.flex}><Text style={s.itemTitle}>{p.nome}</Text><Text style={s.green}>{p.exibir_preco_a_partir_de ? 'A partir de ' : ''}{money(p.preco)}</Text><Text style={s.subtitle}>{p.pontos || 0} pontos</Text></View></View><Text style={[s.productStatus, !p.ativo && s.inactive]}>{p.ativo ? 'Ativo' : 'Inativo'}</Text><View style={s.row}><View style={s.flex}><Button title="Editar" secondary onPress={()=>setEditor(p)}/></View><View style={s.flex}><Button title={p.ativo?"Desativar":"Ativar"} secondary onPress={()=>void toggle(p.id,!p.ativo)}/></View></View></View>)}
-      </View>
-    })}
-  </ScrollView>{editor&&state.data?<ProductEditor storeId={store.id} product={editor.id?editor:undefined} categories={state.data.categories} products={state.data.products} close={()=>setEditor(null)} saved={state.retry}/>:null}</View>
-}
-function More({storeId}:{storeId:string}){
- const [page,setPage]=useState<string|null>(null)
- if(page)return <View style={s.flex}><View style={s.content}><Button title="Voltar" secondary onPress={()=>setPage(null)}/></View>{page==='profile'||page==='design'?<SettingsForms key={page} storeId={storeId} mode={page}/>:<EntityScreen key={page} storeId={storeId} entityId={page}/>}</View>
- return <ScrollView contentContainerStyle={s.content}><Heading title="Tudo da sua loja" subtitle="Organizado em um só lugar"/><Button title="Perfil da loja" secondary onPress={()=>setPage('profile')}/><Button title="Design do cardápio" secondary onPress={()=>setPage('design')}/>{Object.entries(entities).map(([key,entity])=><Button key={key} title={entity.title} secondary onPress={()=>setPage(key)}/>)}</ScrollView>
+ const [period,setPeriod]=useState<Period>('hoje'),[stage,setStage]=useState<Stage|'todos'>('novo'),[page,setPage]=useState(0),[tab,setTab]=useState('fluxo'),[showStages,setShowStages]=useState(false),[range,setRange]=useState<DayRange>(()=>{const now=new Date(),parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);return {from:parts,to:parts}})
+ const load=useCallback((signal:AbortSignal)=>api.orders(store.id,period,stage,page,signal,tab==='historico'?range:undefined),[store.id,period,stage,page,pulse,tab,range.from,range.to]),state=useRemote(load)
+ const options: (Stage|'todos')[]=tab==='historico'?['todos',...stages]:[...stages],index=options.indexOf(stage)
+ function selectStage(value:Stage|'todos'){setStage(value);setPage(0);setShowStages(false)}
+ function move(n:number){selectStage(options[(index+n+options.length)%options.length])}
+ function changeTab(value:string){setTab(value);setStage(value==='historico'?'todos':'novo');setPage(0)}
+ const heading=<><PageHeading title="Pedidos" subtitle="Gerencie os pedidos do seu delivery"/><Button title="Novo Pedido" icon={Plus} onPress={()=>Alert.alert('Novo pedido','O cadastro manual ainda está em preparação no aplicativo. Você pode fazê-lo no website por enquanto.')}/><Segments items={[{id:'fluxo',label:'Fluxo',icon:Activity},{id:'historico',label:'Histórico',icon:History},{id:'mesas',label:'Mesas',icon:Utensils}]} value={tab} onChange={changeTab}/></>
+ if(tab==='mesas')return <View style={s.flex}><View style={[s.content,{paddingBottom:0}]}>{heading}</View><EntityScreen storeId={store.id} entityId="tables"/></View>
+ return <View style={s.flex}><ScrollView contentContainerStyle={s.content}>{heading}
+ {tab==='historico'?<DateRangeFilter value={range} onChange={value=>{setRange(value);setPage(0)}}/>:<View style={[s.card,{padding:12,alignItems:'center'}]}><View style={s.period}>{(['hoje','ontem'] as const).map(p=><Pressable accessibilityRole="button" accessibilityState={{selected:period===p}} key={p} onPress={()=>{setPeriod(p);setPage(0)}} style={[s.periodButton,{borderRadius:6,backgroundColor:'#f3f4f6',paddingVertical:8,paddingHorizontal:12},period===p&&{backgroundColor:'#4aa347'}]}><Text style={{fontSize:14,color:'#17251c'}}>{p==='hoje'?'Hoje':'Ontem'}</Text></Pressable>)}</View></View>}
+ <View style={[s.row,{gap:10,marginTop:4}]}><Pressable accessibilityLabel="Etapa anterior" onPress={()=>move(-1)} style={[m.iconButton,{minHeight:54,borderWidth:1,borderColor:'#dfe7e1',backgroundColor:'#fff',borderRadius:14}]}><ChevronLeft size={20}/></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Escolher etapa do pedido" accessibilityState={{expanded:showStages}} onPress={()=>setShowStages(true)} style={m.stage}><Text style={m.stageTitle}>{stage==='todos'?'Todos':stageLabels[stage]} · {state.data?.count??0}</Text><ChevronDown size={18} color="#326f40"/></Pressable><Pressable accessibilityLabel="Próxima etapa" onPress={()=>move(1)} style={[m.iconButton,{minHeight:54,borderWidth:1,borderColor:'#dfe7e1',backgroundColor:'#fff',borderRadius:14}]}><ChevronRight size={20}/></Pressable></View>
+ {state.loading&&!state.data?<ActivityIndicator color={palette.green}/>:state.error?<Notice text={state.error} retry={state.retry}/>:!state.data?.orders.length?<View style={[m.empty,{minHeight:180}]}><Box size={28} color="#a4adab" strokeWidth={1.4}/><Text style={m.emptyTitle}>Nenhum pedido encontrado</Text><Text style={[s.subtitle,{color:'#98a1ad'}]}>Tente outro filtro ou período.</Text></View>:state.data.orders.map(order=><OrderCard key={order.id} order={order} storeId={store.id} refresh={state.retry}/>)}
+ {state.data&&state.data.count>25?<View style={s.between}><Button title="Anterior" secondary disabled={page===0} onPress={()=>setPage(x=>x-1)}/><Text>{page+1} / {Math.ceil(state.data.count/25)}</Text><Button title="Próxima" secondary disabled={(page+1)*25>=state.data.count} onPress={()=>setPage(x=>x+1)}/></View>:null}
+ </ScrollView><Modal transparent animationType="slide" visible={showStages} onRequestClose={()=>setShowStages(false)}><View style={m.sheetOverlay}><View style={m.sheet}><Text style={s.cardTitle}>Escolher etapa</Text>{options.map(value=><Button key={value} title={value==='todos'?'Todos':stageLabels[value]} secondary={value!==stage} onPress={()=>selectStage(value)}/>)}<Button title="Fechar" secondary onPress={()=>setShowStages(false)}/></View></View></Modal></View>
 }
 function Merchant({ store, changeStore }: { store: Store; changeStore?: () => void }) {
   const [tab, setTab] = useState<'home' | 'orders' | 'catalog' | 'finance' | 'more'>('home'), [pulse, setPulse] = useState(0),[alertError,setAlertError]=useState('')
@@ -135,9 +118,9 @@ function Merchant({ store, changeStore }: { store: Store; changeStore?: () => vo
     const listener = AppState.addEventListener('change', state => { if (state === 'active') refresh() })
     return () => { clearTimeout(debounce); clearInterval(timer); listener.remove(); void supabase.removeChannel(channel) }
   }, [store.id])
-  return <View style={s.flex}><View style={s.topBar}>{changeStore ? <Pressable accessibilityRole="button" onPress={changeStore}><Text style={s.green}>Trocar loja</Text></Pressable> : <View />}<Pressable accessibilityRole="button" onPress={() => void supabase.auth.signOut({ scope: 'local' })}><Text style={s.subtitle}>Sair</Text></Pressable></View>
-    {alertError?<Notice text={alertError}/>:null}<View style={s.flex}>{tab === 'home' ? <Home store={store} pulse={pulse} openOrders={() => setTab('orders')} /> : tab === 'orders' ? <Orders store={store} pulse={pulse} /> : tab==='finance'?<Finance storeId={store.id}/>:tab==='more'?<More storeId={store.id}/>:<Catalog store={store} pulse={pulse} />}</View>
-    <View style={s.nav}>{([{ id: 'home', icon: '⌂', text: 'Início' }, { id: 'orders', icon: '▣', text: 'Pedidos' }, { id: 'catalog', icon: '☷', text: 'Cardápio' }, { id: 'finance', icon: '$', text: 'Financeiro' }, { id: 'more', icon: '☰', text: 'Mais' }] as const).map(item => <Pressable accessibilityRole="tab" accessibilityState={{ selected: tab === item.id }} key={item.id} onPress={() => setTab(item.id)} style={[s.navItem, tab === item.id && s.navActive]}><Text style={[s.navIcon, tab === item.id && s.green]}>{item.icon}</Text><Text style={tab === item.id ? s.green : s.subtitle}>{item.text}</Text></Pressable>)}</View>
+  return <View style={s.flex}>{changeStore?<View style={{paddingHorizontal:24,paddingTop:8}}><Pressable accessibilityRole="button" onPress={changeStore} style={m.footerLink}><Text style={m.footerText}>Trocar loja</Text></Pressable></View>:null}
+    {alertError?<Notice text={alertError}/>:null}<View style={s.flex}>{tab === 'home' ? <HomeScreen store={store} pulse={pulse} openOrders={() => setTab('orders')} newOrder={()=>Alert.alert('Novo pedido','O cadastro manual ainda está em preparação no aplicativo. Você pode fazê-lo no website por enquanto.')} /> : tab === 'orders' ? <Orders store={store} pulse={pulse} /> : tab==='finance'?<Finance storeId={store.id}/>:tab==='more'?<MoreScreen storeId={store.id}/>:<CatalogScreen store={store} pulse={pulse} />}</View>
+    <BottomNav tab={tab} onChange={setTab}/>
   </View>
 }
 function Account({ session }: { session: Session }) {

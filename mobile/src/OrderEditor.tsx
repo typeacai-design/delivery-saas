@@ -1,7 +1,7 @@
 import {useState} from 'react'
-import {Modal,ScrollView,Text,TextInput,View} from 'react-native'
+import {Modal,ScrollView,TextInput,View} from 'react-native'
 import {SafeAreaView} from 'react-native-safe-area-context'
-import {Button,Notice,s} from './ui'
+import {Text,Button,Notice,s} from './ui'
 import {request} from './transport'
 import type {Order} from './domain'
 const fields=[['cliente_nome','Nome do cliente'],['cliente_whatsapp','WhatsApp'],['endereco_entrega','Endereço'],['numero_entrega','Número'],['complemento_entrega','Complemento'],['bairro_entrega','Bairro'],['observacoes','Observações']] as const

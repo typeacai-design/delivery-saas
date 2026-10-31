@@ -41,3 +41,14 @@ A revisão automática rejeitou a publicação de uma Edge Function por exposiç
 ## Correção de compatibilidade 0.2.1
 
 O APK 0.2.0 foi empacotado somente para arm64-v8a. O usuário reportou rejeição de instalação em um Galaxy A03 Core SM-A032M/DS com Android 13. As fotos não confirmam a lista de ABIs do sistema; incompatibilidade de arquitetura é a hipótese principal. A versão 0.2.1 acrescenta armeabi-v7a e preserva arm64-v8a, com versionCode 3. O perfil EAS preview fixa as duas arquiteturas, e scripts/verify-apk-abis.py confere o cabeçalho ELF de todas as bibliotecas de ambas. A instalação no aparelho permanece sujeita ao novo teste do usuário. Nenhuma alteração ou deploy do site é necessário.
+
+## 0.2.2 — mobile website presentation parity (2026-10-31)
+
+- Native presentation now uses the website's Inter family (embedded 400/600/700/800), Lucide icons, exact mobile navigation measurements and colors from `merchant.css`. The five labels fit on one line; no Unicode substitutes.
+- Merchant header only on Início; logout in Mais. Home uses the same sales card, kitchen queue, monthly disclosure, store hours/override logic, and menu link sheet. No website deployment or database ACL change in this release.
+- Pedidos includes Fluxo/Histórico/Mesas, single calendar range control, stage dropdown, full card details and existing editing/actions. Manual order creation remains explicitly unavailable, with an explanation rather than a fake submission. Mesas currently manages registered tables; it does not reproduce live table sessions yet.
+- Cardápio now includes Produtos/Design/Complementos, named group disclosures and floating product cards, native full-screen editor, status/duplicate/remove/reorder controls. Complement editing still opens the general editor/list rather than deep-linking a selected record.
+- Financeiro exposes received/unpaid/balance summaries and three tabs, preserving the existing native authenticated transport. Mais follows the website's eight primary destinations, with existing native screens grouped underneath. Relatórios currently provides financial summary only; full website report parity remains pending.
+- This is a native Android test build, not a WebView. Pixel equivalence across Android/iOS/browser font engines is not assumed. Device verification remains with the tester; structural layout checks do not substitute for device testing.
+
+Validation for 0.2.2: TypeScript passed; 45 tests passed (including real local PostgreSQL payment rollback/isolation checks). The five React Native screens were additionally rendered with synthetic data through react-native-web at 320, 360 and 390 px: 15 combinations passed navigation pinning, five single-line labels and no horizontal page overflow. This browser-based layout check is not an Android device test. The website reference CSS was verified against main, Git blob `341c296d92d46c2d53f0f55eb418369400fa76ca`.

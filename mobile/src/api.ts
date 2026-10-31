@@ -12,9 +12,13 @@ export async function stores(signal: AbortSignal): Promise<Store[]> {
   return data || []
 }
 const orderFields = 'id,codigo,status,valor_total,data_criacao,cliente_nome,cliente_whatsapp,forma_pagamento,endereco_entrega,numero_entrega,complemento_entrega,bairro_entrega,observacoes,tipo_entrega,pago,pedido_itens(id,nome,quantidade,observacao,variante_nome,complementos,pedido_complementos(nome,quantidade,valor))'
-export async function orders(storeId: string, period: Period, stage: Stage, page: number, signal: AbortSignal) {
-  const range = dateRange(period)
-  const { data, error, count } = await supabase.from('pedidos').select(orderFields, { count: 'exact' }).eq('tenant_id', storeId).is('deleted_at', null).eq('status', stage).gte('data_criacao', range.from).lt('data_criacao', range.until).order('data_criacao', { ascending: false }).order('id', { ascending: false }).range(page * 25, page * 25 + 24).abortSignal(signal)
+export async function orders(storeId: string, period: Period, stage: Stage | 'todos', page: number, signal: AbortSignal, customRange?: {from:string;to:string}) {
+  const range = customRange ? {from:customRange.from ? customRange.from+'T00:00:00-03:00' : '',until:customRange.to ? new Date(new Date(customRange.to+'T00:00:00-03:00').getTime()+86400000).toISOString() : ''} : dateRange(period)
+  let query = supabase.from('pedidos').select(orderFields, {count:'exact'}).eq('tenant_id',storeId).is('deleted_at',null)
+  if(stage!=='todos')query=query.eq('status',stage)
+  if(range.from)query=query.gte('data_criacao',range.from)
+  if(range.until)query=query.lt('data_criacao',range.until)
+  const { data, error, count } = await query.order('data_criacao', {ascending:false}).order('id',{ascending:false}).range(page*25,page*25+24).abortSignal(signal)
   if (error) throw new Error('Não foi possível carregar os pedidos. Tente novamente.')
   return { orders: (data || []) as unknown as Order[], count: count || 0 }
 }
