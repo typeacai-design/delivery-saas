@@ -2,7 +2,7 @@
 
 Aplicativo nativo em React Native + Expo; não utiliza WebView para implementar telas. O navegador do sistema é usado somente para OAuth Google e links externos.
 
-**Versão 0.2.0 de testes, ainda sem paridade completa com o site.** Consulte [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) antes de testar ou publicar.
+**Versão 0.2.1 de testes, ainda sem paridade completa com o site.** Consulte [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) antes de testar ou publicar.
 
 ## Desenvolvimento
 
@@ -19,7 +19,7 @@ Use apenas URL e chave publicável do Supabase. Senhas, service role, tokens de 
 
 ## APK
 
-Com SDK Android, NDK, CMake e JDK compatíveis instalados, `npx expo prebuild --platform android` e `cd android && ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a` geram um APK de testes com bundle embutido. A configuração gerada usa assinatura de desenvolvimento; configure uma chave definitiva antes de distribuição pública. O app exige Android 7+ e esta compilação local contém ARM64.
+Com SDK Android, NDK, CMake e JDK compatíveis instalados, `npx expo prebuild --platform android` e `cd android && ./gradlew :app:assembleRelease -PreactNativeArchitectures=armeabi-v7a,arm64-v8a` geram um APK de testes com bundle embutido. A configuração gerada usa assinatura de desenvolvimento; configure uma chave definitiva antes de distribuição pública. O app exige Android 7+ e esta compilação contém ARM de 32 e 64 bits.
 
 O perfil `preview` de `eas.json` também gera APK; exige conta Expo, projeto EAS e variáveis públicas configuradas no ambiente de build. O app não depende do computador/Metro para executar o APK release.
 
