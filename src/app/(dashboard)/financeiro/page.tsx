@@ -72,7 +72,7 @@ export default function FinanceiroPage(){
   return <div className="wd-finance-page space-y-5">
     <header className="wd-page-heading">
       <div className="eyebrow mb-2">Financeiro</div>
-      <h1 className="text-3xl font-semibold">Financeiro</h1><p className="wd-mobile-subtitle">Seu dinheiro, sem complicação</p>
+      <h1 className="text-3xl font-semibold"><span className="wd-desktop-label">Gestão financeira</span><span className="wd-mobile-label">Financeiro</span></h1><p className="wd-mobile-subtitle">Seu dinheiro, sem complicação</p>
       <div className="wd-finance-desktop-balance flex items-center gap-4 mt-2">
         <span className={`text-2xl font-bold ${saldoTotal>=0?'text-green-600':'text-red-600'}`}>
           Saldo: {formatCurrency(saldoTotal)}

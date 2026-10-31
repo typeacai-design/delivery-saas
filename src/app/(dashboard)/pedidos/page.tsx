@@ -12,6 +12,8 @@ import { gerarMensagemWhatsApp, formatarFormaPagamentoDisplay, normalizarFormaPa
 import { useToast } from '@/components/toast'
 import { flavorLabel, parseComplements, flavorCount } from '@/lib/flavor-pricing'
 import { ProdutoModal } from '@/components/checkout-flow'
+import { useMerchantMobile } from '@/lib/use-merchant-mobile'
+import { useOrderSound } from '@/components/global-som-pedidos'
 import MerchantOrderStages from '@/components/merchant-order-stages'
 import { orderPeriodRange } from '@/lib/order-period'
 import MerchantOrderCard from '@/components/merchant-order-card'
@@ -389,6 +391,8 @@ function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compact
 }
 
 export default function PedidosPage() {
+  const mobile = useMerchantMobile()
+  const { somAtivado, alternarSom } = useOrderSound()
   const { error: toastError, success: toastSuccess, warning: toastWarning } = useToast()
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
@@ -578,6 +582,8 @@ export default function PedidosPage() {
       setPedidos(pedidosData)
     } catch (err) {
       console.error('Erro no loadPedidos:', err)
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -1137,6 +1143,28 @@ export default function PedidosPage() {
             <p className="hint">Gerencie os pedidos do seu delivery</p>
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            <div className="wd-desktop-orders-controls flex items-center gap-3">
+            {/* Botão Som só aparece no desktop (no mobile some pra economizar espaço) */}
+            <button
+              onClick={() => { setLoading(true); loadPedidos(); }}
+              className="px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border bg-white border-gray-300 text-gray-600 hover:bg-gray-100"
+              title="Atualizar pedidos"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
+              onClick={alternarSom}
+              className="hidden md:flex px-4 py-2 rounded-xl text-sm font-medium items-center gap-2 border"
+              style={{
+                background: somAtivado ? '#F0FDF4' : '#F3F4F6',
+                borderColor: somAtivado ? '#86EFAC' : '#D1D5DB',
+                color: somAtivado ? '#15803D' : '#6B7280',
+              }}
+              title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som desativado - clique para ativar'}
+            >
+              {somAtivado ? '🔊 Som' : '🔇 Mudo'}
+            </button>
+            </div>
             <Link
               href="/pedidos/novo"
               className="btn-primary flex items-center gap-2"
@@ -1481,6 +1509,21 @@ export default function PedidosPage() {
           : null
         return (
           <>
+            <div className="wd-desktop-orders-only">
+            {filtroStatus && statusConfig && (
+              <div className="mb-4 text-sm text-gray-500">
+                Mostrando <strong>{statusConfig.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
+                <button onClick={() => setFiltroStatus('')} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
+              </div>
+            )}
+
+            {(filtroDataDe || filtroDataAte) && (
+              <div className="mb-4 text-sm text-gray-500">
+                📅 Período: <strong>{filtroDataDe ? new Date(filtroDataDe + 'T00:00:00').toLocaleDateString('pt-BR') : '...'} até {filtroDataAte ? new Date(filtroDataAte + 'T00:00:00').toLocaleDateString('pt-BR') : '...'}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
+              </div>
+            )}
+
+            </div>
       {/* Lista de Pedidos em GRID 3 COLUNAS - key forca re-render quando filtro muda */}
       <div key={`grid-${filtroPeriodo}-${filtroDataDe}-${filtroDataAte}-${pedidosTab}`} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {loading ? (
@@ -2271,6 +2314,7 @@ export default function PedidosPage() {
               </button>
             </div>
 
+            {mobile ? (
             <div className="wd-oe-body p-4 space-y-4">
               {/* BLOCO 1: DADOS DO CLIENTE */}
               <MerchantDisclosure title="Dados do cliente" className="wd-oe-group" initiallyOpen>
@@ -2428,6 +2472,171 @@ export default function PedidosPage() {
                 </div>
               </MerchantDisclosure>
             </div>
+            ) : (
+            <div className="p-4 space-y-4">
+              {/* BLOCO 1: DADOS DO CLIENTE */}
+              <div className="bg-blue-50 rounded-xl p-4">
+                <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                  <span>👤</span> Dados do Cliente
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Nome</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.cliente_nome || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, cliente_nome: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">WhatsApp</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.cliente_whatsapp || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, cliente_whatsapp: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* BLOCO 2: ENDEREÇO DE ENTREGA */}
+              <div className="bg-green-50 rounded-xl p-4">
+                <h3 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
+                  <span>📍</span> Endereço de Entrega
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-sm md:col-span-2">
+                    <span className="font-medium block mb-1">Endereço</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.endereco_entrega || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, endereco_entrega: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Número</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.numero_entrega || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, numero_entrega: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Bairro</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.bairro_entrega || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, bairro_entrega: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Complemento</span>
+                    <input
+                      className="form-input w-full"
+                      value={pedidoEditando.complemento_entrega || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, complemento_entrega: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-sm md:col-span-2">
+                    <span className="font-medium block mb-1">Observações</span>
+                    <textarea
+                      className="form-input w-full"
+                      rows={2}
+                      value={pedidoEditando.observacoes || ''}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, observacoes: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* BLOCO 3: VALORES */}
+              <div className="bg-yellow-50 rounded-xl p-4">
+                <h3 className="font-semibold text-yellow-800 mb-3 flex items-center gap-2">
+                  <span>💰</span> Valores
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Taxa de entrega (R$)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input w-full"
+                      value={pedidoEditando.taxa_entrega || 0}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, taxa_entrega: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="font-medium block mb-1">Desconto (R$)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input w-full"
+                      value={pedidoEditando.valor_desconto || 0}
+                      onChange={e => setPedidoEditando({ ...pedidoEditando, valor_desconto: Number(e.target.value) })}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* BLOCO 4: ITENS */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold">Itens do pedido</h3>
+                  <button
+                    onClick={() => {
+                      const novoItem = { produto_id: '', nome: '', quantidade: 1, valor_unitario: 0, complementos: [] }
+                      setItensEditando([...itensEditando, novoItem])
+                    }}
+                    className="px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Adicionar item
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {itensEditando.map((item, idx) => (
+                    <ItemEditor
+                      key={idx}
+                      item={item}
+                      idx={idx}
+                      tenantId={tenantIdAtual}
+                      onChange={(i, novo) => {
+                        const novos = [...itensEditando]
+                        novos[i] = novo
+                        setItensEditando(novos)
+                      }}
+                      onRemove={(i) => {
+                        const novos = itensEditando.filter((_, ix) => ix !== i)
+                        setItensEditando(novos)
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* TOTAL */}
+                <div className="mt-3 pt-3 border-t">
+                  {(() => {
+                    const subtotal = itensEditando.reduce((acc, i) => {
+                      const compTotal = (parseComplements(i.complementos)
+                      ).reduce((s: number, c: any) => s + (Number(c.valor) || 0) * (Number(c.quantidade) || 1), 0)
+                      return acc + ((Number(i.valor_unitario) || 0) + compTotal) * (Number(i.quantidade) || 1)
+                    }, 0)
+                    const taxa = Number(pedidoEditando.taxa_entrega) || 0
+                    const desconto = Number(pedidoEditando.valor_desconto) || 0
+                    const total = Math.max(0, subtotal + taxa - desconto)
+                    return (
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(subtotal)}</span></div>
+                        {taxa > 0 && <div className="flex justify-between"><span>Taxa:</span><span>{formatCurrency(taxa)}</span></div>}
+                        {desconto > 0 && <div className="flex justify-between text-green-600"><span>Desconto:</span><span>-{formatCurrency(desconto)}</span></div>}
+                        <div className="flex justify-between font-bold text-lg pt-1 border-t"><span>TOTAL:</span><span className="text-green-600">{formatCurrency(total)}</span></div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+            )}
 
             <div className="wd-oe-footer p-4 border-t sticky bottom-0 bg-white flex justify-end gap-2">
               <button
