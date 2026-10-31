@@ -1,0 +1,32 @@
+{
+  "name": "we-delivery-android",
+  "license": "0BSD",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
+    "expo": "58.0.21",
+    "expo-auth-session": "58.0.16",
+    "expo-crypto": "58.0.7",
+    "expo-secure-store": "58.0.2",
+    "expo-status-bar": "58.0.4",
+    "expo-web-browser": "58.0.7",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "5.10.1",
+    "react-native-url-polyfill": "4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "typescript": "6.0.3"
+  },
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "export:android": "expo export --platform android",
+    "build:apk": "eas build --platform android --profile preview"
+  },
+  "private": true
+}

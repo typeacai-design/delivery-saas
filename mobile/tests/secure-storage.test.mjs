@@ -1,0 +1,10 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { createSessionStorage } from '../src/secure-storage.ts'
+function setup(){const db=new Map();let n=0, fail=false;const driver={getItemAsync:async k=>db.get(k)||null,setItemAsync:async(k,v)=>{if(fail&&k.endsWith('.1'))throw new Error('disk failure');db.set(k,v)},deleteItemAsync:async k=>{db.delete(k)}};return{db,storage:createSessionStorage(driver,()=>String(++n)),fail:()=>{fail=true}}}
+test('Large Google session is stored encrypted in bounded fragments',async()=>{const{db,storage}=setup();const value='🔒Google'.repeat(1300);await storage.setItem('sb-auth',value);assert.equal(await storage.getItem('sb-auth'),value);for(const v of db.values())assert.ok(Buffer.byteLength(v)<2048)})
+test('Interrupted replacement preserves the previous complete session',async()=>{const{storage,fail}=setup();await storage.setItem('sb-auth','previous');fail();await assert.rejects(storage.setItem('sb-auth','next'.repeat(500)));assert.equal(await storage.getItem('sb-auth'),'previous')})
+test('Logout removes pointer and all session fragments',async()=>{const{db,storage}=setup();await storage.setItem('sb-auth','a'.repeat(3000));await storage.removeItem('sb-auth');assert.equal(await storage.getItem('sb-auth'),null);assert.equal(db.size,0)})
+test('Concurrent writes are serialized and old fragments removed',async()=>{const{db,storage}=setup();await Promise.all([storage.setItem('sb-auth','a'.repeat(2000)),storage.setItem('sb-auth','latest')]);assert.equal(await storage.getItem('sb-auth'),'latest');assert.equal(db.size,2)})
+test('An incomplete stored session fails closed',async()=>{const{db,storage}=setup();await storage.setItem('sb-auth','a'.repeat(800));const h=JSON.parse(db.get('sb-auth'));db.delete(`sb-auth.${h.version}.1`);await assert.rejects(storage.getItem('sb-auth'))})
+test('Invalid keys and oversized session payloads are rejected',async()=>{const{storage}=setup();await assert.rejects(storage.setItem('bad:key','x'));await assert.rejects(storage.setItem('sb-auth','x'.repeat(80001)))})
