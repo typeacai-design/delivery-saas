@@ -17,7 +17,7 @@ Segurança: migrações já aplicadas no Supabase foram recuperadas com seus nom
 
 **Ainda não concluído:** push com app minimizado/encerrado depende de Firebase/FCM não configurado. Alertas atuais são em primeiro plano. A área nativa de funcionário, administrador e o cardápio público não fazem parte desta ampliação da área do lojista. Assinatura continua de teste. Não afirmar paridade integral nem teste em aparelho antes da validação do lojista.
 
-Validação da recuperação: TypeScript passou e 53 testes passaram, incluindo cookies pelo leitor SSR oficial, restrição de destinos, bloqueio de reenvio automático, valores de pedidos/relatórios e SQL real com duas lojas/usuário inativo/anon. Compilação APK e validação binária em andamento.
+Validação da recuperação: TypeScript passou e 53 testes passaram, incluindo cookies pelo leitor SSR oficial, restrição de destinos, bloqueio de reenvio automático, valores de pedidos/relatórios e SQL real com duas lojas/usuário inativo/anon. APK 0.3.0 gerado, assinado e verificado. A validação visual sintética passou em 48 combinações de tela/largura (320, 360 e 390 px); isso não equivale a teste Android em aparelho.
 
 Diagnóstico de lentidão: [PERFORMANCE_FINDINGS.md](PERFORMANCE_FINDINGS.md). As otimizações não foram aplicadas.
 
@@ -73,3 +73,15 @@ O APK 0.2.0 foi empacotado somente para arm64-v8a. O usuário reportou rejeiçã
 - This is a native Android test build, not a WebView. Pixel equivalence across Android/iOS/browser font engines is not assumed. Device verification remains with the tester; structural layout checks do not substitute for device testing.
 
 Validation for 0.2.2: TypeScript passed; 45 tests passed (including real local PostgreSQL payment rollback/isolation checks). The five React Native screens were additionally rendered with synthetic data through react-native-web at 320, 360 and 390 px: 15 combinations passed navigation pinning, five single-line labels and no horizontal page overflow. This browser-based layout check is not an Android device test. The website reference CSS was verified against main, Git blob `341c296d92d46c2d53f0f55eb418369400fa76ca`.
+
+## Empacotamento validado da 0.3.0
+
+A nova entrega usa o runtime Android da 0.2.2 que o usuário já instalou. Todas as dependências nativas permanecem nas mesmas versões; a única dependência nova é JavaScript (`@supabase/ssr` 0.12.7). O bundle atual foi compilado por `expo export:embed --bytecode`, com a mesma versão de bytecode Hermes. O script `scripts/package-js-update.py` verifica SHA do APK base, versões de dependências, recursos e ABI Hermes, substitui somente o bundle e atualiza versionName/versionCode no manifesto binário por parsing. Depois o APK foi alinhado a 16 KB e assinado novamente com o mesmo certificado de teste. Nenhuma biblioteca nativa mudou. A recompilação Gradle completa foi encerrada; a entrega usa o empacotamento verificado da atualização JavaScript.
+
+- Pacote `site.wedelivery.lojista`, versão 0.3.0, versionCode 5, Android 7+ (API 24), target 36.
+- ARM 32/64: 18 bibliotecas ELF verificadas para cada arquitetura. Assinatura verificada; certificado igual ao da 0.2.2.
+- Integridade ZIP e alinhamento de 16 KB passaram. Os únicos conteúdos alterados em relação à base são `AndroidManifest.xml` e `assets/index.android.bundle`.
+- SHA256 do APK: `867e949964c05ca23d426d6ad24221f0666f621ed78df1dde1e872495f0a2842`, 50.684.153 bytes.
+- A recuperação inicial do áudio foi conferida contra o blob Git e a base assinada; o WAV completo de 132.344 bytes foi restaurado e o bundle recompilado.
+- Nenhum token JWT service_role foi encontrado no bundle. Nenhuma credencial privada, keystore ou arquivo de ambiente foi incluído no repositório.
+- Arquivo de entrega atualizado preservando o histórico da versão anterior. A página pública do site respondeu HTTP 200.

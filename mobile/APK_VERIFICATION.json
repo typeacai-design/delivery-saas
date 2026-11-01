@@ -1,0 +1,17 @@
+{
+  "version": "0.3.0",
+  "versionCode": 5,
+  "bytes": 50684153,
+  "sha256": "867e949964c05ca23d426d6ad24221f0666f621ed78df1dde1e872495f0a2842",
+  "baseline_sha256": "5ba9a1d43642b4dc2be1df02a1dd8a556648ae1c809b6a8bd1ee6fc2d67d8efb",
+  "changed_entries": [
+    "assets/index.android.bundle",
+    "AndroidManifest.xml"
+  ],
+  "unchanged_native_payload": true,
+  "hermes_header": "c61fbc03c103191f63000000",
+  "service_role_tokens": 0,
+  "unit_and_sql_tests": 53,
+  "synthetic_layout_checks": 48,
+  "real_device_test": false
+}
