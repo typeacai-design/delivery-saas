@@ -38,7 +38,7 @@ export async function stores(signal: AbortSignal): Promise<Store[]> {
   return data || [];
 }
 const orderFields =
-  "id,codigo,status,valor_total,valor_subtotal,taxa_entrega,valor_desconto,data_criacao,cliente_nome,cliente_whatsapp,forma_pagamento,endereco_entrega,numero_entrega,complemento_entrega,bairro_entrega,observacoes,tipo_entrega,pago,pedido_itens(id,nome,quantidade,observacao,variante_nome,complementos,pedido_complementos(nome,quantidade,valor))";
+  "id,codigo,status,valor_total,valor_subtotal,taxa_entrega,valor_desconto,data_criacao,cliente_nome,cliente_whatsapp,forma_pagamento,endereco_entrega,numero_entrega,complemento_entrega,bairro_entrega,observacoes,tipo_entrega,pago,motoboy_id,motoboy_comissao,pedido_itens(id,nome,quantidade,observacao,variante_nome,complementos,pedido_complementos(nome,quantidade,valor))";
 export async function orders(
   storeId: string,
   period: Period,
@@ -140,8 +140,8 @@ export async function markPaid(
 }
 
 
-export async function order(storeId: string, id: string) {
-  const r = await supabase.from("pedidos").select(orderFields).eq("tenant_id", storeId).eq("id", id).is("deleted_at", null).maybeSingle();
+export async function order(storeId: string, id: string, signal?: AbortSignal) {
+  const r = await supabase.from("pedidos").select(orderFields).eq("tenant_id", storeId).eq("id", id).is("deleted_at", null).abortSignal(signal || new AbortController().signal).maybeSingle();
   if (r.error) throw new Error("Não foi possível atualizar o pedido.");
   return r.data as unknown as Order | null;
 }

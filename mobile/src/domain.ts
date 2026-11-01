@@ -53,6 +53,11 @@ export type Order = {
   observacoes: string | null;
   tipo_entrega: string;
   pago: boolean;
+  valor_subtotal?: number | string;
+  valor_desconto?: number | string;
+  taxa_entrega?: number | string;
+  motoboy_id?: string | null;
+  motoboy_comissao?: number | string | null;
   pedido_itens: OrderItem[];
 };
 export type Product = {

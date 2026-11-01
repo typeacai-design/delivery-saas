@@ -1,25 +1,25 @@
 {
-  "version": "0.3.3",
-  "versionCode": 8,
+  "version": "0.3.4",
+  "versionCode": 9,
   "package": "site.wedelivery.lojista",
-  "sha256": "86bb5670bdbfcbb56f7e507505c75f9b9fc62dec91020caf7de1edd7b16cd50f",
-  "size_bytes": 50811328,
-  "baseline_sha256": "f31e582dddde35cf8894b130f9720d6e9ab3ff18526e0c649227b2f773fb57a3",
+  "sha256": "00942729e37e57942d8ff4cf578534ff5e8af197d4331412ef015867650ae99f",
+  "size_bytes": 50827712,
+  "baseline_sha256": "86bb5670bdbfcbb56f7e507505c75f9b9fc62dec91020caf7de1edd7b16cd50f",
   "changed_payloads": [
     "AndroidManifest.xml",
-    "res/-6.webp",
-    "res/MO.webp",
-    "res/Sn.webp",
-    "res/d2.webp",
-    "res/fq.webp",
-    "res/j_.webp",
-    "res/qs.webp",
-    "res/sK.webp",
-    "res/u5.webp",
-    "res/yw.webp"
+    "assets/index.android.bundle"
   ],
-  "javascript_dex_native_resource_table": "byte-identical to 0.3.2",
-  "icon_change": "transparent rounded-square corners on standard launcher resources",
-  "signature": "same verified test certificate",
-  "website_deployed": false
+  "native_libraries": {
+    "armeabi-v7a": 18,
+    "arm64-v8a": 18
+  },
+  "native_dex_resources": "byte-identical to 0.3.3 including rounded launcher",
+  "signature": "same verified test certificate; v2 and v3 verified",
+  "minimum_sdk": 24,
+  "target_sdk": 36,
+  "zip_alignment": "16 KB verified",
+  "tests_passed": 84,
+  "website_deployed": false,
+  "database_migration": "20261101192211_mobile_finance_period",
+  "device_test": "pending merchant validation"
 }

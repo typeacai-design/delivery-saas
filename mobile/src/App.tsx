@@ -1,3 +1,4 @@
+import OrderActions from "./OrderActions";
 import DateRangeFilter, { type DayRange } from "./DateRangeFilter";
 import MoreScreen from "./MoreScreen";
 import HomeScreen from "./HomeScreen";
@@ -538,7 +539,7 @@ function OrderCard({
         ? info("OBSERVAÇÕES", order.observacoes, MessageSquare)
         : null}
       <View style={[s.between, s.total, { marginVertical: 5 }]}>
-        <Text style={{ fontSize: 13, color: "#6b7970" }}>Total</Text>
+        <Text style={{ fontSize: 13, color: "#6b7970" }}>Total do pedido</Text>
         <Text
           style={{
             fontSize: 20,
@@ -557,89 +558,21 @@ function OrderCard({
           title={
             busy ? "Salvando…" : order.status === "novo"
               ? "Aceitar pedido"
-              : `Marcar como ${stageLabels[next as Stage].toLowerCase()}`
+              : `Avançar para ${stageLabels[next as Stage]}`
           }
           icon={Check}
           disabled={busy}
           onPress={() => void change(next)}
         />
       ) : null}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {order.status !== "cancelado" ? (
-          <View style={{ width: "48%" }}>
-            <Button
-              title={order.pago ? "Marcar não pago" : "Marcar como pago"}
-              icon={CreditCard}
-              secondary
-              disabled={busy}
-              onPress={() =>
-                Alert.alert(
-                  order.pago ? "Desmarcar pagamento?" : "Confirmar pagamento?",
-                  `Pedido #${order.codigo || order.id.slice(0, 8)} · ${money(order.valor_total)}`,
-                  [
-                    { text: "Voltar", style: "cancel" },
-                    { text: "Confirmar", onPress: () => void paid() },
-                  ],
-                )
-              }
-            />
-          </View>
-        ) : null}
-        <View style={{ width: "48%" }}>
-          <Button
-            title="WhatsApp"
-            icon={MessageSquare}
-            secondary
-            disabled={!phone}
-            onPress={() =>
-              void Linking.openURL(
-                `https://wa.me/${phone.length <= 11 ? "55" : ""}${phone}`,
-              ).catch(() => setError("Não foi possível abrir o WhatsApp."))
-            }
-          />
-        </View>
-        <View style={{ width: "48%" }}>
-          <Button
-            title="Editar pedido"
-            icon={Pencil}
-            secondary
-            disabled={busy}
-            onPress={() => setEditing(true)}
-          />
-        </View>
-        <View style={{ width: "48%" }}>
-          <Button
-            title="Imprimir"
-            icon={Printer}
-            secondary
-            onPress={() => void print()}
-          />
-        </View>
-        {order.status !== "cancelado" && order.status !== "entregue" ? (
-          <View style={{ width: "48%" }}>
-            <Button
-              title={order.status === "novo" ? "Rejeitar" : "Cancelar pedido"}
-              icon={XCircle}
-              secondary
-              disabled={busy}
-              onPress={() =>
-                Alert.alert(
-                  "Cancelar pedido?",
-                  "O pedido será movido para Cancelados.",
-                  [
-                    { text: "Voltar", style: "cancel" },
-                    {
-                      text: "Confirmar cancelamento",
-                      style: "destructive",
-                      onPress: () => void change("cancelado"),
-                    },
-                  ],
-                )
-              }
-            />
-          </View>
-        ) : null}
-      </View>
+      <OrderActions order={order} storeId={storeId} busy={busy}
+        onEdit={() => setEditing(true)}
+        onPaid={() => Alert.alert(order.pago ? 'Desmarcar pagamento?' : 'Confirmar pagamento?', `Pedido #${order.codigo || order.id.slice(0,8)} · ${money(order.valor_total)}`, [{text:'Voltar',style:'cancel'},{text:'Confirmar',onPress:()=>void paid()}])}
+        onWhatsApp={() => void Linking.openURL(`https://wa.me/${phone.length <= 11 ? '55' : ''}${phone}`).catch(()=>setError('Não foi possível abrir o WhatsApp.'))}
+        onPrint={() => void print()}
+        onCancel={() => Alert.alert(order.status === 'novo' ? 'Rejeitar pedido?' : 'Cancelar pedido?', 'O pedido será movido para Cancelados.', [{text:'Voltar',style:'cancel'},{text:'Confirmar cancelamento',style:'destructive',onPress:()=>void change('cancelado')}])}
+        refresh={refresh}
+      />
       {editing ? (
         <OrderComposer
           storeId={storeId}

@@ -13,8 +13,10 @@ export type { DayRange } from "./date-range-model";
 export default function DateRangeFilter({
   value,
   onChange,
+  clearLabel = "Limpar",
 }: {
   value: DayRange;
+  clearLabel?: string;
   onChange: (value: DayRange) => void;
 }) {
   const [open, setOpen] = useState(false),
@@ -168,7 +170,7 @@ export default function DateRangeFilter({
           <View style={s.row}>
             <View style={{ flex: 1 }}>
               <Button
-                title="Limpar"
+                title={clearLabel}
                 secondary
                 onPress={() => {
                   setDraft({ from: "", to: "" });

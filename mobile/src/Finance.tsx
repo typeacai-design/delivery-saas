@@ -18,6 +18,7 @@ import { useRemote, useRemoteCache } from "./useRemote";
 import { financeRead, type FinanceTotals, type FinancePage } from "./finance-api";
 import DateRangeFilter from "./DateRangeFilter";
 import { supabase } from "./supabase";
+import { currentMonthRange, financePeriodKey } from "./finance-period";
 
 function FinanceList({ storeId, view, active, range }: { storeId: string; view: string; active: boolean; range?: { from: string; to: string } }) {
   const [page, setPage] = useState(0);
@@ -57,9 +58,11 @@ export default function Finance({
     [busy, setBusy] = useState(false),
     [forms, setForms] = useState<Record<string, boolean> | null>(null);
   const cache = useRemoteCache();
-  const [range, setRange] = useState({ from: '', to: '' });
-  const load = useCallback((signal: AbortSignal) => financeRead<FinanceTotals>(storeId, 'resumo', signal), [storeId]);
-  const state = useRemote(load, { key: `finance:${storeId}:summary`, enabled: active });
+  const [customRange, setCustomRange] = useState<null | { from: string; to: string }>(null);
+  const range = customRange || currentMonthRange();
+  const setRange = (value: { from: string; to: string }) => setCustomRange(value.from || value.to ? value : null);
+  const load = useCallback((signal: AbortSignal) => financeRead<FinanceTotals>(storeId, 'resumo', signal, 0, range), [storeId, range.from, range.to]);
+  const state = useRemote(load, { key: financePeriodKey(storeId, range), enabled: active });
   const loadForms = useCallback(async (signal: AbortSignal) => {
     const r = await supabase.from('tenants').select('config').eq('id',storeId).abortSignal(signal).single();
     if (r.error) throw new Error('Não foi possível carregar as formas de pagamento.');
@@ -114,6 +117,7 @@ export default function Finance({
             : "Seu dinheiro, sem complicação"
         }
       />
+      <DateRangeFilter value={range} onChange={setRange} clearLabel="Mês atual" />
       {state.loading && !state.data ? (
         <ActivityIndicator color={palette.green} />
       ) : state.error ? (
@@ -124,11 +128,11 @@ export default function Finance({
         <>
           <View style={m.sales}>
             <Text style={m.salesLabel}>
-              Recebido · todo o período disponível
+              Recebido no período
             </Text>
             <Text style={m.salesTotal}>{money(summary.received)}</Text>
             <Text style={m.salesLabel}>
-              Somente pedidos marcados como pagos
+              Pedidos do período marcados como pagos
             </Text>
           </View>
           <View style={[s.card, { paddingVertical: 4 }]}>
@@ -137,7 +141,7 @@ export default function Finance({
               <Text style={m.metricValue}>{money(summary.receivable)}</Text>
             </View>
             <View style={[m.metricRow, { borderBottomWidth: 0 }]}>
-              <Text style={m.metricLabel}>Saldo do fluxo de caixa</Text>
+              <Text style={m.metricLabel}>Saldo do período</Text>
               <Text style={m.metricValue}>{money(summary.balance)}</Text>
             </View>
           </View>
@@ -198,15 +202,14 @@ export default function Finance({
           </View>
           {tab === "cashflow" ? (
             <>
-              <DateRangeFilter value={range} onChange={setRange} />
               <Disclosure title="Movimentações" open={expanded} onPress={() => setExpanded(x => !x)}>
                 {expanded ? <FinanceList key={`${range.from}:${range.to}`} storeId={storeId} view="fluxo" active={active} range={range} /> : null}
               </Disclosure>
             </>
           ) : tab === "accounts" ? (
             <>
-              <View style={s.card}><Text style={s.cardTitle}>Contas a receber</Text><FinanceList storeId={storeId} view="receber" active={active} /></View>
-              <View style={s.card}><Text style={s.cardTitle}>Contas a pagar</Text><FinanceList storeId={storeId} view="despesas" active={active} /></View>
+              <View style={s.card}><Text style={s.cardTitle}>Contas a receber</Text><FinanceList key={`receber:${range.from}:${range.to}`} storeId={storeId} view="receber" active={active} range={range} /></View>
+              <View style={s.card}><Text style={s.cardTitle}>Contas a pagar</Text><FinanceList key={`despesas:${range.from}:${range.to}`} storeId={storeId} view="despesas" active={active} range={range} /></View>
             </>
           ) : (
             <View style={s.card}>
