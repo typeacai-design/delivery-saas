@@ -1,0 +1,46 @@
+import { supabase } from "./supabase";
+import { checkStore } from "./catalog-api";
+export async function readAll(
+  make: () => any,
+  signal?: AbortSignal,
+): Promise<any[]> {
+  const rows: any[] = [];
+  for (let offset = 0; ; offset += 250) {
+    let q = make().range(offset, offset + 249);
+    if (signal) q = q.abortSignal(signal);
+    const r = await q;
+    if (r.error) throw new Error("Não foi possível carregar os dados.");
+    rows.push(...(r.data || []));
+    if (!r.data || r.data.length < 250) return rows;
+  }
+}
+export async function readConfig(storeId: string, signal?: AbortSignal) {
+  let q = supabase.from("tenants").select("config").eq("id", storeId);
+  if (signal) q = q.abortSignal(signal);
+  const r = await q.single();
+  if (r.error) throw new Error("Não foi possível carregar a configuração.");
+  return r.data.config || {};
+}
+export async function saveConfig(storeId: string, patch: Record<string, any>) {
+  const keys = [
+    "horarios_dias",
+    "excecoes_horario",
+    "fidelidade_ativo",
+    "fidelidade_tipo",
+    "pontos_por_real",
+    "cashback_ativo",
+    "cashback_percent",
+    "entrega_metodo",
+  ];
+  if (Object.keys(patch).some((k) => !keys.includes(k)))
+    throw new Error("Configuração inválida.");
+  await checkStore(storeId);
+  const config = await readConfig(storeId),
+    r = await supabase
+      .from("tenants")
+      .update({ config: { ...config, ...patch } })
+      .eq("id", storeId)
+      .select("id")
+      .single();
+  if (r.error) throw new Error("Não foi possível salvar a configuração.");
+}

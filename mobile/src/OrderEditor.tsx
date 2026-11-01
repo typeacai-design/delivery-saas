@@ -1,0 +1,166 @@
+import { useState } from "react";
+import { Modal, Pressable, ScrollView, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { X } from "lucide-react-native";
+import { Text, Button, Notice, s } from "./ui";
+import { Disclosure, m } from "./merchant-layout";
+import { request } from "./transport";
+import type { Order } from "./domain";
+const fields = [
+  ["cliente_nome", "Nome do cliente"],
+  ["cliente_whatsapp", "WhatsApp"],
+  ["endereco_entrega", "Endereço"],
+  ["numero_entrega", "Número"],
+  ["complemento_entrega", "Complemento"],
+  ["bairro_entrega", "Bairro"],
+  ["observacoes", "Observações"],
+] as const;
+export default function OrderEditor({
+  storeId,
+  order,
+  close,
+  saved,
+}: {
+  storeId: string;
+  order: Order;
+  close(): void;
+  saved(): void;
+}) {
+  const [form, setForm] = useState<Record<string, string>>(
+      Object.fromEntries(
+        fields.map(([key]) => [key, String((order as any)[key] || "")]),
+      ),
+    ),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [open, setOpen] = useState<Record<string, boolean>>({ cliente: true });
+  async function save() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await request(storeId, `/api/pedidos/${order.id}`, "PATCH", form);
+      saved();
+      close();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={() => {
+        if (!busy) close();
+      }}
+    >
+      <SafeAreaView style={s.safe}>
+        <View style={[s.between, { padding: 18 }]}>
+          <Text style={{ fontSize: 20, fontWeight: "700", flex: 1 }}>
+            Editar pedido #{order.codigo || order.id.slice(0, 8)}
+          </Text>
+          <Pressable
+            accessibilityLabel="Fechar edição do pedido"
+            style={[
+              m.iconButton,
+              {
+                backgroundColor: "#fff",
+                borderWidth: 1,
+                borderColor: "#e1e8e2",
+              },
+            ]}
+            disabled={busy}
+            onPress={close}
+          >
+            <X size={20} />
+          </Pressable>
+        </View>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[s.content, { paddingTop: 0 }]}
+        >
+          {error ? <Notice text={error} /> : null}
+          {[
+            {
+              id: "cliente",
+              title: "Dados do cliente",
+              keys: ["cliente_nome", "cliente_whatsapp"],
+            },
+            {
+              id: "entrega",
+              title: "Endereço de entrega",
+              keys: [
+                "endereco_entrega",
+                "numero_entrega",
+                "complemento_entrega",
+                "bairro_entrega",
+              ],
+            },
+            { id: "observacoes", title: "Observações", keys: ["observacoes"] },
+          ].map((group) => (
+            <Disclosure
+              key={group.id}
+              title={group.title}
+              open={!!open[group.id]}
+              onPress={() =>
+                setOpen((x) => ({ ...x, [group.id]: !x[group.id] }))
+              }
+            >
+              {fields
+                .filter(([key]) => group.keys.includes(key))
+                .map(([key, label]) => (
+                  <View key={key} style={{ gap: 9 }}>
+                    <Text style={[s.label, { textAlign: "center" }]}>
+                      {label}
+                    </Text>
+                    <TextInput
+                      accessibilityLabel={label}
+                      style={s.input}
+                      value={form[key]}
+                      editable={!busy}
+                      onChangeText={(v) => setForm((f) => ({ ...f, [key]: v }))}
+                      multiline={key === "observacoes"}
+                      keyboardType={
+                        key === "cliente_whatsapp" ? "phone-pad" : "default"
+                      }
+                    />
+                  </View>
+                ))}
+            </Disclosure>
+          ))}
+        </ScrollView>
+        <View
+          style={[
+            s.row,
+            {
+              paddingVertical: 14,
+              paddingHorizontal: 18,
+              borderTopWidth: 1,
+              borderColor: "#e1e8e2",
+              backgroundColor: "#fff",
+              gap: 12,
+            },
+          ]}
+        >
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Cancelar"
+              secondary
+              disabled={busy}
+              onPress={close}
+            />
+          </View>
+          <View style={{ flex: 1.3 }}>
+            <Button
+              title={busy ? "Salvando…" : "Salvar alterações"}
+              disabled={busy}
+              onPress={() => void save()}
+            />
+          </View>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+}
