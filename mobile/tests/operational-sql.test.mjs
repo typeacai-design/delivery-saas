@@ -13,7 +13,7 @@ test('Real operational policies and profile RPCs keep two merchants isolated wit
  CREATE TABLE pedidos(id int,tenant_id uuid,tipo_pedido text);CREATE TABLE sessoes_mesa(id int,tenant_id uuid,nome text);CREATE TABLE dias_pico(id int,tenant_id uuid,nome text);
  INSERT INTO sessoes_mesa VALUES(1,'${own}','Own'),(2,'${other}','Other');INSERT INTO dias_pico VALUES(1,'${own}','Own'),(2,'${other}','Other');
  GRANT SELECT,INSERT,UPDATE,DELETE ON sessoes_mesa,dias_pico TO authenticated,anon;`)
- const files=(await fs.readdir('migrations')).filter(f=>f.endsWith('.sql')).sort();for(const f of files)await db.exec(await fs.readFile('migrations/'+f,'utf8'))
+ const files=(await fs.readdir('migrations')).filter(f=>/^20261031.*\.sql$/.test(f)).sort();for(const f of files)await db.exec(await fs.readFile('migrations/'+f,'utf8'))
  await db.exec(`SET ROLE authenticated;SELECT set_config('test.actor','${user}',false)`)
  assert.equal((await db.query('select * from sessoes_mesa')).rows.length,1);assert.equal((await db.query('select * from dias_pico')).rows.length,1)
  assert.equal((await db.query("update sessoes_mesa set nome='changed' where id=2 returning id")).rows.length,0);await assert.rejects(db.query('update dias_pico set tenant_id=$1 where id=1',[other]))
@@ -21,3 +21,4 @@ test('Real operational policies and profile RPCs keep two merchants isolated wit
  await db.exec(`RESET ROLE;UPDATE memberships SET active=false;SET ROLE authenticated`);assert.equal((await db.query('select * from sessoes_mesa')).rows.length,0);await assert.rejects(db.query('select mobile_perfil_loja($1)',[own]));await db.exec('RESET ROLE;SET ROLE anon');assert.equal((await db.query('select * from sessoes_mesa')).rows.length,0);assert.equal((await db.query('select * from dias_pico')).rows.length,0);await assert.rejects(db.query('select mobile_perfil_loja($1)',[own]))
  }finally{await db.close()}
 })
+

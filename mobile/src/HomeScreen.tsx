@@ -28,15 +28,15 @@ import { checkStore } from "./catalog-api";
 import { money, type Store } from "./domain";
 import { storeHours, overrideExpiry } from "./store-hours";
 import * as Clipboard from "expo-clipboard";
-import { homeSummary } from "./home-model";
+
 export default function HomeScreen({
   store,
-  pulse,
+  active = true,
   openOrders,
   newOrder,
 }: {
   store: Store;
-  pulse: number;
+  active?: boolean;
   openOrders: () => void;
   newOrder: () => void;
 }) {
@@ -47,47 +47,13 @@ export default function HomeScreen({
     [error, setError] = useState("");
   const load = useCallback(
       async (signal: AbortSignal) => {
-        const now = new Date(),
-          parts = new Intl.DateTimeFormat("en-CA", {
-            timeZone: "America/Sao_Paulo",
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          }).formatToParts(now),
-          part = (name: string) => parts.find((x) => x.type === name)!.value;
-        const start = `${part("year")}-${part("month")}-01T00:00:00-03:00`,
-          day = `${part("year")}-${part("month")}-${part("day")}`;
-        const [profileResult] = await Promise.all([
-          supabase
-            .from("tenants")
-            .select("config,slug")
-            .eq("id", store.id)
-            .abortSignal(signal)
-            .single(),
-        ]);
-        if (profileResult.error)
-          throw new Error("Não foi possível carregar a loja.");
-        const orders: any[] = [];
-        for (let from = 0; ; from += 500) {
-          const r = await supabase
-            .from("pedidos")
-            .select("id,valor_total,pago,status,forma_pagamento,data_criacao")
-            .eq("tenant_id", store.id)
-            .is("deleted_at", null)
-            .gte("data_criacao", start)
-            .order("data_criacao")
-            .order("id")
-            .range(from, from + 499)
-            .abortSignal(signal);
-          if (r.error) throw new Error("Não foi possível carregar o resumo.");
-          orders.push(...(r.data || []));
-          if (!r.data || r.data.length < 500) break;
-        }
-        return { ...homeSummary(orders, day), profile: profileResult.data };
+        const r = await supabase.rpc('mobile_inicio', { p_tenant_id: store.id }).abortSignal(signal);
+        if (r.error) throw new Error("Não foi possível carregar o resumo.");
+        return r.data as { totalToday: number; paidToday: number; totalMonth: number; paidMonth: number; fresh: number; ongoing: number; profile: { config: any; slug: string } };
       },
-      [store.id, pulse],
+      [store.id],
     ),
-    state = useRemote(load);
+    state = useRemote(load, { key: `home:${store.id}`, enabled: active });
   const config = state.data?.profile.config || {},
     hours = storeHours(config),
     validOverride =
@@ -189,7 +155,7 @@ export default function HomeScreen({
                 color: open ? palette.active : "#8f4b00",
               }}
             >
-              {state.loading
+              {!state.data
                 ? "Carregando…"
                 : `Loja ${open ? "aberta" : "fechada"}`}
             </Text>
@@ -388,3 +354,4 @@ export default function HomeScreen({
     </ScrollView>
   );
 }
+

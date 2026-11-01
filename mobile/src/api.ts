@@ -72,7 +72,7 @@ export async function orders(
     .abortSignal(signal);
   if (error)
     throw new Error("Não foi possível carregar os pedidos. Tente novamente.");
-  return { orders: (data || []) as unknown as Order[], count: count || 0 };
+  return { orders: (data || []) as unknown as Order[], count: count || 0, filter: { ...range, stage, page } };
 }
 export async function counts(storeId: string, signal: AbortSignal) {
   const range = dateRange("hoje");
@@ -93,13 +93,13 @@ export async function counts(storeId: string, signal: AbortSignal) {
   return { today: all.count || 0, fresh: fresh.count || 0 };
 }
 export async function catalog(storeId: string, signal: AbortSignal) {
-  const categories = await supabase
+  const categoriesPromise = supabase
     .from("categorias")
     .select("id,nome,ordem")
     .eq("tenant_id", storeId)
     .order("ordem")
     .abortSignal(signal);
-  if (categories.error) throw new Error("Não foi possível carregar as seções.");
+  const productsPromise = (async () => {
   const products: Product[] = [];
   for (let offset = 0; ; offset += 100) {
     const { data, error } = await supabase
@@ -117,6 +117,10 @@ export async function catalog(storeId: string, signal: AbortSignal) {
     products.push(...(data || []));
     if (!data || data.length < 100) break;
   }
+  return products;
+  })();
+  const [categories, products] = await Promise.all([categoriesPromise, productsPromise]);
+  if (categories.error) throw new Error("Não foi possível carregar as seções.");
   return { categories: (categories.data || []) as Category[], products };
 }
 export async function markPaid(
@@ -134,3 +138,12 @@ export async function markPaid(
       "Não foi possível alterar o pagamento. Nenhum lançamento parcial foi confirmado. Atualize o pedido e tente novamente.",
     );
 }
+
+
+export async function order(storeId: string, id: string) {
+  const r = await supabase.from("pedidos").select(orderFields).eq("tenant_id", storeId).eq("id", id).is("deleted_at", null).maybeSingle();
+  if (r.error) throw new Error("Não foi possível atualizar o pedido.");
+  return r.data as unknown as Order | null;
+}
+
+export function todayKey() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }

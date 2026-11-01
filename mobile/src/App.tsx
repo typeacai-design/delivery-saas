@@ -28,7 +28,7 @@ import {
   Printer,
   XCircle,
 } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -47,7 +47,8 @@ import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import type { Session } from "@supabase/supabase-js";
 import { Text, Button, Notice, s } from "./ui";
-import { useRemote } from "./useRemote";
+import { useRemote, RemoteProvider, useRemoteCache } from "./useRemote";
+import { confirmOrder, confirmMutation } from "./order-cache";
 import Finance from "./Finance";
 import { useOrderAlerts } from "./useOrderAlerts";
 import EntityScreen from "./EntityScreen";
@@ -217,11 +218,13 @@ function OrderCard({
   storeId: string;
   refresh(): void;
 }) {
+  const cache = useRemoteCache(), lock = useRef(false);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [editing, setEditing] = useState(false);
   async function change(status: string) {
-    if (busy) return;
+    if (lock.current) return;
+    lock.current = true;
     setBusy(true);
     setError("");
     try {
@@ -229,23 +232,26 @@ function OrderCard({
         pedido_id: order.id,
         status,
       });
-      refresh();
+      confirmMutation(cache, storeId, order, { status: status as Stage });
     } catch (e: any) {
       setError(e.message);
     } finally {
+      lock.current = false;
       setBusy(false);
     }
   }
   async function paid() {
-    if (busy) return;
+    if (lock.current) return;
+    lock.current = true;
     setBusy(true);
     setError("");
     try {
       await api.markPaid(storeId, order.id, !order.pago);
-      refresh();
+      confirmMutation(cache, storeId, order, { pago: !order.pago });
     } catch (e: any) {
       setError(e.message);
     } finally {
+      lock.current = false;
       setBusy(false);
     }
   }
@@ -545,10 +551,11 @@ function OrderCard({
         </Text>
       </View>
       {error ? <Notice text={error} /> : null}
+      {busy ? <View accessibilityLiveRegion="polite" style={[s.row, { justifyContent: 'center', gap: 8 }]}><ActivityIndicator color={palette.green} /><Text style={s.subtitle}>Salvando…</Text></View> : null}
       {next ? (
         <Button
           title={
-            order.status === "novo"
+            busy ? "Salvando…" : order.status === "novo"
               ? "Aceitar pedido"
               : `Marcar como ${stageLabels[next as Stage].toLowerCase()}`
           }
@@ -644,7 +651,8 @@ function OrderCard({
     </View>
   );
 }
-function Orders({ store, pulse }: { store: Store; pulse: number }) {
+function Orders({ store, active = true }: { store: Store; active?: boolean }) {
+  const cache = useRemoteCache();
   const [creating, setCreating] = useState(false),
     [period, setPeriod] = useState<Period>("hoje"),
     [stage, setStage] = useState<Stage | "todos">("novo"),
@@ -671,9 +679,10 @@ function Orders({ store, pulse }: { store: Store; pulse: number }) {
           signal,
           tab === "historico" ? range : undefined,
         ),
-      [store.id, period, stage, page, pulse, tab, range.from, range.to],
+      [store.id, period, stage, page, tab, range.from, range.to],
     ),
-    state = useRemote(load);
+    state = useRemote(load, { key: `orders:${store.id}:${tab}:${period}:${stage}:${page}:${range.from}:${range.to}:${api.todayKey()}`, enabled: active && tab !== 'mesas' });
+  const refresh = () => { cache.invalidate(`orders:${store.id}:`); cache.invalidate(`home:${store.id}`); cache.invalidate(`finance:${store.id}:`); };
   const options: (Stage | "todos")[] =
       tab === "historico" ? ["todos", ...stages] : [...stages],
     index = options.indexOf(stage);
@@ -721,7 +730,7 @@ function Orders({ store, pulse }: { store: Store; pulse: number }) {
           <OrderComposer
             storeId={store.id}
             close={() => setCreating(false)}
-            saved={state.retry}
+            saved={refresh}
           />
         ) : null}
       </View>
@@ -795,7 +804,7 @@ function Orders({ store, pulse }: { store: Store; pulse: number }) {
           >
             <Text style={m.stageTitle}>
               {stage === "todos" ? "Todos" : stageLabels[stage]} ·{" "}
-              {state.data?.count ?? 0}
+              {state.data?.count ?? '…'}
             </Text>
             <ChevronDown size={18} color="#326f40" />
           </Pressable>
@@ -834,7 +843,7 @@ function Orders({ store, pulse }: { store: Store; pulse: number }) {
               key={order.id}
               order={order}
               storeId={store.id}
-              refresh={state.retry}
+              refresh={refresh}
             />
           ))
         )}
@@ -862,7 +871,7 @@ function Orders({ store, pulse }: { store: Store; pulse: number }) {
         <OrderComposer
           storeId={store.id}
           close={() => setCreating(false)}
-          saved={state.retry}
+          saved={refresh}
         />
       ) : null}
       <Modal
@@ -893,94 +902,64 @@ function Orders({ store, pulse }: { store: Store; pulse: number }) {
     </View>
   );
 }
-function Merchant({
-  store,
-  changeStore,
-}: {
-  store: Store;
-  changeStore?: () => void;
-}) {
-  const [tab, setTab] = useState<
-      "home" | "orders" | "catalog" | "finance" | "more"
-    >("home"),
-    [pulse, setPulse] = useState(0),
-    [alertError, setAlertError] = useState(""),
-    [creating, setCreating] = useState(false);
+function Merchant({ store, changeStore }: { store: Store; changeStore?: () => void }) {
+  type Tab = 'home' | 'orders' | 'catalog' | 'finance' | 'more';
+  const [tab, setTab] = useState<Tab>('home'), [visited, setVisited] = useState<Partial<Record<Tab, boolean>>>({ home: true }),
+    [alertError, setAlertError] = useState(''), [creating, setCreating] = useState(false);
+  const cache = useRemoteCache();
   useOrderAlerts(store.id, setAlertError);
+  const selectTab = (value: Tab) => { if (tab === 'more') { if (value === 'catalog') cache.invalidate(`catalog:${store.id}`); if (value === 'home') cache.invalidate(`home:${store.id}`); if (value === 'finance') cache.invalidate(`finance:${store.id}:`); } setVisited(v => ({ ...v, [value]: true })); setTab(value); };
   useEffect(() => {
-    let debounce: ReturnType<typeof setTimeout> | undefined;
+    let alive = true, timer: ReturnType<typeof setTimeout> | undefined;
+    const pending = new Map<string, string>();
+    const reconcile = async () => {
+      const changed = [...pending]; pending.clear();
+      await Promise.all(changed.map(async ([id,event]) => {
+        try {
+          const generation = cache.generation(`order-event:${store.id}:${id}`);
+          const row = event === 'DELETE' ? null : await api.order(store.id, id);
+          if (!alive || generation !== cache.generation(`order-event:${store.id}:${id}`)) return;
+          if (row) confirmOrder(cache, store.id, row);
+          else { cache.invalidate(`orders:${store.id}:`); cache.invalidate(`home:${store.id}`); cache.invalidate(`finance:${store.id}:`); }
+        } catch { if (alive) cache.invalidate(`orders:${store.id}:`); }
+      }));
+    };
+    const channel = supabase.channel(`android-orders-${store.id}`).on('postgres_changes', {
+      event: '*', schema: 'public', table: 'pedidos', filter: `tenant_id=eq.${store.id}`,
+    }, payload => {
+      const id = (payload.new as any)?.id || (payload.old as any)?.id;
+      if (!id) return;
+      pending.set(id, payload.eventType); clearTimeout(timer); timer = setTimeout(() => void reconcile(), 300);
+    }).subscribe();
+    return () => { alive = false; clearTimeout(timer); void supabase.removeChannel(channel); };
+  }, [store.id, cache]);
+  useEffect(() => {
+    // Reconcile only the visible data. Realtime handles order changes immediately;
+    // this low-frequency fallback also covers a temporarily disconnected channel.
     const refresh = () => {
-      clearTimeout(debounce);
-      debounce = setTimeout(() => setPulse((x) => x + 1), 300);
+      if (AppState.currentState !== 'active') return;
+      if (tab === 'home') cache.invalidate(`home:${store.id}`);
+      if (tab === 'orders') cache.invalidate(`orders:${store.id}:`);
+      if (tab === 'finance') cache.invalidate(`finance:${store.id}:`);
     };
-    const channel = supabase
-      .channel(`android-orders-${store.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "pedidos",
-          filter: `tenant_id=eq.${store.id}`,
-        },
-        refresh,
-      )
-      .subscribe();
-    const timer = setInterval(() => {
-      if (AppState.currentState === "active") refresh();
-    }, 30000);
-    const listener = AppState.addEventListener("change", (state) => {
-      if (state === "active") refresh();
-    });
-    return () => {
-      clearTimeout(debounce);
-      clearInterval(timer);
-      listener.remove();
-      void supabase.removeChannel(channel);
-    };
-  }, [store.id]);
-  return (
+    const timer = setInterval(refresh, 30000);
+    const listener = AppState.addEventListener('change', state => { if (state === 'active') { refresh(); if (tab === 'catalog') cache.invalidate(`catalog:${store.id}`); } });
+    return () => { clearInterval(timer); listener.remove(); };
+  }, [tab, store.id, cache]);
+  const saved = () => { cache.invalidate(`orders:${store.id}:`); cache.invalidate(`home:${store.id}`); cache.invalidate(`finance:${store.id}:`); };
+  return <View style={s.flex}>
+    {changeStore ? <View style={{ paddingHorizontal: 24, paddingTop: 8 }}><Pressable accessibilityRole="button" onPress={changeStore} style={m.footerLink}><Text style={m.footerText}>Trocar loja</Text></Pressable></View> : null}
+    {alertError ? <Notice text={alertError} /> : null}
     <View style={s.flex}>
-      {changeStore ? (
-        <View style={{ paddingHorizontal: 24, paddingTop: 8 }}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={changeStore}
-            style={m.footerLink}
-          >
-            <Text style={m.footerText}>Trocar loja</Text>
-          </Pressable>
-        </View>
-      ) : null}
-      {alertError ? <Notice text={alertError} /> : null}
-      <View style={s.flex}>
-        {tab === "home" ? (
-          <HomeScreen
-            store={store}
-            pulse={pulse}
-            openOrders={() => setTab("orders")}
-            newOrder={() => setCreating(true)}
-          />
-        ) : tab === "orders" ? (
-          <Orders store={store} pulse={pulse} />
-        ) : tab === "finance" ? (
-          <Finance storeId={store.id} />
-        ) : tab === "more" ? (
-          <MoreScreen storeId={store.id} />
-        ) : (
-          <CatalogScreen store={store} pulse={pulse} />
-        )}
-      </View>
-      <BottomNav tab={tab} onChange={setTab} />
-      {creating ? (
-        <OrderComposer
-          storeId={store.id}
-          close={() => setCreating(false)}
-          saved={() => setPulse((x) => x + 1)}
-        />
-      ) : null}
+      {visited.home ? <View style={[s.flex, tab !== 'home' && { display: 'none' }]}><HomeScreen store={store} active={tab === 'home'} openOrders={() => selectTab('orders')} newOrder={() => setCreating(true)} /></View> : null}
+      {visited.orders ? <View style={[s.flex, tab !== 'orders' && { display: 'none' }]}><Orders store={store} active={tab === 'orders'} /></View> : null}
+      {visited.catalog ? <View style={[s.flex, tab !== 'catalog' && { display: 'none' }]}><CatalogScreen store={store} active={tab === 'catalog'} /></View> : null}
+      {visited.finance ? <View style={[s.flex, tab !== 'finance' && { display: 'none' }]}><Finance storeId={store.id} active={tab === 'finance'} /></View> : null}
+      {tab === 'more' ? <MoreScreen storeId={store.id} /> : null}
     </View>
-  );
+    <BottomNav tab={tab} onChange={selectTab} />
+    {creating ? <OrderComposer storeId={store.id} close={() => setCreating(false)} saved={saved} /> : null}
+  </View>;
 }
 function Account({ session }: { session: Session }) {
   const [attempt, setAttempt] = useState(0),
@@ -1123,7 +1102,7 @@ export default function App() {
           <>
             {error ? <Notice text={error} /> : null}
             {session ? (
-              <Account key={session.user.id} session={session} />
+              <RemoteProvider key={session.user.id}><Account session={session} /></RemoteProvider>
             ) : (
               <Login />
             )}
@@ -1133,3 +1112,4 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+

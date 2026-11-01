@@ -85,3 +85,10 @@ A nova entrega usa o runtime Android da 0.2.2 que o usuário já instalou. Todas
 - A recuperação inicial do áudio foi conferida contra o blob Git e a base assinada; o WAV completo de 132.344 bytes foi restaurado e o bundle recompilado.
 - Nenhum token JWT service_role foi encontrado no bundle. Nenhuma credencial privada, keystore ou arquivo de ambiente foi incluído no repositório.
 - Arquivo de entrega atualizado preservando o histórico da versão anterior. A página pública do site respondeu HTTP 200.
+
+
+## Android 0.3.1 — performance update
+
+Main-tab retention, session/tenant/filter-scoped memory cache, bounded Finance pages and read-only server aggregates, concurrent independent checks, confirmed single-order UI updates, and saving/loading feedback. Site code/deployment are unchanged. Production read migration is recorded as `20261101125417_mobile_read_performance`; payment fix from 0.3.0 remains in place.
+
+Native packages/resources/config are identical to verified 0.3.0 except versionCode 6 / versionName 0.3.1. The Hermes JS update is packaged with the fail-closed script over the verified prior APK, zipaligned and signed with the same test certificate. This is not a new full Gradle native build. Background/closed-app FCM remains pending as previously disclosed. Status writes still use the existing website API and wait for confirmation; response latency there is a remaining measurement target.

@@ -6,19 +6,19 @@ export async function checkStore(storeId: string) {
     error,
   } = await supabase.auth.getUser();
   if (error || !user) throw new Error("Sua sessão expirou.");
-  const membership = await supabase
+  const [membership, tenant] = await Promise.all([supabase
     .from("usuarios_loja")
     .select("role")
     .eq("user_id", user.id)
     .eq("tenant_id", storeId)
     .eq("ativo", true)
     .in("role", ["owner", "manager"])
-    .maybeSingle();
-  const tenant = await supabase
+    .maybeSingle(),
+  supabase
     .from("tenants")
     .select("status,bloqueado")
     .eq("id", storeId)
-    .maybeSingle();
+    .maybeSingle()]);
   if (
     membership.error ||
     !membership.data ||
@@ -209,3 +209,4 @@ export async function productAction(
     "Não foi possível alterar o produto",
   );
 }
+

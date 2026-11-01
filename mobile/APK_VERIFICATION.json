@@ -1,17 +1,20 @@
 {
-  "version": "0.3.0",
-  "versionCode": 5,
-  "bytes": 50684153,
-  "sha256": "867e949964c05ca23d426d6ad24221f0666f621ed78df1dde1e872495f0a2842",
-  "baseline_sha256": "5ba9a1d43642b4dc2be1df02a1dd8a556648ae1c809b6a8bd1ee6fc2d67d8efb",
-  "changed_entries": [
+  "version": "0.3.1",
+  "versionCode": 6,
+  "package": "site.wedelivery.lojista",
+  "sha256": "7320e77dc7557301623474809b715332694de1c62386acaaf10e3ec8ced5cdf0",
+  "size_bytes": 50811328,
+  "nativeLibraries": {
+    "armeabi-v7a": 18,
+    "arm64-v8a": 18
+  },
+  "baseline_sha256": "867e949964c05ca23d426d6ad24221f0666f621ed78df1dde1e872495f0a2842",
+  "changed_payloads": [
     "assets/index.android.bundle",
     "AndroidManifest.xml"
   ],
-  "unchanged_native_payload": true,
-  "hermes_header": "c61fbc03c103191f63000000",
-  "service_role_tokens": 0,
-  "unit_and_sql_tests": 53,
-  "synthetic_layout_checks": 48,
-  "real_device_test": false
+  "tests_passed": 76,
+  "production_readonly_smoke": "passed",
+  "on_device_timing": "pending user comparison",
+  "website_deployed": false
 }

@@ -14,14 +14,38 @@ import { Text, Button, Notice, s } from "./ui";
 import { PageHeading, Disclosure, m, palette } from "./merchant-layout";
 import { request } from "./transport";
 import { money } from "./domain";
-import { useRemote } from "./useRemote";
-import { financeSummary } from "./finance-model";
+import { useRemote, useRemoteCache } from "./useRemote";
+import { financeRead, type FinanceTotals, type FinancePage } from "./finance-api";
+import DateRangeFilter from "./DateRangeFilter";
+import { supabase } from "./supabase";
+
+function FinanceList({ storeId, view, active, range }: { storeId: string; view: string; active: boolean; range?: { from: string; to: string } }) {
+  const [page, setPage] = useState(0);
+  const load = useCallback((signal: AbortSignal) => financeRead<FinancePage>(storeId, view, signal, page * 50, range), [storeId, view, page, range?.from, range?.to]);
+  const state = useRemote(load, { key: `finance:${storeId}:${view}:${page}:${range?.from || ''}:${range?.to || ''}`, enabled: active });
+  return <View style={{ gap: 12 }}>
+    {state.error ? <Notice text={state.error} retry={state.retry} /> : null}
+    {state.loading ? <Text style={s.subtitle}>{state.data ? 'Atualizando…' : 'Carregando…'}</Text> : null}
+    {state.data?.rows.map(t => <View key={t.id} style={[s.between, { borderBottomWidth: 1, borderColor: palette.line, paddingVertical: 12 }]}>
+      <View style={s.flex}><Text style={{ fontSize: 13, fontWeight: '600' }}>{view === 'fluxo' ? t.descricao : view === 'receber' ? `Pedido #${t.codigo || String(t.id).slice(0,8)}` : t.nome}</Text>
+      {t.data ? <Text style={[s.subtitle, { fontSize: 11, textAlign: 'left' }]}>{new Date(t.data.length === 10 ? t.data + 'T12:00:00' : t.data).toLocaleDateString('pt-BR')} · {t.tipo}</Text> : null}</View>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: Number(t.amount ?? t.valor ?? t.valor_total) < 0 ? '#b74949' : palette.active }}>{money(t.amount ?? t.valor ?? t.valor_total)}</Text>
+    </View>)}
+    {state.data && !state.loading && !state.data.rows.length ? <Text style={s.subtitle}>{view === 'fluxo' ? 'Nenhuma movimentação neste período.' : view === 'receber' ? 'Nenhuma conta a receber.' : 'Nenhuma despesa cadastrada.'}</Text> : null}
+    {page > 0 || state.data?.hasMore ? <View style={s.between}>
+      <Button title="Anterior" secondary disabled={page === 0 || state.loading} onPress={() => setPage(x => x - 1)} />
+      <Text>{page + 1}</Text><Button title="Próxima" secondary disabled={!state.data?.hasMore || state.loading} onPress={() => setPage(x => x + 1)} />
+    </View> : null}
+  </View>;
+}
 export default function Finance({
   storeId,
   summaryOnly = false,
+  active = true,
 }: {
   storeId: string;
   summaryOnly?: boolean;
+  active?: boolean;
 }) {
   const [tab, setTab] = useState("cashflow"),
     [expanded, setExpanded] = useState(true),
@@ -32,12 +56,16 @@ export default function Finance({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [forms, setForms] = useState<Record<string, boolean> | null>(null);
-  const load = useCallback(
-      (signal: AbortSignal) =>
-        request(storeId, "/api/financeiro", "GET", undefined, signal),
-      [storeId],
-    ),
-    state = useRemote(load);
+  const cache = useRemoteCache();
+  const [range, setRange] = useState({ from: '', to: '' });
+  const load = useCallback((signal: AbortSignal) => financeRead<FinanceTotals>(storeId, 'resumo', signal), [storeId]);
+  const state = useRemote(load, { key: `finance:${storeId}:summary`, enabled: active });
+  const loadForms = useCallback(async (signal: AbortSignal) => {
+    const r = await supabase.from('tenants').select('config').eq('id',storeId).abortSignal(signal).single();
+    if (r.error) throw new Error('Não foi possível carregar as formas de pagamento.');
+    return r.data.config?.formas_pagamento_aceitas || {};
+  }, [storeId]);
+  const formsState = useRemote(loadForms, { key: `finance:${storeId}:forms`, enabled: active && tab === 'payments' });
   async function save() {
     setBusy(true);
     setError("");
@@ -54,7 +82,7 @@ export default function Finance({
       setEditing(false);
       setDescription("");
       setValue("");
-      state.retry();
+      cache.invalidate(`finance:${storeId}:`);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -66,19 +94,16 @@ export default function Finance({
     setError("");
     try {
       await request(storeId, "/api/financeiro", "PUT", { formas: forms });
-      state.retry();
+      setForms(null);
+      cache.invalidate(`finance:${storeId}:`);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setBusy(false);
     }
   }
-  const orders = state.data?.orders || [],
-    expenses = state.data?.expenses || [],
-    transactions = state.data?.transactions || [],
-    summary = financeSummary(orders, expenses, transactions),
-    paymentForms =
-      forms || state.data?.tenant?.config?.formas_pagamento_aceitas || {};
+  const summary = state.data;
+  const paymentForms = forms || formsState.data || {};
   return (
     <ScrollView contentContainerStyle={s.content}>
       <PageHeading
@@ -95,7 +120,7 @@ export default function Finance({
         <Notice text={state.error} retry={state.retry} />
       ) : null}
       {error ? <Notice text={error} /> : null}
-      {state.data ? (
+      {summary ? (
         <>
           <View style={m.sales}>
             <Text style={m.salesLabel}>
@@ -118,6 +143,7 @@ export default function Finance({
           </View>
         </>
       ) : null}
+      {state.loading && state.data ? <Text style={s.subtitle}>Atualizando…</Text> : null}
       {!summaryOnly ? (
         <>
           <Button
@@ -171,89 +197,22 @@ export default function Finance({
             ))}
           </View>
           {tab === "cashflow" ? (
-            <Disclosure
-              title="Movimentações"
-              open={expanded}
-              onPress={() => setExpanded((x) => !x)}
-            >
-              {summary.rows.length ? (
-                summary.rows.map((t) => (
-                  <View
-                    key={t.id}
-                    style={[
-                      s.between,
-                      {
-                        borderBottomWidth: 1,
-                        borderColor: palette.line,
-                        paddingVertical: 12,
-                      },
-                    ]}
-                  >
-                    <View style={s.flex}>
-                      <Text style={{ fontSize: 13, fontWeight: "600" }}>
-                        {t.descricao}
-                      </Text>
-                      <Text
-                        style={[
-                          s.subtitle,
-                          { fontSize: 11, textAlign: "left" },
-                        ]}
-                      >
-                        {t.data
-                          ? new Date(
-                              t.data.length === 10
-                                ? t.data + "T12:00:00"
-                                : t.data,
-                            ).toLocaleDateString("pt-BR")
-                          : ""}{" "}
-                        · {t.tipo}
-                      </Text>
-                    </View>
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontWeight: "700",
-                        color: t.amount < 0 ? "#b74949" : palette.active,
-                      }}
-                    >
-                      {money(t.amount)}
-                    </Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={s.subtitle}>Nenhuma movimentação.</Text>
-              )}
-            </Disclosure>
+            <>
+              <DateRangeFilter value={range} onChange={setRange} />
+              <Disclosure title="Movimentações" open={expanded} onPress={() => setExpanded(x => !x)}>
+                {expanded ? <FinanceList key={`${range.from}:${range.to}`} storeId={storeId} view="fluxo" active={active} range={range} /> : null}
+              </Disclosure>
+            </>
           ) : tab === "accounts" ? (
             <>
-              <View style={s.card}>
-                <Text style={s.cardTitle}>Contas a receber</Text>
-                {orders
-                  .filter((o: any) => !o.pago && o.status !== "cancelado")
-                  .map((o: any) => (
-                    <View key={o.id} style={m.metricRow}>
-                      <Text style={m.metricLabel}>Pedido #{o.codigo}</Text>
-                      <Text style={s.green}>{money(o.valor_total)}</Text>
-                    </View>
-                  ))}
-              </View>
-              <View style={s.card}>
-                <Text style={s.cardTitle}>Contas a pagar</Text>
-                {expenses.length ? (
-                  expenses.map((e: any) => (
-                    <View key={e.id} style={m.metricRow}>
-                      <Text style={m.metricLabel}>{e.nome}</Text>
-                      <Text style={s.green}>{money(e.valor)}</Text>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={s.subtitle}>Nenhuma despesa cadastrada.</Text>
-                )}
-              </View>
+              <View style={s.card}><Text style={s.cardTitle}>Contas a receber</Text><FinanceList storeId={storeId} view="receber" active={active} /></View>
+              <View style={s.card}><Text style={s.cardTitle}>Contas a pagar</Text><FinanceList storeId={storeId} view="despesas" active={active} /></View>
             </>
           ) : (
             <View style={s.card}>
               <Text style={s.cardTitle}>Formas de pagamento</Text>
+              {formsState.loading ? <Text style={s.subtitle}>Carregando…</Text> : null}
+              {formsState.error ? <Notice text={formsState.error} retry={formsState.retry} /> : null}
               {[
                 ["dinheiro", "Dinheiro"],
                 ["pix", "Pix"],
@@ -264,6 +223,7 @@ export default function Finance({
                   <Text style={s.label}>{title}</Text>
                   <Switch
                     accessibilityLabel={title}
+                    disabled={!formsState.data || busy}
                     value={paymentForms[key] === true}
                     onValueChange={(value) =>
                       setForms({ ...paymentForms, [key]: value })
@@ -348,3 +308,4 @@ export default function Finance({
     </ScrollView>
   );
 }
+

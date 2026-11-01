@@ -42,10 +42,10 @@ import SettingsForms from "./SettingsForms";
 import { TextInput } from "react-native";
 export default function CatalogScreen({
   store,
-  pulse,
+  active = true,
 }: {
   store: Store;
-  pulse: number;
+  active?: boolean;
 }) {
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState("products"),
@@ -58,9 +58,9 @@ export default function CatalogScreen({
     [searchOpen, setSearchOpen] = useState(false);
   const load = useCallback(
       (signal: AbortSignal) => api.catalog(store.id, signal),
-      [store.id, pulse],
+      [store.id],
     ),
-    state = useRemote(load);
+    state = useRemote(load, { key: `catalog:${store.id}`, enabled: active });
   async function action(fn: () => Promise<unknown>) {
     if (busy) return;
     setBusy(true);
@@ -588,3 +588,4 @@ export default function CatalogScreen({
     </View>
   );
 }
+

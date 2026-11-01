@@ -1,4 +1,4 @@
-"""Package a JS-only update over the verified 0.2.2 native test runtime.
+"""Package a JS-only update over the verified 0.3.0 native test runtime.
 
 Fail closed if native dependencies, the Hermes ABI, assets, or baseline bytes differ.
 Output is unsigned: zipalign and apksigner are required afterwards.
@@ -11,7 +11,7 @@ import pathlib
 import struct
 import zipfile
 
-BASELINE_SHA = '5ba9a1d43642b4dc2be1df02a1dd8a556648ae1c809b6a8bd1ee6fc2d67d8efb'
+BASELINE_SHA = '867e949964c05ca23d426d6ad24221f0666f621ed78df1dde1e872495f0a2842'
 NATIVE_DEPS = {'@expo-google-fonts/inter':'0.4.2','@supabase/supabase-js':'2.118.0','expo':'58.0.21','expo-audio':'58.0.10','expo-auth-session':'58.0.16','expo-clipboard':'58.0.4','expo-crypto':'58.0.7','expo-file-system':'58.0.13','expo-font':'58.0.11','expo-image-picker':'58.0.10','expo-linear-gradient':'58.0.3','expo-print':'58.0.8','expo-secure-store':'58.0.2','expo-status-bar':'58.0.4','expo-web-browser':'58.0.7','lucide-react-native':'1.66.0','react':'19.3.0','react-native':'0.88.1','react-native-safe-area-context':'5.10.1','react-native-svg':'15.16.0','react-native-url-polyfill':'4.0.0'}
 
 def update_manifest(raw):
@@ -28,9 +28,9 @@ def update_manifest(raw):
         if n&32768:n=((n&32767)<<16)|struct.unpack_from('<H',data,pos)[0];pos+=2
         return n,pos
     def change_string(index):
-        assert strings[index]=='0.2.2','Unexpected baseline version name'
+        assert strings[index]=='0.3.0','Unexpected baseline version name'
         pos,count=offsets[index]
-        value='0.3.0'.encode('utf-8' if utf8 else 'utf-16-le')
+        value='0.3.1'.encode('utf-8' if utf8 else 'utf-16-le')
         assert len(value)==count
         data[pos:pos+count]=value
     pos=struct.unpack_from('<H',data,2)[0]
@@ -59,8 +59,8 @@ def update_manifest(raw):
                     value_type=data[attr+15]
                     value=struct.unpack_from('<I',data,attr+16)[0]
                     if strings[name]=='versionCode':
-                        assert value_type==0x10 and value==4
-                        struct.pack_into('<I',data,attr+16,5);changed_code=True
+                        assert value_type==0x10 and value==5
+                        struct.pack_into('<I',data,attr+16,6);changed_code=True
                     elif strings[name]=='versionName':
                         assert value_type==3
                         change_string(value)
@@ -104,3 +104,4 @@ def main():
     print('Resources unchanged:',len(assets))
 
 if __name__=='__main__':main()
+
