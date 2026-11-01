@@ -92,3 +92,11 @@ A nova entrega usa o runtime Android da 0.2.2 que o usuário já instalou. Todas
 Main-tab retention, session/tenant/filter-scoped memory cache, bounded Finance pages and read-only server aggregates, concurrent independent checks, confirmed single-order UI updates, and saving/loading feedback. Site code/deployment are unchanged. Production read migration is recorded as `20261101125417_mobile_read_performance`; payment fix from 0.3.0 remains in place.
 
 Native packages/resources/config are identical to verified 0.3.0 except versionCode 6 / versionName 0.3.1. The Hermes JS update is packaged with the fail-closed script over the verified prior APK, zipaligned and signed with the same test certificate. This is not a new full Gradle native build. Background/closed-app FCM remains pending as previously disclosed. Status writes still use the existing website API and wait for confirmation; response latency there is a remaining measurement target.
+
+## Android 0.3.2 — launcher branding
+
+User-provided green SaaS logo adapted to a full green tile with the original negative-space symbol centered, removing the external white page margin. Generated master: `assets/app-icon.png`; Expo `icon` now points to it. The creative conversion used the built-in image tool; density exports use ImageMagick only for technical resizing and circular clipping. No changes to the uploaded original.
+
+The verified 0.3.1 APK's ten existing launcher bitmap resources (normal/round, mdpi through xxxhdpi) were replaced without changing resource IDs or `resources.arsc`. Binary manifest version is 0.3.2 / code 7. DEX, Hermes bundle, native libraries, permissions and all other resources remain byte-identical. The resource-only package was zipaligned and signed with the same certificate, then signature/package/ZIP/payload allowlist checks passed. TypeScript passed. No new full Gradle build and no website deploy. Launcher cache behavior on an actual phone still needs user verification after updating.
+
+Reproduce: `node scripts/generate-launcher-assets.mjs <verified-0.3.1.apk>`; `python scripts/package-icon-update.py <verified-0.3.1.apk> dist/icon-update <unsigned.apk>`; zipalign at 16 KB and sign with the existing test certificate.

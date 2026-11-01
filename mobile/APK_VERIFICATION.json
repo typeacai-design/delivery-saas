@@ -1,20 +1,33 @@
 {
-  "version": "0.3.1",
-  "versionCode": 6,
+  "version": "0.3.2",
+  "versionCode": 7,
   "package": "site.wedelivery.lojista",
-  "sha256": "7320e77dc7557301623474809b715332694de1c62386acaaf10e3ec8ced5cdf0",
-  "size_bytes": 50811328,
-  "nativeLibraries": {
-    "armeabi-v7a": 18,
-    "arm64-v8a": 18
-  },
-  "baseline_sha256": "867e949964c05ca23d426d6ad24221f0666f621ed78df1dde1e872495f0a2842",
+  "sha256": "f31e582dddde35cf8894b130f9720d6e9ab3ff18526e0c649227b2f773fb57a3",
+  "size_bytes": 50819520,
+  "baseline_sha256": "7320e77dc7557301623474809b715332694de1c62386acaaf10e3ec8ced5cdf0",
   "changed_payloads": [
-    "assets/index.android.bundle",
-    "AndroidManifest.xml"
+    "AndroidManifest.xml",
+    "res/-6.webp",
+    "res/MO.webp",
+    "res/Sn.webp",
+    "res/d2.webp",
+    "res/fq.webp",
+    "res/j_.webp",
+    "res/qs.webp",
+    "res/sK.webp",
+    "res/u5.webp",
+    "res/yw.webp"
   ],
-  "tests_passed": 76,
-  "production_readonly_smoke": "passed",
-  "on_device_timing": "pending user comparison",
+  "javascript": "byte-identical to 0.3.1",
+  "dex_and_native_libraries": "byte-identical to 0.3.1",
+  "resource_table": "byte-identical to 0.3.1",
+  "icon_densities": [
+    "mdpi",
+    "hdpi",
+    "xhdpi",
+    "xxhdpi",
+    "xxxhdpi"
+  ],
+  "signature": "same verified test certificate",
   "website_deployed": false
 }
