@@ -1,4 +1,4 @@
-"""Resource-only update for verified Android 0.3.1. DEX, JS, libraries and resource IDs remain byte-identical. Output must be zipaligned and signed."""
+"""Resource-only update for verified Android 0.3.2. DEX, JS, libraries and resource IDs remain byte-identical. Output must be zipaligned and signed."""
 import pathlib,hashlib,json,zipfile,struct,sys
 def update_manifest(raw):
     data=bytearray(raw)
@@ -14,9 +14,9 @@ def update_manifest(raw):
         if n&32768:n=((n&32767)<<16)|struct.unpack_from('<H',data,pos)[0];pos+=2
         return n,pos
     def change_string(index):
-        assert strings[index]=='0.3.1','Unexpected baseline version name'
+        assert strings[index]=='0.3.2','Unexpected baseline version name'
         pos,count=offsets[index]
-        value='0.3.2'.encode('utf-8' if utf8 else 'utf-16-le')
+        value='0.3.3'.encode('utf-8' if utf8 else 'utf-16-le')
         assert len(value)==count
         data[pos:pos+count]=value
     pos=struct.unpack_from('<H',data,2)[0]
@@ -45,8 +45,8 @@ def update_manifest(raw):
                     value_type=data[attr+15]
                     value=struct.unpack_from('<I',data,attr+16)[0]
                     if strings[name]=='versionCode':
-                        assert value_type==0x10 and value==6
-                        struct.pack_into('<I',data,attr+16,7);changed_code=True
+                        assert value_type==0x10 and value==7
+                        struct.pack_into('<I',data,attr+16,8);changed_code=True
                     elif strings[name]=='versionName':
                         assert value_type==3
                         change_string(value)
@@ -58,7 +58,7 @@ def update_manifest(raw):
 
 def main():
     baseline, folder, output=map(pathlib.Path,sys.argv[1:])
-    assert hashlib.sha256(baseline.read_bytes()).hexdigest()=='7320e77dc7557301623474809b715332694de1c62386acaaf10e3ec8ced5cdf0'
+    assert hashlib.sha256(baseline.read_bytes()).hexdigest()=='f31e582dddde35cf8894b130f9720d6e9ab3ff18526e0c649227b2f773fb57a3'
     entries=json.loads((folder/'manifest.json').read_text())
     expected={'res/d2.webp','res/yw.webp','res/MO.webp','res/fq.webp','res/qs.webp','res/u5.webp','res/Sn.webp','res/j_.webp','res/sK.webp','res/-6.webp'}
     assert len(entries)==10 and {e['path'] for e in entries}==expected

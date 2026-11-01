@@ -1,10 +1,10 @@
 {
-  "version": "0.3.2",
-  "versionCode": 7,
+  "version": "0.3.3",
+  "versionCode": 8,
   "package": "site.wedelivery.lojista",
-  "sha256": "f31e582dddde35cf8894b130f9720d6e9ab3ff18526e0c649227b2f773fb57a3",
-  "size_bytes": 50819520,
-  "baseline_sha256": "7320e77dc7557301623474809b715332694de1c62386acaaf10e3ec8ced5cdf0",
+  "sha256": "86bb5670bdbfcbb56f7e507505c75f9b9fc62dec91020caf7de1edd7b16cd50f",
+  "size_bytes": 50811328,
+  "baseline_sha256": "f31e582dddde35cf8894b130f9720d6e9ab3ff18526e0c649227b2f773fb57a3",
   "changed_payloads": [
     "AndroidManifest.xml",
     "res/-6.webp",
@@ -18,16 +18,8 @@
     "res/u5.webp",
     "res/yw.webp"
   ],
-  "javascript": "byte-identical to 0.3.1",
-  "dex_and_native_libraries": "byte-identical to 0.3.1",
-  "resource_table": "byte-identical to 0.3.1",
-  "icon_densities": [
-    "mdpi",
-    "hdpi",
-    "xhdpi",
-    "xxhdpi",
-    "xxxhdpi"
-  ],
+  "javascript_dex_native_resource_table": "byte-identical to 0.3.2",
+  "icon_change": "transparent rounded-square corners on standard launcher resources",
   "signature": "same verified test certificate",
   "website_deployed": false
 }
