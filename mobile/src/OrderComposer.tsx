@@ -1,59 +1,842 @@
-import {useCallback,useEffect,useRef,useState} from 'react'
-import {ActivityIndicator,Alert,Modal,Pressable,ScrollView,TextInput,View} from 'react-native'
-import {SafeAreaView} from 'react-native-safe-area-context'
-import {X} from 'lucide-react-native'
-import {Text,Button,Notice,s} from './ui'
-import {Disclosure,PageHeading,Segments,m} from './merchant-layout'
-import {useRemote} from './useRemote'
-import {supabase} from './supabase'
-import {checkStore,productOptions} from './catalog-api'
-import {readAll,readConfig} from './scoped-data'
-import {request} from './transport'
-import {WebApiError} from './web-api'
-import * as api from './api'
-import {money,type Order} from './domain'
-import {manualBody,totals,lineTotal,type CartLine} from './order-model'
-const initial={cliente_id:'',cliente_nome:'',cliente_whatsapp:'',tipo_entrega:'delivery',endereco_entrega:'',numero_entrega:'',complemento_entrega:'',bairro_entrega:'',observacoes:'',forma_pagamento:'dinheiro',taxa_entrega:'0',valor_desconto:'0',valor_acrescimo:'0',troco_para:''}
-const parse=(v:any)=>{if(typeof v==='string'){try{v=JSON.parse(v)}catch{v=[]}}return Array.isArray(v)?v:[]}
-export default function OrderComposer({storeId,order,sessionId,close,saved}:{storeId:string;order?:Order;sessionId?:string;close:()=>void;saved:()=>void}){
- const [form,setForm]=useState<Record<string,string>>(()=>({...initial,...(sessionId?{tipo_entrega:'mesa'}:{}),...Object.fromEntries(Object.entries(order||{}).filter(([,v])=>typeof v==='string').map(([k,v])=>[k,String(v)])),forma_pagamento:order?.forma_pagamento?.[0]||'dinheiro',taxa_entrega:String((order as any)?.taxa_entrega||0),valor_desconto:String((order as any)?.valor_desconto||0),valor_acrescimo:String(order?Math.max(0,Number(order.valor_total)-Number((order as any).valor_subtotal||0)-Number((order as any).taxa_entrega||0)+Number((order as any).valor_desconto||0)):0)}))
- const [lines,setLines]=useState<CartLine[]>([]),[open,setOpen]=useState<Record<string,boolean>>({cliente:true,produtos:true}),[search,setSearch]=useState(''),[picker,setPicker]=useState(false),[editing,setEditing]=useState<{product:any;index:number|null}|null>(null),[selectedSession,setSelectedSession]=useState(sessionId||''),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[error,setError]=useState('');const lock=useRef(false)
- const load=useCallback(async(signal:AbortSignal)=>{
-  await checkStore(storeId)
-  const [catalog,items,sessions,clients,areas]=await Promise.all([api.catalog(storeId,signal),order?supabase.from('pedido_itens').select('id,produto_id,nome,quantidade,valor_unitario,variante_id,variante_nome,complementos,observacao,pontos').eq('pedido_id',order.id).abortSignal(signal):Promise.resolve({data:[],error:null}),request(storeId,'/api/sessoes-mesa','GET',undefined,signal),order?Promise.resolve([]):readAll(()=>supabase.from('clientes').select('id,nome,telefone,endereco,bairro').eq('tenant_id',storeId).eq('ativo',true).order('nome').order('id'),signal),readAll(()=>supabase.from('enderecos_entrega').select('id,bairro,taxa').eq('tenant_id',storeId).eq('ativo',true).order('bairro').order('id'),signal)])
-  if(items.error)throw new Error('Não foi possível ler os itens.');return {...catalog,items:items.data||[],sessions:sessions.sessoes||[],clients,areas}
- },[storeId,order?.id]),state=useRemote(load)
- useEffect(()=>{if(state.data&&order)setLines(state.data.items.map((i:any)=>({...i,valor_unitario:Number(i.valor_unitario),complementos:parse(i.complementos)})));if(state.data&&sessionId){const ss=state.data.sessions.find((x:any)=>x.id===sessionId);if(ss)setForm(f=>({...f,cliente_nome:ss.cliente_nome||'',cliente_whatsapp:ss.cliente_whatsapp||''}))}},[state.data,order?.id,sessionId])
- const change=(key:string,value:string)=>setForm(f=>({...f,[key]:value,...(['cliente_nome','cliente_whatsapp'].includes(key)?{cliente_id:''}:{})}))
- async function save(){if(lock.current||uncertain)return;lock.current=true;setBusy(true);setError('');try{
-  const payload=manualBody(order?{...form,tipo_entrega:'retirada'}:form,lines,selectedSession)
-  if(!order&&payload.cliente_whatsapp&&!payload.cliente_id&&form.tipo_entrega!=='mesa'){
-   const phone=payload.cliente_whatsapp.replace(/\D/g,'');if(phone.length<10||phone.length>13)throw new Error('Confira o WhatsApp do cliente.');const prior=await supabase.from('clientes').select('id').eq('tenant_id',storeId).eq('telefone',phone).maybeSingle();if(prior.error)throw new Error('Não foi possível conferir o cliente.')
-   if(prior.data)payload.cliente_id=prior.data.id;else{const made=await supabase.from('clientes').insert({tenant_id:storeId,nome:form.cliente_nome,telefone:phone,endereco:form.endereco_entrega||null,bairro:form.bairro_entrega||null,ativo:true}).select('id').single();if(made.error)throw new Error('Não foi possível confirmar o cadastro do cliente. Confira a lista antes de repetir.');payload.cliente_id=made.data.id}setForm(f=>({...f,cliente_id:payload.cliente_id!}))
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { X } from "lucide-react-native";
+import { Text, Button, Notice, s } from "./ui";
+import { Disclosure, PageHeading, Segments, m } from "./merchant-layout";
+import { useRemote } from "./useRemote";
+import { supabase } from "./supabase";
+import { checkStore, productOptions } from "./catalog-api";
+import { readAll, readConfig } from "./scoped-data";
+import { request } from "./transport";
+import { WebApiError } from "./web-api";
+import * as api from "./api";
+import { money, type Order } from "./domain";
+import { manualBody, totals, lineTotal, type CartLine } from "./order-model";
+const initial = {
+  cliente_id: "",
+  cliente_nome: "",
+  cliente_whatsapp: "",
+  tipo_entrega: "delivery",
+  endereco_entrega: "",
+  numero_entrega: "",
+  complemento_entrega: "",
+  bairro_entrega: "",
+  observacoes: "",
+  forma_pagamento: "dinheiro",
+  taxa_entrega: "0",
+  valor_desconto: "0",
+  valor_acrescimo: "0",
+  troco_para: "",
+};
+const parse = (v: any) => {
+  if (typeof v === "string") {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      v = [];
+    }
   }
-  if(order)await request(storeId,`/api/pedidos/${order.id}`,'PATCH',{...Object.fromEntries(['cliente_nome','cliente_whatsapp','endereco_entrega','numero_entrega','complemento_entrega','bairro_entrega','observacoes'].map(k=>[k,form[k]])),taxa_entrega:payload.taxa_entrega,valor_desconto:payload.valor_desconto,itens:lines});else await request(storeId,'/api/pedidos/manual','POST',payload)
-  saved();close()
- }catch(e:any){setError(e.message);setUncertain(e instanceof WebApiError&&e.uncertain)}finally{lock.current=false;setBusy(false)}}
- const leave=()=>{if(!busy)Alert.alert('Sair do pedido?','Alterações não salvas serão descartadas.',[{text:'Continuar',style:'cancel'},{text:'Sair',style:'destructive',onPress:close}])}
- const section=(id:string,title:string,children:React.ReactNode)=><Disclosure title={title} open={!!open[id]} onPress={()=>setOpen(x=>({...x,[id]:!x[id]}))}>{children}</Disclosure>
- const field=(key:string,label:string,numeric=false)=><View key={key} style={{gap:7}}><Text style={[s.label,{textAlign:'center'}]}>{label}</Text><TextInput accessibilityLabel={label} style={s.input} editable={!busy} keyboardType={numeric?'decimal-pad':'default'} value={form[key]||''} onChangeText={v=>change(key,v)}/></View>
- let total=0;try{total=totals(lines,form.taxa_entrega,form.valor_desconto,form.valor_acrescimo).total}catch{}
- return <Modal visible presentationStyle="fullScreen" animationType="slide" onRequestClose={leave}><SafeAreaView style={s.safe}><View style={[s.between,{padding:18}]}><Text style={[s.cardTitle,{flex:1}]}>{order?`Editar #${order.codigo}`:'Novo pedido'}</Text><Pressable accessibilityLabel="Fechar pedido" style={m.iconButton} disabled={busy} onPress={leave}><X size={20}/></Pressable></View><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">{state.loading?<ActivityIndicator/>:state.error?<Notice text={state.error} retry={state.retry}/>:null}{error?<Notice text={error}/>:null}{uncertain?<><Notice text="O envio ficou sem confirmação. Confira os pedidos antes de enviar novamente, para evitar duplicidade."/><Button title="Voltar para conferir os pedidos" secondary onPress={close}/></>:null}
- {section('cliente','Dados do cliente',<>{field('cliente_nome','Nome do cliente')}{field('cliente_whatsapp','WhatsApp')}{!order&&!form.cliente_id&&form.cliente_nome.length>=2?state.data?.clients.filter(c=>c.nome.toLowerCase().includes(form.cliente_nome.toLowerCase())).slice(0,5).map(c=><Button key={c.id} title={`${c.nome} · ${c.telefone}`} secondary onPress={()=>setForm(f=>({...f,cliente_id:c.id,cliente_nome:c.nome,cliente_whatsapp:c.telefone,endereco_entrega:c.endereco||'',bairro_entrega:c.bairro||''}))}/>):null}</>)}
- {section('entrega','Entrega, retirada ou mesa',<>{!order?<Segments value={form.tipo_entrega} onChange={v=>change('tipo_entrega',v)} items={[{id:'delivery',label:'Delivery'},{id:'retirada',label:'Retirada'},{id:'mesa',label:'Mesa'}]}/>:null}{form.tipo_entrega==='mesa'?state.data?.sessions.map((ss:any)=><Button key={ss.id} title={`Mesa ${ss.mesa_numero} · ${ss.cliente_nome}`} secondary={selectedSession!==ss.id} onPress={()=>{setSelectedSession(ss.id);setForm(f=>({...f,cliente_nome:ss.cliente_nome,cliente_whatsapp:ss.cliente_whatsapp||''}))}}/>):null}{form.tipo_entrega==='delivery'?<>{field('endereco_entrega','Endereço')}{field('numero_entrega','Número')}{field('complemento_entrega','Complemento')}{field('bairro_entrega','Bairro')}{state.data?.areas.map(b=><Button key={b.id} title={`${b.bairro} · ${money(b.taxa)}`} secondary onPress={()=>setForm(f=>({...f,bairro_entrega:b.bairro,taxa_entrega:String(b.taxa)}))}/>)}</>:null}</>)}
- {section('produtos','Produtos e complementos',<>{lines.map((line,i)=><View key={line.id||i} style={s.card}><Text style={s.cardTitle}>{line.quantidade}× {line.nome}</Text>{line.complementos.map((c,j)=><Text key={j}>{c.quantidade}× {c.nome}</Text>)}<Text style={[s.green,{textAlign:'center'}]}>{money(lineTotal(line))}</Text><Button title="Editar produto" secondary onPress={()=>{const product=state.data?.products.find(p=>p.id===line.produto_id);if(product)setEditing({product,index:i});else setError('Produto removido do cardápio. Mantenha a composição atual ou remova o item.')}}/><Button title="Remover produto" secondary onPress={()=>setLines(x=>x.filter((_,n)=>n!==i))}/></View>)}<Button title="Adicionar produto" onPress={()=>setPicker(true)}/></>)}
- {section('pagamento','Pagamento e valores',<>{!order?<View style={s.wrap}>{['dinheiro','pix','cartao_credito','cartao_debito'].map(v=><Button key={v} title={v.replaceAll('_',' ')} secondary={form.forma_pagamento!==v} onPress={()=>change('forma_pagamento',v)}/>)}</View>:null}{field('taxa_entrega','Taxa de entrega',true)}{field('valor_desconto','Desconto em R$',true)}{!order?<>{field('valor_acrescimo','Acréscimo em R$',true)}{field('troco_para','Troco para',true)}</>:null}<Text style={[s.totalValue,{textAlign:'center'}]}>{money(total)}</Text></>)}
- {section('observacoes','Observações',field('observacoes','Observações do pedido'))}</ScrollView><View style={{padding:18}}><Button title={busy?'Salvando…':order?'Salvar alterações':'Confirmar pedido'} disabled={busy||uncertain||!state.data} onPress={()=>void save()}/></View>
- <Modal visible={picker} animationType="slide" onRequestClose={()=>setPicker(false)}><SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.content}><Button title="Voltar ao pedido" secondary onPress={()=>setPicker(false)}/><TextInput accessibilityLabel="Pesquisar produto" style={s.input} value={search} onChangeText={setSearch} placeholder="Pesquisar produto"/>{state.data?.products.filter(p=>p.ativo&&p.nome.toLowerCase().includes(search.toLowerCase())).map(p=><Button key={p.id} title={`${p.nome} · ${money(p.preco)}`} secondary onPress={()=>{setPicker(false);setEditing({product:p,index:null})}}/>)}</ScrollView></SafeAreaView></Modal>
- {editing?<ConfigureLine storeId={storeId} product={editing.product} prior={editing.index===null?undefined:lines[editing.index]} close={()=>setEditing(null)} save={line=>{setLines(x=>editing.index===null?[...x,line]:x.map((old,i)=>i===editing.index?line:old));setEditing(null)}}/>:null}</SafeAreaView></Modal>
+  return Array.isArray(v) ? v : [];
+};
+export default function OrderComposer({
+  storeId,
+  order,
+  sessionId,
+  close,
+  saved,
+}: {
+  storeId: string;
+  order?: Order;
+  sessionId?: string;
+  close: () => void;
+  saved: () => void;
+}) {
+  const [form, setForm] = useState<Record<string, string>>(() => ({
+    ...initial,
+    ...(sessionId ? { tipo_entrega: "mesa" } : {}),
+    ...Object.fromEntries(
+      Object.entries(order || {})
+        .filter(([, v]) => typeof v === "string")
+        .map(([k, v]) => [k, String(v)]),
+    ),
+    forma_pagamento: order?.forma_pagamento?.[0] || "dinheiro",
+    taxa_entrega: String((order as any)?.taxa_entrega || 0),
+    valor_desconto: String((order as any)?.valor_desconto || 0),
+    valor_acrescimo: String(
+      order
+        ? Math.max(
+            0,
+            Number(order.valor_total) -
+              Number((order as any).valor_subtotal || 0) -
+              Number((order as any).taxa_entrega || 0) +
+              Number((order as any).valor_desconto || 0),
+          )
+        : 0,
+    ),
+  }));
+  const [lines, setLines] = useState<CartLine[]>([]),
+    [open, setOpen] = useState<Record<string, boolean>>({
+      cliente: true,
+      produtos: true,
+    }),
+    [search, setSearch] = useState(""),
+    [picker, setPicker] = useState(false),
+    [editing, setEditing] = useState<{
+      product: any;
+      index: number | null;
+    } | null>(null),
+    [selectedSession, setSelectedSession] = useState(sessionId || ""),
+    [busy, setBusy] = useState(false),
+    [uncertain, setUncertain] = useState(false),
+    [error, setError] = useState("");
+  const lock = useRef(false);
+  const load = useCallback(
+      async (signal: AbortSignal) => {
+        await checkStore(storeId);
+        const [catalog, items, sessions, clients, areas] = await Promise.all([
+          api.catalog(storeId, signal),
+          order
+            ? supabase
+                .from("pedido_itens")
+                .select(
+                  "id,produto_id,nome,quantidade,valor_unitario,variante_id,variante_nome,complementos,observacao,pontos",
+                )
+                .eq("pedido_id", order.id)
+                .abortSignal(signal)
+            : Promise.resolve({ data: [], error: null }),
+          request(storeId, "/api/sessoes-mesa", "GET", undefined, signal),
+          order
+            ? Promise.resolve([])
+            : readAll(
+                () =>
+                  supabase
+                    .from("clientes")
+                    .select("id,nome,telefone,endereco,bairro")
+                    .eq("tenant_id", storeId)
+                    .eq("ativo", true)
+                    .order("nome")
+                    .order("id"),
+                signal,
+              ),
+          readAll(
+            () =>
+              supabase
+                .from("enderecos_entrega")
+                .select("id,bairro,taxa")
+                .eq("tenant_id", storeId)
+                .eq("ativo", true)
+                .order("bairro")
+                .order("id"),
+            signal,
+          ),
+        ]);
+        if (items.error) throw new Error("Não foi possível ler os itens.");
+        return {
+          ...catalog,
+          items: items.data || [],
+          sessions: sessions.sessoes || [],
+          clients,
+          areas,
+        };
+      },
+      [storeId, order?.id],
+    ),
+    state = useRemote(load);
+  useEffect(() => {
+    if (state.data && order)
+      setLines(
+        state.data.items.map((i: any) => ({
+          ...i,
+          valor_unitario: Number(i.valor_unitario),
+          complementos: parse(i.complementos),
+        })),
+      );
+    if (state.data && sessionId) {
+      const ss = state.data.sessions.find((x: any) => x.id === sessionId);
+      if (ss)
+        setForm((f) => ({
+          ...f,
+          cliente_nome: ss.cliente_nome || "",
+          cliente_whatsapp: ss.cliente_whatsapp || "",
+        }));
+    }
+  }, [state.data, order?.id, sessionId]);
+  const change = (key: string, value: string) =>
+    setForm((f) => ({
+      ...f,
+      [key]: value,
+      ...(["cliente_nome", "cliente_whatsapp"].includes(key)
+        ? { cliente_id: "" }
+        : {}),
+    }));
+  async function save() {
+    if (lock.current || uncertain) return;
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const payload = manualBody(
+        order ? { ...form, tipo_entrega: "retirada" } : form,
+        lines,
+        selectedSession,
+      );
+      if (
+        !order &&
+        payload.cliente_whatsapp &&
+        !payload.cliente_id &&
+        form.tipo_entrega !== "mesa"
+      ) {
+        const phone = payload.cliente_whatsapp.replace(/\D/g, "");
+        if (phone.length < 10 || phone.length > 13)
+          throw new Error("Confira o WhatsApp do cliente.");
+        const prior = await supabase
+          .from("clientes")
+          .select("id")
+          .eq("tenant_id", storeId)
+          .eq("telefone", phone)
+          .maybeSingle();
+        if (prior.error)
+          throw new Error("Não foi possível conferir o cliente.");
+        if (prior.data) payload.cliente_id = prior.data.id;
+        else {
+          const made = await supabase
+            .from("clientes")
+            .insert({
+              tenant_id: storeId,
+              nome: form.cliente_nome,
+              telefone: phone,
+              endereco: form.endereco_entrega || null,
+              bairro: form.bairro_entrega || null,
+              ativo: true,
+            })
+            .select("id")
+            .single();
+          if (made.error)
+            throw new Error(
+              "Não foi possível confirmar o cadastro do cliente. Confira a lista antes de repetir.",
+            );
+          payload.cliente_id = made.data.id;
+        }
+        setForm((f) => ({ ...f, cliente_id: payload.cliente_id! }));
+      }
+      if (order)
+        await request(storeId, `/api/pedidos/${order.id}`, "PATCH", {
+          ...Object.fromEntries(
+            [
+              "cliente_nome",
+              "cliente_whatsapp",
+              "endereco_entrega",
+              "numero_entrega",
+              "complemento_entrega",
+              "bairro_entrega",
+              "observacoes",
+            ].map((k) => [k, form[k]]),
+          ),
+          taxa_entrega: payload.taxa_entrega,
+          valor_desconto: payload.valor_desconto,
+          itens: lines,
+        });
+      else await request(storeId, "/api/pedidos/manual", "POST", payload);
+      saved();
+      close();
+    } catch (e: any) {
+      setError(e.message);
+      setUncertain(e instanceof WebApiError && e.uncertain);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+  const leave = () => {
+    if (!busy)
+      Alert.alert(
+        "Sair do pedido?",
+        "Alterações não salvas serão descartadas.",
+        [
+          { text: "Continuar", style: "cancel" },
+          { text: "Sair", style: "destructive", onPress: close },
+        ],
+      );
+  };
+  const section = (id: string, title: string, children: React.ReactNode) => (
+    <Disclosure
+      title={title}
+      open={!!open[id]}
+      onPress={() => setOpen((x) => ({ ...x, [id]: !x[id] }))}
+    >
+      {children}
+    </Disclosure>
+  );
+  const field = (key: string, label: string, numeric = false) => (
+    <View key={key} style={{ gap: 7 }}>
+      <Text style={[s.label, { textAlign: "center" }]}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        style={s.input}
+        editable={!busy}
+        keyboardType={numeric ? "decimal-pad" : "default"}
+        value={form[key] || ""}
+        onChangeText={(v) => change(key, v)}
+      />
+    </View>
+  );
+  let total = 0;
+  try {
+    total = totals(
+      lines,
+      form.taxa_entrega,
+      form.valor_desconto,
+      form.valor_acrescimo,
+    ).total;
+  } catch {}
+  return (
+    <Modal
+      visible
+      presentationStyle="fullScreen"
+      animationType="slide"
+      onRequestClose={leave}
+    >
+      <SafeAreaView style={s.safe}>
+        <View style={[s.between, { padding: 18 }]}>
+          <Text style={[s.cardTitle, { flex: 1 }]}>
+            {order ? `Editar #${order.codigo}` : "Novo pedido"}
+          </Text>
+          <Pressable
+            accessibilityLabel="Fechar pedido"
+            style={m.iconButton}
+            disabled={busy}
+            onPress={leave}
+          >
+            <X size={20} />
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={s.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          {state.loading ? (
+            <ActivityIndicator />
+          ) : state.error ? (
+            <Notice text={state.error} retry={state.retry} />
+          ) : null}
+          {error ? <Notice text={error} /> : null}
+          {uncertain ? (
+            <>
+              <Notice text="O envio ficou sem confirmação. Confira os pedidos antes de enviar novamente, para evitar duplicidade." />
+              <Button
+                title="Voltar para conferir os pedidos"
+                secondary
+                onPress={close}
+              />
+            </>
+          ) : null}
+          {section(
+            "cliente",
+            "Dados do cliente",
+            <>
+              {field("cliente_nome", "Nome do cliente")}
+              {field("cliente_whatsapp", "WhatsApp")}
+              {!order && !form.cliente_id && form.cliente_nome.length >= 2
+                ? state.data?.clients
+                    .filter((c) =>
+                      c.nome
+                        .toLowerCase()
+                        .includes(form.cliente_nome.toLowerCase()),
+                    )
+                    .slice(0, 5)
+                    .map((c) => (
+                      <Button
+                        key={c.id}
+                        title={`${c.nome} · ${c.telefone}`}
+                        secondary
+                        onPress={() =>
+                          setForm((f) => ({
+                            ...f,
+                            cliente_id: c.id,
+                            cliente_nome: c.nome,
+                            cliente_whatsapp: c.telefone,
+                            endereco_entrega: c.endereco || "",
+                            bairro_entrega: c.bairro || "",
+                          }))
+                        }
+                      />
+                    ))
+                : null}
+            </>,
+          )}
+          {section(
+            "entrega",
+            "Entrega, retirada ou mesa",
+            <>
+              {!order ? (
+                <Segments
+                  value={form.tipo_entrega}
+                  onChange={(v) => change("tipo_entrega", v)}
+                  items={[
+                    { id: "delivery", label: "Delivery" },
+                    { id: "retirada", label: "Retirada" },
+                    { id: "mesa", label: "Mesa" },
+                  ]}
+                />
+              ) : null}
+              {form.tipo_entrega === "mesa"
+                ? state.data?.sessions.map((ss: any) => (
+                    <Button
+                      key={ss.id}
+                      title={`Mesa ${ss.mesa_numero} · ${ss.cliente_nome}`}
+                      secondary={selectedSession !== ss.id}
+                      onPress={() => {
+                        setSelectedSession(ss.id);
+                        setForm((f) => ({
+                          ...f,
+                          cliente_nome: ss.cliente_nome,
+                          cliente_whatsapp: ss.cliente_whatsapp || "",
+                        }));
+                      }}
+                    />
+                  ))
+                : null}
+              {form.tipo_entrega === "delivery" ? (
+                <>
+                  {field("endereco_entrega", "Endereço")}
+                  {field("numero_entrega", "Número")}
+                  {field("complemento_entrega", "Complemento")}
+                  {field("bairro_entrega", "Bairro")}
+                  {state.data?.areas.map((b) => (
+                    <Button
+                      key={b.id}
+                      title={`${b.bairro} · ${money(b.taxa)}`}
+                      secondary
+                      onPress={() =>
+                        setForm((f) => ({
+                          ...f,
+                          bairro_entrega: b.bairro,
+                          taxa_entrega: String(b.taxa),
+                        }))
+                      }
+                    />
+                  ))}
+                </>
+              ) : null}
+            </>,
+          )}
+          {section(
+            "produtos",
+            "Produtos e complementos",
+            <>
+              {lines.map((line, i) => (
+                <View key={line.id || i} style={s.card}>
+                  <Text style={s.cardTitle}>
+                    {line.quantidade}× {line.nome}
+                  </Text>
+                  {line.complementos.map((c, j) => (
+                    <Text key={j}>
+                      {c.quantidade}× {c.nome}
+                    </Text>
+                  ))}
+                  <Text style={[s.green, { textAlign: "center" }]}>
+                    {money(lineTotal(line))}
+                  </Text>
+                  <Button
+                    title="Editar produto"
+                    secondary
+                    onPress={() => {
+                      const product = state.data?.products.find(
+                        (p) => p.id === line.produto_id,
+                      );
+                      if (product) setEditing({ product, index: i });
+                      else
+                        setError(
+                          "Produto removido do cardápio. Mantenha a composição atual ou remova o item.",
+                        );
+                    }}
+                  />
+                  <Button
+                    title="Remover produto"
+                    secondary
+                    onPress={() => setLines((x) => x.filter((_, n) => n !== i))}
+                  />
+                </View>
+              ))}
+              <Button
+                title="Adicionar produto"
+                onPress={() => setPicker(true)}
+              />
+            </>,
+          )}
+          {section(
+            "pagamento",
+            "Pagamento e valores",
+            <>
+              {!order ? (
+                <View style={s.wrap}>
+                  {["dinheiro", "pix", "cartao_credito", "cartao_debito"].map(
+                    (v) => (
+                      <Button
+                        key={v}
+                        title={v.replaceAll("_", " ")}
+                        secondary={form.forma_pagamento !== v}
+                        onPress={() => change("forma_pagamento", v)}
+                      />
+                    ),
+                  )}
+                </View>
+              ) : null}
+              {field("taxa_entrega", "Taxa de entrega", true)}
+              {field("valor_desconto", "Desconto em R$", true)}
+              {!order ? (
+                <>
+                  {field("valor_acrescimo", "Acréscimo em R$", true)}
+                  {field("troco_para", "Troco para", true)}
+                </>
+              ) : null}
+              <Text style={[s.totalValue, { textAlign: "center" }]}>
+                {money(total)}
+              </Text>
+            </>,
+          )}
+          {section(
+            "observacoes",
+            "Observações",
+            field("observacoes", "Observações do pedido"),
+          )}
+        </ScrollView>
+        <View style={{ padding: 18 }}>
+          <Button
+            title={
+              busy
+                ? "Salvando…"
+                : order
+                  ? "Salvar alterações"
+                  : "Confirmar pedido"
+            }
+            disabled={busy || uncertain || !state.data}
+            onPress={() => void save()}
+          />
+        </View>
+        <Modal
+          visible={picker}
+          animationType="slide"
+          onRequestClose={() => setPicker(false)}
+        >
+          <SafeAreaView style={s.safe}>
+            <ScrollView contentContainerStyle={s.content}>
+              <Button
+                title="Voltar ao pedido"
+                secondary
+                onPress={() => setPicker(false)}
+              />
+              <TextInput
+                accessibilityLabel="Pesquisar produto"
+                style={s.input}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Pesquisar produto"
+              />
+              {state.data?.products
+                .filter(
+                  (p) =>
+                    p.ativo &&
+                    p.nome.toLowerCase().includes(search.toLowerCase()),
+                )
+                .map((p) => (
+                  <Button
+                    key={p.id}
+                    title={`${p.nome} · ${money(p.preco)}`}
+                    secondary
+                    onPress={() => {
+                      setPicker(false);
+                      setEditing({ product: p, index: null });
+                    }}
+                  />
+                ))}
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+        {editing ? (
+          <ConfigureLine
+            storeId={storeId}
+            product={editing.product}
+            prior={editing.index === null ? undefined : lines[editing.index]}
+            close={() => setEditing(null)}
+            save={(line) => {
+              setLines((x) =>
+                editing.index === null
+                  ? [...x, line]
+                  : x.map((old, i) => (i === editing.index ? line : old)),
+              );
+              setEditing(null);
+            }}
+          />
+        ) : null}
+      </SafeAreaView>
+    </Modal>
+  );
 }
-function ConfigureLine({storeId,product,prior,close,save}:{storeId:string;product:any;prior?:CartLine;close:()=>void;save:(line:CartLine)=>void}){
- const [quantity,setQuantity]=useState(String(prior?.quantidade||1)),[note,setNote]=useState(prior?.observacao||''),[counts,setCounts]=useState<Record<string,number>>(()=>Object.fromEntries((prior?.complementos||[]).map(c=>[c.id,c.quantidade]))),[flavorN,setFlavorN]=useState(prior?.sabores_quantidade||prior?.complementos.find(c=>c.tipo==='sabor')?.fracao_denominador||1),[error,setError]=useState('')
- const load=useCallback(async(signal:AbortSignal)=>{const [options,lists,config]=await Promise.all([productOptions(storeId,product.id),supabase.from('categorias_complementos').select('id,nome,qtd_minima,qtd_maxima,max_um_de_cada').eq('tenant_id',storeId).eq('ativo',true).abortSignal(signal),readConfig(storeId,signal)]);if(lists.error)throw new Error('Não foi possível ler as listas.');return {...options,lists:lists.data||[],ignoreStock:config.entrega_km?.vender_sem_estoque===true}},[storeId,product.id]),state=useRemote(load)
- function finish(){try{if(!state.data)return;const qty=Number(quantity);if(!Number.isInteger(qty)||qty<1||qty>99)throw new Error('A quantidade deve ser entre 1 e 99.');const available=state.data.complements.filter(c=>state.data!.selected.includes(c.id)),selected=available.filter(c=>(counts[c.id]||0)>0);for(const c of selected)if(!Number.isInteger(counts[c.id])||counts[c.id]>Number((c as any).qtd_max||99))throw new Error(`Quantidade inválida de ${c.nome}.`)
- const flavors=selected.filter(c=>c.categoria_id===product.sabores_grupo_id),extras=selected.filter(c=>c.categoria_id!==product.sabores_grupo_id).map(c=>({id:c.id,nome:c.nome,quantidade:counts[c.id],valor:Number(c.preco)}));for(const l of state.data.lists.filter(l=>l.id!==product.sabores_grupo_id)){const count=selected.filter(c=>c.categoria_id===l.id).reduce((n,c)=>n+counts[c.id],0);if(available.some(c=>c.categoria_id===l.id)&&(count<Number(l.qtd_minima||0)||count>Number(l.qtd_maxima??99)))throw new Error(`Confira os limites da lista ${l.nome}.`)}
- let comps:any[]=extras;if(product.sabores_grupo_id){if(flavors.length!==flavorN||flavors.some(c=>counts[c.id]!==1||c.controlar_estoque))throw new Error('Selecione exatamente os sabores escolhidos, uma unidade de cada, sem controle de estoque.');const parts=flavors.map(c=>({c,cents:Math.round(Number(c.preco)*100),share:Math.floor(Math.round(Number(c.preco)*100)/flavorN)}));let remainder=Math.round(parts.reduce((n,p)=>n+p.cents,0)/flavorN)-parts.reduce((n,p)=>n+p.share,0);for(const p of [...parts].sort((a,b)=>(b.cents%flavorN)-(a.cents%flavorN)||a.c.id.localeCompare(b.c.id)))if(remainder-->0)p.share++;comps=[...parts.map(p=>({id:p.c.id,nome:p.c.nome,quantidade:1,valor:p.share/100,tipo:'sabor',grupo_id:product.sabores_grupo_id,fracao_denominador:flavorN,preco_integral:p.cents/100,regra_preco:'media_v1'})),...extras]}
- const keys=(cs:any[])=>cs.map(c=>`${c.id||c.nome}:${c.quantidade}`).sort(),unchanged=!!prior&&JSON.stringify(keys(prior.complementos))===JSON.stringify(keys(comps));const line:CartLine={...(prior?.id?{id:prior.id}:{}),produto_id:product.id,nome:product.nome,quantidade:qty,valor_unitario:unchanged?prior!.valor_unitario:product.sabores_grupo_id||product.exibir_preco_a_partir_de?0:Number(product.preco),complementos:unchanged?prior!.complementos:comps,observacao:note||null,variante_id:prior?.variante_id||null,variante_nome:prior?.variante_nome||null,pontos:product.pontos||0,...(product.sabores_grupo_id?{sabores_quantidade:flavorN}:{})};totals([line],0,0);save(line)
- }catch(e:any){setError(e.message)}}
- return <Modal visible animationType="slide" onRequestClose={close}><SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.content}><Button title="Voltar" secondary onPress={close}/><PageHeading title={product.nome}/>{error?<Notice text={error}/>:null}{state.loading?<ActivityIndicator/>:state.error?<Notice text={state.error} retry={state.retry}/>:null}<Text style={s.label}>Quantidade</Text><TextInput accessibilityLabel="Quantidade do produto" style={s.input} value={quantity} onChangeText={setQuantity} keyboardType="number-pad"/>{product.sabores_grupo_id?<View style={s.wrap}>{Array.from({length:Math.min(3,product.sabores_maximo||2)},(_,i)=>i+1).map(n=><Button key={n} title={`${n} sabor${n>1?'es':''}`} secondary={flavorN!==n} onPress={()=>setFlavorN(n)}/>)}</View>:null}{state.data?.lists.filter(l=>state.data!.complements.some(c=>c.categoria_id===l.id&&state.data!.selected.includes(c.id))).map(l=><View key={l.id} style={s.card}><Text style={s.cardTitle}>{l.nome}</Text><Text style={s.subtitle}>Mínimo {l.qtd_minima||0} · Máximo {l.qtd_maxima??99}</Text>{state.data!.complements.filter(c=>c.categoria_id===l.id&&state.data!.selected.includes(c.id)).map(c=><View key={c.id} style={s.between}><View style={s.flex}><Text>{c.nome}</Text><Text style={s.green}>{money(c.preco)}</Text></View><TextInput accessibilityLabel={`Quantidade de ${c.nome}`} style={[s.input,{width:65,textAlign:'center'}]} keyboardType="number-pad" value={String(counts[c.id]||0)} onChangeText={v=>setCounts(x=>({...x,[c.id]:Math.min(l.max_um_de_cada||l.id===product.sabores_grupo_id?1:99,Math.max(0,Number(v)||0))}))}/></View>)}</View>)}<Text style={s.label}>Observação do produto</Text><TextInput accessibilityLabel="Observação do produto" style={s.input} value={note} onChangeText={setNote}/></ScrollView><View style={{padding:18}}><Button title="Confirmar produto" disabled={!state.data} onPress={finish}/></View></SafeAreaView></Modal>
+function ConfigureLine({
+  storeId,
+  product,
+  prior,
+  close,
+  save,
+}: {
+  storeId: string;
+  product: any;
+  prior?: CartLine;
+  close: () => void;
+  save: (line: CartLine) => void;
+}) {
+  const [quantity, setQuantity] = useState(String(prior?.quantidade || 1)),
+    [note, setNote] = useState(prior?.observacao || ""),
+    [counts, setCounts] = useState<Record<string, number>>(() =>
+      Object.fromEntries(
+        (prior?.complementos || []).map((c) => [c.id, c.quantidade]),
+      ),
+    ),
+    [flavorN, setFlavorN] = useState(
+      prior?.sabores_quantidade ||
+        prior?.complementos.find((c) => c.tipo === "sabor")
+          ?.fracao_denominador ||
+        1,
+    ),
+    [error, setError] = useState("");
+  const load = useCallback(
+      async (signal: AbortSignal) => {
+        const [options, lists, config] = await Promise.all([
+          productOptions(storeId, product.id),
+          supabase
+            .from("categorias_complementos")
+            .select("id,nome,qtd_minima,qtd_maxima,max_um_de_cada")
+            .eq("tenant_id", storeId)
+            .eq("ativo", true)
+            .abortSignal(signal),
+          readConfig(storeId, signal),
+        ]);
+        if (lists.error) throw new Error("Não foi possível ler as listas.");
+        return {
+          ...options,
+          lists: lists.data || [],
+          ignoreStock: config.entrega_km?.vender_sem_estoque === true,
+        };
+      },
+      [storeId, product.id],
+    ),
+    state = useRemote(load);
+  function finish() {
+    try {
+      if (!state.data) return;
+      const qty = Number(quantity);
+      if (!Number.isInteger(qty) || qty < 1 || qty > 99)
+        throw new Error("A quantidade deve ser entre 1 e 99.");
+      const available = state.data.complements.filter((c) =>
+          state.data!.selected.includes(c.id),
+        ),
+        selected = available.filter((c) => (counts[c.id] || 0) > 0);
+      for (const c of selected)
+        if (
+          !Number.isInteger(counts[c.id]) ||
+          counts[c.id] > Number((c as any).qtd_max || 99)
+        )
+          throw new Error(`Quantidade inválida de ${c.nome}.`);
+      const flavors = selected.filter(
+          (c) => c.categoria_id === product.sabores_grupo_id,
+        ),
+        extras = selected
+          .filter((c) => c.categoria_id !== product.sabores_grupo_id)
+          .map((c) => ({
+            id: c.id,
+            nome: c.nome,
+            quantidade: counts[c.id],
+            valor: Number(c.preco),
+          }));
+      for (const l of state.data.lists.filter(
+        (l) => l.id !== product.sabores_grupo_id,
+      )) {
+        const count = selected
+          .filter((c) => c.categoria_id === l.id)
+          .reduce((n, c) => n + counts[c.id], 0);
+        if (
+          available.some((c) => c.categoria_id === l.id) &&
+          (count < Number(l.qtd_minima || 0) ||
+            count > Number(l.qtd_maxima ?? 99))
+        )
+          throw new Error(`Confira os limites da lista ${l.nome}.`);
+      }
+      let comps: any[] = extras;
+      if (product.sabores_grupo_id) {
+        if (
+          flavors.length !== flavorN ||
+          flavors.some((c) => counts[c.id] !== 1 || c.controlar_estoque)
+        )
+          throw new Error(
+            "Selecione exatamente os sabores escolhidos, uma unidade de cada, sem controle de estoque.",
+          );
+        const parts = flavors.map((c) => ({
+          c,
+          cents: Math.round(Number(c.preco) * 100),
+          share: Math.floor(Math.round(Number(c.preco) * 100) / flavorN),
+        }));
+        let remainder =
+          Math.round(parts.reduce((n, p) => n + p.cents, 0) / flavorN) -
+          parts.reduce((n, p) => n + p.share, 0);
+        for (const p of [...parts].sort(
+          (a, b) =>
+            (b.cents % flavorN) - (a.cents % flavorN) ||
+            a.c.id.localeCompare(b.c.id),
+        ))
+          if (remainder-- > 0) p.share++;
+        comps = [
+          ...parts.map((p) => ({
+            id: p.c.id,
+            nome: p.c.nome,
+            quantidade: 1,
+            valor: p.share / 100,
+            tipo: "sabor",
+            grupo_id: product.sabores_grupo_id,
+            fracao_denominador: flavorN,
+            preco_integral: p.cents / 100,
+            regra_preco: "media_v1",
+          })),
+          ...extras,
+        ];
+      }
+      const keys = (cs: any[]) =>
+          cs.map((c) => `${c.id || c.nome}:${c.quantidade}`).sort(),
+        unchanged =
+          !!prior &&
+          JSON.stringify(keys(prior.complementos)) ===
+            JSON.stringify(keys(comps));
+      const line: CartLine = {
+        ...(prior?.id ? { id: prior.id } : {}),
+        produto_id: product.id,
+        nome: product.nome,
+        quantidade: qty,
+        valor_unitario: unchanged
+          ? prior!.valor_unitario
+          : product.sabores_grupo_id || product.exibir_preco_a_partir_de
+            ? 0
+            : Number(product.preco),
+        complementos: unchanged ? prior!.complementos : comps,
+        observacao: note || null,
+        variante_id: prior?.variante_id || null,
+        variante_nome: prior?.variante_nome || null,
+        pontos: product.pontos || 0,
+        ...(product.sabores_grupo_id ? { sabores_quantidade: flavorN } : {}),
+      };
+      totals([line], 0, 0);
+      save(line);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+  return (
+    <Modal visible animationType="slide" onRequestClose={close}>
+      <SafeAreaView style={s.safe}>
+        <ScrollView contentContainerStyle={s.content}>
+          <Button title="Voltar" secondary onPress={close} />
+          <PageHeading title={product.nome} />
+          {error ? <Notice text={error} /> : null}
+          {state.loading ? (
+            <ActivityIndicator />
+          ) : state.error ? (
+            <Notice text={state.error} retry={state.retry} />
+          ) : null}
+          <Text style={s.label}>Quantidade</Text>
+          <TextInput
+            accessibilityLabel="Quantidade do produto"
+            style={s.input}
+            value={quantity}
+            onChangeText={setQuantity}
+            keyboardType="number-pad"
+          />
+          {product.sabores_grupo_id ? (
+            <View style={s.wrap}>
+              {Array.from(
+                { length: Math.min(3, product.sabores_maximo || 2) },
+                (_, i) => i + 1,
+              ).map((n) => (
+                <Button
+                  key={n}
+                  title={`${n} sabor${n > 1 ? "es" : ""}`}
+                  secondary={flavorN !== n}
+                  onPress={() => setFlavorN(n)}
+                />
+              ))}
+            </View>
+          ) : null}
+          {state.data?.lists
+            .filter((l) =>
+              state.data!.complements.some(
+                (c) =>
+                  c.categoria_id === l.id &&
+                  state.data!.selected.includes(c.id),
+              ),
+            )
+            .map((l) => (
+              <View key={l.id} style={s.card}>
+                <Text style={s.cardTitle}>{l.nome}</Text>
+                <Text style={s.subtitle}>
+                  Mínimo {l.qtd_minima || 0} · Máximo {l.qtd_maxima ?? 99}
+                </Text>
+                {state
+                  .data!.complements.filter(
+                    (c) =>
+                      c.categoria_id === l.id &&
+                      state.data!.selected.includes(c.id),
+                  )
+                  .map((c) => (
+                    <View key={c.id} style={s.between}>
+                      <View style={s.flex}>
+                        <Text>{c.nome}</Text>
+                        <Text style={s.green}>{money(c.preco)}</Text>
+                      </View>
+                      <TextInput
+                        accessibilityLabel={`Quantidade de ${c.nome}`}
+                        style={[s.input, { width: 65, textAlign: "center" }]}
+                        keyboardType="number-pad"
+                        value={String(counts[c.id] || 0)}
+                        onChangeText={(v) =>
+                          setCounts((x) => ({
+                            ...x,
+                            [c.id]: Math.min(
+                              l.max_um_de_cada ||
+                                l.id === product.sabores_grupo_id
+                                ? 1
+                                : 99,
+                              Math.max(0, Number(v) || 0),
+                            ),
+                          }))
+                        }
+                      />
+                    </View>
+                  ))}
+              </View>
+            ))}
+          <Text style={s.label}>Observação do produto</Text>
+          <TextInput
+            accessibilityLabel="Observação do produto"
+            style={s.input}
+            value={note}
+            onChangeText={setNote}
+          />
+        </ScrollView>
+        <View style={{ padding: 18 }}>
+          <Button
+            title="Confirmar produto"
+            disabled={!state.data}
+            onPress={finish}
+          />
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
 }

@@ -1,17 +1,365 @@
 /** Native measurements copied from (dashboard)/merchant.css. Website is unchanged. */
-import {Pressable,View,StyleSheet, type ViewStyle} from 'react-native'
-import {LayoutDashboard,ShoppingBag,Utensils,Wallet,Menu,ChevronDown,ChevronRight,type LucideIcon} from 'lucide-react-native'
-import {Text,s} from './ui'
-export const palette={bg:'#f4f7f5',paper:'#fff',ink:'#15251b',muted:'#64746a',line:'#e3eae5',green:'#119c48',active:'#087c36',tint:'#e6f5eb'}
-export const navigation=[{id:'home',label:'Início',icon:LayoutDashboard},{id:'orders',label:'Pedidos',icon:ShoppingBag},{id:'catalog',label:'Cardápio',icon:Utensils},{id:'finance',label:'Financeiro',icon:Wallet},{id:'more',label:'Mais',icon:Menu}] as const
-export type Tab=typeof navigation[number]['id']
-export function BottomNav({tab,onChange}:{tab:Tab;onChange:(value:Tab)=>void}){
- return <View accessibilityRole="tablist" style={s.nav}>{navigation.map(({id,label,icon:Icon})=><Pressable key={id} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{selected:tab===id}} onPress={()=>onChange(id)} style={[s.navItem,tab===id&&s.navActive]}><Icon size={20} strokeWidth={1.8} color={tab===id?palette.active:palette.muted}/><Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[s.navLabel,tab===id&&s.navLabelActive]}>{label}</Text></Pressable>)}</View>
+import { Pressable, View, StyleSheet, type ViewStyle } from "react-native";
+import {
+  LayoutDashboard,
+  ShoppingBag,
+  Utensils,
+  Wallet,
+  Menu,
+  ChevronDown,
+  ChevronRight,
+  type LucideIcon,
+} from "lucide-react-native";
+import { Text, s } from "./ui";
+export const palette = {
+  bg: "#f4f7f5",
+  paper: "#fff",
+  ink: "#15251b",
+  muted: "#64746a",
+  line: "#e3eae5",
+  green: "#119c48",
+  active: "#087c36",
+  tint: "#e6f5eb",
+};
+export const navigation = [
+  { id: "home", label: "Início", icon: LayoutDashboard },
+  { id: "orders", label: "Pedidos", icon: ShoppingBag },
+  { id: "catalog", label: "Cardápio", icon: Utensils },
+  { id: "finance", label: "Financeiro", icon: Wallet },
+  { id: "more", label: "Mais", icon: Menu },
+] as const;
+export type Tab = (typeof navigation)[number]["id"];
+export function BottomNav({
+  tab,
+  onChange,
+}: {
+  tab: Tab;
+  onChange: (value: Tab) => void;
+}) {
+  return (
+    <View accessibilityRole="tablist" style={s.nav}>
+      {navigation.map(({ id, label, icon: Icon }) => (
+        <Pressable
+          key={id}
+          accessibilityRole="tab"
+          accessibilityLabel={label}
+          accessibilityState={{ selected: tab === id }}
+          onPress={() => onChange(id)}
+          style={[s.navItem, tab === id && s.navActive]}
+        >
+          <Icon
+            size={20}
+            strokeWidth={1.8}
+            color={tab === id ? palette.active : palette.muted}
+          />
+          <Text
+            numberOfLines={1}
+            maxFontSizeMultiplier={1.3}
+            style={[s.navLabel, tab === id && s.navLabelActive]}
+          >
+            {label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
 }
-export function PageHeading({title,subtitle}:{title:string;subtitle?:string}){return <View style={s.heading}><Text accessibilityRole="header" style={s.title}>{title}</Text>{subtitle?<Text style={s.subtitle}>{subtitle}</Text>:null}</View>}
-export function Segments({items,value,onChange}:{items:{id:string;label:string;icon?:LucideIcon}[];value:string;onChange:(v:string)=>void}){return <View style={m.segments}>{items.map(({id,label,icon:Icon})=><Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:value===id}} onPress={()=>onChange(id)} style={[m.segment,value===id&&m.segmentActive]}>{Icon?<Icon size={16} strokeWidth={1.8} color={value===id?palette.active:palette.muted}/>:null}<Text style={[m.segmentText,value===id&&{color:palette.active}]}>{label}</Text></Pressable>)}</View>}
-export function MenuRow({title,icon:Icon,onPress,style}:{title:string;icon:LucideIcon;onPress:()=>void;style?:ViewStyle}){return <Pressable accessibilityRole="button" onPress={onPress} style={[m.menuRow,style]}><Icon size={20} strokeWidth={1.8} color={palette.active}/><Text style={m.menuText}>{title}</Text><ChevronRight size={16} strokeWidth={1.8} color={palette.muted}/></Pressable>}
-export function Disclosure({title,subtitle,open,onPress,children,bodyStyle}:{title:string;subtitle?:string;open:boolean;onPress:()=>void;children?:React.ReactNode;bodyStyle?:ViewStyle}){return <View style={m.disclosure}><Pressable accessibilityRole="button" accessibilityState={{expanded:open}} onPress={onPress} style={[m.summary,open&&{borderBottomWidth:1,borderBottomColor:palette.line}]}><View><Text style={s.cardTitle}>{title}</Text>{subtitle?<Text style={[s.subtitle,{fontSize:12,marginTop:5}]}>{subtitle}</Text>:null}</View><ChevronDown size={18} color="#65816c" strokeWidth={1.8} style={[m.chevron,open&&{transform:[{rotate:'180deg'}]}]}/></Pressable>{open?<View style={[m.disclosureBody,bodyStyle]}>{children}</View>:null}</View>}
-export const m=StyleSheet.create({
- segments:{flexDirection:'row',gap:4,padding:4,backgroundColor:'#e5ece7',borderRadius:14,marginVertical:8},segment:{flex:1,minWidth:0,minHeight:44,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:5,borderRadius:11,paddingHorizontal:4},segmentActive:{backgroundColor:'#fff',boxShadow:'0px 2px 6px #173d1720'},segmentText:{fontSize:12,fontWeight:'600',color:'#586a5e'},menuRow:{flexDirection:'row',alignItems:'center',gap:12,minHeight:60,paddingVertical:18,paddingHorizontal:17,borderWidth:1,borderColor:palette.line,borderRadius:15,backgroundColor:'#fff'},menuText:{flex:1,textAlign:'center',fontSize:14,fontWeight:'600'},disclosure:{borderWidth:1,borderColor:'#e0e9e2',borderRadius:17,backgroundColor:'#fff',overflow:'hidden'},summary:{position:'relative',paddingVertical:19,paddingHorizontal:38,alignItems:'center',justifyContent:'center',minHeight:60},chevron:{position:'absolute',right:17},disclosureBody:{paddingVertical:21,paddingHorizontal:18,gap:14},sales:{borderRadius:20,backgroundColor:'#102b1c',paddingVertical:24,paddingHorizontal:18,boxShadow:'0px 5px 0px #0b1f14',gap:7,alignItems:'center',marginTop:8,marginBottom:8},salesTop:{flexDirection:'row',gap:10,alignItems:'center',justifyContent:'center'},salesLabel:{fontSize:12,color:'#c6dfce'},salesTotal:{fontSize:33,letterSpacing:-1,fontWeight:'700',color:'#fff',marginTop:5},salesBottom:{flexDirection:'row',width:'100%',paddingTop:18,marginTop:13,borderTopWidth:1,borderTopColor:'#ffffff25'},salesMetric:{flex:1,alignItems:'center',gap:3},salesMetricValue:{fontSize:16,color:'#fff',fontWeight:'600'},metricRow:{flexDirection:'row',justifyContent:'space-between',gap:16,alignItems:'center',paddingVertical:18,borderBottomWidth:1,borderColor:palette.line},metricLabel:{fontSize:13,color:palette.muted,flex:1},metricValue:{fontSize:17,fontWeight:'700'},iconButton:{width:44,minHeight:44,alignItems:'center',justifyContent:'center',borderRadius:12},queue:{flexDirection:'row',alignItems:'center',gap:9,paddingVertical:18,paddingHorizontal:14,borderWidth:1,borderColor:palette.line,backgroundColor:'#fff',borderRadius:17},queueIcon:{width:42,height:42,borderRadius:13,backgroundColor:'#fff1df',alignItems:'center',justifyContent:'center'},queueTitle:{fontSize:14,fontWeight:'600',textAlign:'center'},sheetOverlay:{flex:1,backgroundColor:'#10251977',padding:12,justifyContent:'flex-end'},sheet:{backgroundColor:'#fff',borderRadius:23,padding:24,gap:18},toolbar:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},stage:{flex:1,minHeight:70,flexDirection:'row',alignItems:'center',justifyContent:'center',paddingHorizontal:20,borderWidth:1,borderColor:'#4aa157',borderRadius:18,backgroundColor:'#fff',boxShadow:'0px 3px 0px #d6e5da'},stageTitle:{flex:1,fontSize:20,fontWeight:'700',color:'#326f40',textAlign:'center'},empty:{alignItems:'center',justifyContent:'center',paddingVertical:50,gap:12},emptyTitle:{fontSize:15,color:'#98a1ad',textAlign:'center'},footerLink:{minHeight:44,alignItems:'center',justifyContent:'center',flexDirection:'row',gap:8},footerText:{fontSize:13,color:palette.active}
-})
+export function PageHeading({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <View style={s.heading}>
+      <Text accessibilityRole="header" style={s.title}>
+        {title}
+      </Text>
+      {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
+    </View>
+  );
+}
+export function Segments({
+  items,
+  value,
+  onChange,
+}: {
+  items: { id: string; label: string; icon?: LucideIcon }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <View style={m.segments}>
+      {items.map(({ id, label, icon: Icon }) => (
+        <Pressable
+          key={id}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: value === id }}
+          onPress={() => onChange(id)}
+          style={[m.segment, value === id && m.segmentActive]}
+        >
+          {Icon ? (
+            <Icon
+              size={16}
+              strokeWidth={1.8}
+              color={value === id ? palette.active : palette.muted}
+            />
+          ) : null}
+          <Text
+            style={[m.segmentText, value === id && { color: palette.active }]}
+          >
+            {label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+export function MenuRow({
+  title,
+  icon: Icon,
+  onPress,
+  style,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onPress: () => void;
+  style?: ViewStyle;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[m.menuRow, style]}
+    >
+      <Icon size={20} strokeWidth={1.8} color={palette.active} />
+      <Text style={m.menuText}>{title}</Text>
+      <ChevronRight size={16} strokeWidth={1.8} color={palette.muted} />
+    </Pressable>
+  );
+}
+export function Disclosure({
+  title,
+  subtitle,
+  open,
+  onPress,
+  children,
+  bodyStyle,
+}: {
+  title: string;
+  subtitle?: string;
+  open: boolean;
+  onPress: () => void;
+  children?: React.ReactNode;
+  bodyStyle?: ViewStyle;
+}) {
+  return (
+    <View style={m.disclosure}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={onPress}
+        style={[
+          m.summary,
+          open && { borderBottomWidth: 1, borderBottomColor: palette.line },
+        ]}
+      >
+        <View>
+          <Text style={s.cardTitle}>{title}</Text>
+          {subtitle ? (
+            <Text style={[s.subtitle, { fontSize: 12, marginTop: 5 }]}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+        <ChevronDown
+          size={18}
+          color="#65816c"
+          strokeWidth={1.8}
+          style={[m.chevron, open && { transform: [{ rotate: "180deg" }] }]}
+        />
+      </Pressable>
+      {open ? (
+        <View style={[m.disclosureBody, bodyStyle]}>{children}</View>
+      ) : null}
+    </View>
+  );
+}
+export const m = StyleSheet.create({
+  segments: {
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+    backgroundColor: "#e5ece7",
+    borderRadius: 14,
+    marginVertical: 8,
+  },
+  segment: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    borderRadius: 11,
+    paddingHorizontal: 4,
+  },
+  segmentActive: {
+    backgroundColor: "#fff",
+    boxShadow: "0px 2px 6px #173d1720",
+  },
+  segmentText: { fontSize: 12, fontWeight: "600", color: "#586a5e" },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 60,
+    paddingVertical: 18,
+    paddingHorizontal: 17,
+    borderWidth: 1,
+    borderColor: palette.line,
+    borderRadius: 15,
+    backgroundColor: "#fff",
+  },
+  menuText: { flex: 1, textAlign: "center", fontSize: 14, fontWeight: "600" },
+  disclosure: {
+    borderWidth: 1,
+    borderColor: "#e0e9e2",
+    borderRadius: 17,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  summary: {
+    position: "relative",
+    paddingVertical: 19,
+    paddingHorizontal: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 60,
+  },
+  chevron: { position: "absolute", right: 17 },
+  disclosureBody: { paddingVertical: 21, paddingHorizontal: 18, gap: 14 },
+  sales: {
+    borderRadius: 20,
+    backgroundColor: "#102b1c",
+    paddingVertical: 24,
+    paddingHorizontal: 18,
+    boxShadow: "0px 5px 0px #0b1f14",
+    gap: 7,
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  salesTop: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  salesLabel: { fontSize: 12, color: "#c6dfce" },
+  salesTotal: {
+    fontSize: 33,
+    letterSpacing: -1,
+    fontWeight: "700",
+    color: "#fff",
+    marginTop: 5,
+  },
+  salesBottom: {
+    flexDirection: "row",
+    width: "100%",
+    paddingTop: 18,
+    marginTop: 13,
+    borderTopWidth: 1,
+    borderTopColor: "#ffffff25",
+  },
+  salesMetric: { flex: 1, alignItems: "center", gap: 3 },
+  salesMetricValue: { fontSize: 16, color: "#fff", fontWeight: "600" },
+  metricRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 16,
+    alignItems: "center",
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderColor: palette.line,
+  },
+  metricLabel: { fontSize: 13, color: palette.muted, flex: 1 },
+  metricValue: { fontSize: 17, fontWeight: "700" },
+  iconButton: {
+    width: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+  },
+  queue: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: "#fff",
+    borderRadius: 17,
+  },
+  queueIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: "#fff1df",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  queueTitle: { fontSize: 14, fontWeight: "600", textAlign: "center" },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "#10251977",
+    padding: 12,
+    justifyContent: "flex-end",
+  },
+  sheet: { backgroundColor: "#fff", borderRadius: 23, padding: 24, gap: 18 },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  stage: {
+    flex: 1,
+    minHeight: 70,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: "#4aa157",
+    borderRadius: 18,
+    backgroundColor: "#fff",
+    boxShadow: "0px 3px 0px #d6e5da",
+  },
+  stageTitle: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#326f40",
+    textAlign: "center",
+  },
+  empty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 50,
+    gap: 12,
+  },
+  emptyTitle: { fontSize: 15, color: "#98a1ad", textAlign: "center" },
+  footerLink: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  footerText: { fontSize: 13, color: palette.active },
+});

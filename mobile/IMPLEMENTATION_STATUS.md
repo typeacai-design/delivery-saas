@@ -1,5 +1,26 @@
 # Android: estado real de implementação
 
+## 0.3.0 — ampliação da área do lojista
+
+As notas antigas abaixo descrevem versões anteriores. A versão 0.3.0 acrescenta:
+
+- Pedido manual nativo com cliente, modalidade, endereço, itens, complementos, divisão de sabores, taxa, desconto, acréscimo e pagamento. Reaproveita a API transacional existente; um envio sem confirmação bloqueia reenvio automático.
+- Edição completa da composição do pedido, preservando valores históricos de composições inalteradas e as validações do servidor.
+- Sessões de mesas: abertura, cliente/observações, inclusão de pedidos, fechamento, cancelamento, reabertura, histórico e impressão de resumo.
+- Relatórios por período, produtos, complementos, pagamento e melhores dias; filtros, ticket médio, visitas e compartilhamento em CSV textual.
+- Marketing: clientes e histórico, top 10/aniversariantes, fidelidade, cashback, pontos por produto, carrinhos com atualização em tempo real, recuperação manual via WhatsApp, cupons e avaliações com resposta/moderação/filtros.
+- Horários semanais/exceções, bairros/taxas, entrega por km, regra de estoque, capacidade por turno e tempos de pico.
+- Cadastro e alteração de senha de equipe pela API existente; consultas nunca incluem senha. O backend legado ainda precisa de migração de hash compatível com o login operacional.
+- Perfil privado por RPC restrita ao proprietário/gerente, sem liberar CPF/e-mail a todos os usuários autenticados.
+
+Segurança: migrações já aplicadas no Supabase foram recuperadas com seus nomes/versões reais e incluídas em `migrations/`. Mesas e dias de pico passaram a ter isolamento por loja. Não foi publicado um novo serviço privilegiado nem alterado o layout/site em produção. Nenhum pedido real foi modificado nos testes.
+
+**Ainda não concluído:** push com app minimizado/encerrado depende de Firebase/FCM não configurado. Alertas atuais são em primeiro plano. A área nativa de funcionário, administrador e o cardápio público não fazem parte desta ampliação da área do lojista. Assinatura continua de teste. Não afirmar paridade integral nem teste em aparelho antes da validação do lojista.
+
+Validação da recuperação: TypeScript passou e 53 testes passaram, incluindo cookies pelo leitor SSR oficial, restrição de destinos, bloqueio de reenvio automático, valores de pedidos/relatórios e SQL real com duas lojas/usuário inativo/anon. Compilação APK e validação binária em andamento.
+
+Diagnóstico de lentidão: [PERFORMANCE_FINDINGS.md](PERFORMANCE_FINDINGS.md). As otimizações não foram aplicadas.
+
 O pedido é levar todas as funcionalidades do site ao aplicativo nativo. Esta branch continua **em construção** e não representa paridade completa nem uma versão pronta para operação.
 
 ## Implementado no código
