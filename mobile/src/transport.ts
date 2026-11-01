@@ -1,11 +1,14 @@
 import {supabase} from './supabase'
 import {checkStore} from './catalog-api'
 import {nativeRequest} from './native-api'
+import {webRequest} from './web-api'
 import {File} from 'expo-file-system'
 import {randomUUID} from 'expo-crypto'
 export async function request<T=any>(storeId:string,path:string,method='GET',body?:unknown,signal?:AbortSignal):Promise<T>{
  if(!path.startsWith('/api/')||path.includes('://')||path.includes('..'))throw new Error('Endereço de serviço inválido.')
  if(signal?.aborted)throw new Error('Operação cancelada.')
+ const p=new URL(path,'https://native.invalid').pathname
+ if(p.startsWith('/api/pedidos')||p.startsWith('/api/sessoes-mesa')||p.startsWith('/api/configuracoes/')||['/api/analytics','/api/turnos-capacidade','/api/mapbox','/api/whatsapp-pedido'].includes(p)||(p==='/api/membros-equipe'&&method!=='GET'))return webRequest<T>(storeId,path,method,body,signal)
  return await nativeRequest(storeId,path,method,(body||{}) as Record<string,any>,signal) as T
 }
 type Photo={uri:string;mimeType?:string;fileName?:string|null;fileSize?:number}
