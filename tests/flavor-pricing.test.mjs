@@ -77,6 +77,7 @@ for (const [n,ids,total] of [[1,['a'],30],[2,['a','b','edge'],41],[3,['a','b','c
 
 function staffApi(db, path, tenantId='shop') {
  return compile(path, {
+  '@/lib/funcionario-auth':{authenticateFuncionario:async()=>null},
   'next/server':{NextResponse:{json:(body,init)=>Response.json(body,init)}},
   '@supabase/supabase-js':{createClient:()=>db}, '@/lib/product-pricing':pricing,'@/lib/flavor-order-server':server,'@/lib/flavor-pricing':flavor,
   '@/lib/tenant-auth':{authenticatedTenant:async()=>({tenantId,supabase:db,user:{id:'owner'}}),tenantAuthStatus:auth=>auth.tenantId?null:403,SALES_ROLES:['owner','manager','attendant'],MANAGEMENT_ROLES:['owner','manager']},

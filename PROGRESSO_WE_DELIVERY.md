@@ -1,3 +1,11 @@
+# Atualização de 1 de novembro de 2026
+
+Esta seção prevalece sobre os registros históricos de setembro abaixo. O usuário autorizou explicitamente publicar as alterações desta sessão no GitHub `typeacai-design/delivery-saas` e no site `wedelivery.site`, depois do bloqueio inicial da revisão automática. Consulte `docs/releases/2026-11-01-mobile-finance-history.md` para escopo e validação.
+
+Regra permanente confirmada: funcionalidades gerais, inclusões/remoções e correções no web mobile e aplicativo; referência visual sempre web → aplicativo. Preservar layout desktop. APK 0.3.5 entregue. Backend ainda no projeto Supabase `iqacuakyyzhrsrjzlnai`; não trocar para o novo projeto sem migração integral.
+
+---
+
 # Progresso do We Delivery
 
 Atualizado em 15/09/2026 (sessão de diagnóstico e recuperação) e em 09/09/2026 (release de sabores por produto).

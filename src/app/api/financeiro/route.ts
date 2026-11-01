@@ -24,7 +24,9 @@ function adminClient() {
   )
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url)
+  if (url.searchParams.has('view')) return periodRead(url)
   try {
     // 1) Autentica o usuário e descobre o tenant dele
     const { tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
@@ -133,4 +135,16 @@ export async function PUT(request: Request) {
     .single()
 
   return NextResponse.json({ success: true, tenant: updatedTenant })
+}
+
+async function periodRead(url: URL) {
+ try {
+  const {supabase,tenantId}=await authenticatedTenant(['owner','manager'])
+  if(!tenantId)return NextResponse.json({error:'Sem permissão'},{status:403})
+  const view=url.searchParams.get('view'),from=url.searchParams.get('from'),to=url.searchParams.get('to'),offset=Number(url.searchParams.get('offset')||0)
+  if(!['resumo','fluxo','receber','despesas'].includes(view||'')||!Number.isInteger(offset)||offset<0||[from,to].some(day=>day&&!/^\d{4}-\d{2}-\d{2}$/.test(day)))return NextResponse.json({error:'Período inválido'},{status:400})
+  const [{data,error},tenant]=await Promise.all([supabase.rpc('mobile_financeiro',{p_tenant_id:tenantId,p_view:view,p_offset:offset,p_limit:50,p_from:from||null,p_to:to||null}),view==='resumo'?supabase.from('tenants').select('id,config').eq('id',tenantId).single():Promise.resolve({data:null,error:null})])
+  if(error||tenant.error)throw error||tenant.error
+  return NextResponse.json({...data,tenant:tenant.data},{headers:{'Cache-Control':'no-store'}})
+ }catch{return NextResponse.json({error:'Não foi possível carregar o financeiro.'},{status:500})}
 }

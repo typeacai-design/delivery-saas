@@ -1,11 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { WalletCards, Receipt, CreditCard, Plus, X, ArrowUpRight, ArrowDownRight, TrendingUp, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useToast } from '@/components/toast'
 import MerchantDisclosure from '@/components/merchant-disclosure'
+
+import MerchantDateRange from '@/components/merchant-date-range'
+import { currentMonthRange } from '@/lib/finance-period'
+import { useMerchantMobile } from '@/lib/use-merchant-mobile'
 
 type Tab = 'cashflow'|'accounts'|'payments'
 type Order = { id:string; codigo:string|null; created_at:string; valor_total:number; taxa_entrega:number; forma_pagamento:string; status:string; pago:boolean|null }
@@ -19,6 +23,11 @@ const tabs = [
 ] as const
 
 export default function FinanceiroPage(){
+ const mobile=useMerchantMobile(),[mounted,setMounted]=useState(false)
+ useEffect(()=>setMounted(true),[])
+ return !mounted ? <div className="hint p-8">Carregando dados financeiros…</div> : mobile ? <MobileFinance/> : <DesktopFinance/>
+}
+function DesktopFinance(){
   const { error: toastError, success: toastSuccess } = useToast()
   const supabase=useMemo(()=>createClient(),[])
   const [tab,setTab]=useState<Tab>('cashflow')
@@ -364,3 +373,33 @@ function LancarModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
   </div>
 }
 
+
+function MobileFinance(){
+ const [tab,setTab]=useState<Tab>('cashflow'),[range,setRange]=useState(currentMonthRange),[summary,setSummary]=useState<any>(null),[error,setError]=useState(''),[version,setVersion]=useState(0),[transaction,setTransaction]=useState(false),[account,setAccount]=useState(false)
+ const refresh=()=>setVersion(x=>x+1)
+ useEffect(()=>{const controller=new AbortController();setSummary(null);setError('');const query=new URLSearchParams({...range,view:'resumo'});fetch('/api/financeiro?'+query,{signal:controller.signal,cache:'no-store'}).then(async response=>{const body=await response.json();if(!response.ok)throw Error(body.error);return body}).then(setSummary).catch(e=>{if(!controller.signal.aborted)setError(e.message)});return()=>controller.abort()},[range.from,range.to,version])
+ // Reset the default period after a month rollover; a chosen custom range remains selected.
+ const defaultPeriod=useRef(true)
+ useEffect(()=>{const timer=setInterval(()=>{if(defaultPeriod.current)setRange(previous=>{const next=currentMonthRange();return previous.from===next.from&&previous.to===next.to?previous:next})},30000);return()=>clearInterval(timer)},[])
+ return <div className="wd-finance-page space-y-5">
+  <header className="wd-page-heading"><h1 className="text-3xl font-semibold">Financeiro</h1><p>Seu dinheiro, sem complicação</p></header>
+  <MerchantDateRange {...range} onApply={value=>{defaultPeriod.current=false;setRange(value)}}/><button type="button" className="text-sm text-green-700" onClick={()=>{defaultPeriod.current=true;setRange(currentMonthRange())}}>Mês atual</button>
+  {error?<p role="alert">{error} <button onClick={refresh}>Tentar novamente</button></p>:!summary?<p role="status">Carregando…</p>:<div className="wd-finance-summary"><section className="wd-sales"><div className="wd-sales-top">Recebido no período</div><strong className="wd-total">{formatCurrency(summary.received)}</strong><p>Pedidos do período marcados como pagos</p></section><div className="wd-finance-metrics"><div className="wd-metric"><span>Contas a receber</span><b>{formatCurrency(summary.receivable)}</b></div><div className="wd-metric"><span>Saldo do período</span><b>{formatCurrency(summary.balance)}</b></div></div></div>}
+  <button type="button" className="wd-action wd-primary" onClick={()=>setTransaction(true)}><Plus size={18}/>Lançar movimentação</button>
+  <div className="wd-finance-tabs grid grid-cols-3 gap-2">{tabs.map(([id,label,Icon])=><button type="button" key={id} onClick={()=>setTab(id)} className={`glass-soft rounded-2xl p-3 text-center ${tab===id?'ring-2 ring-green-500':''}`}><Icon size={18} className="mx-auto"/><span className="block text-xs font-semibold mt-2">{label}</span></button>)}</div>
+  {tab==='cashflow'?<MerchantDisclosure title="Movimentações" initiallyOpen><FinanceRecords key={`fluxo:${range.from}:${range.to}`} view="fluxo" range={range} version={version} refresh={refresh}/></MerchantDisclosure>:tab==='accounts'?<><section className="glass p-4 space-y-3"><h2 className="font-semibold">Contas a receber</h2><p className="text-sm text-gray-500">Somente contas cadastradas manualmente. Período por vencimento.</p><button className="btn-primary" onClick={()=>setAccount(true)}><Plus size={16}/>Cadastrar conta a receber</button><FinanceRecords key={`receber:${range.from}:${range.to}`} view="receber" range={range} version={version} refresh={refresh}/></section><section className="glass p-4"><h2 className="font-semibold">Contas a pagar</h2><FinanceRecords key={`despesas:${range.from}:${range.to}`} view="despesas" range={range} version={version} refresh={refresh}/></section></>:summary?<Payments tenant={summary.tenant} onSaved={tenant=>setSummary((previous:any)=>({...previous,tenant}))}/>:null}
+  {transaction?<LancarModal onClose={()=>setTransaction(false)} onSave={()=>{setTransaction(false);refresh()}}/>:null}
+  {account?<ReceivableModal onClose={()=>setAccount(false)} onSave={()=>{setAccount(false);refresh()}}/>:null}
+ </div>
+}
+function FinanceRecords({view,range,version,refresh}:{view:string;range:{from:string;to:string};version:number;refresh:()=>void}){
+ const [page,setPage]=useState(0),[data,setData]=useState<any>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),lock=useRef(false)
+ useEffect(()=>{const controller=new AbortController();setData(null);setError('');fetch('/api/financeiro?'+new URLSearchParams({...range,view,offset:String(page*50)}),{cache:'no-store',signal:controller.signal}).then(async response=>{const body=await response.json();if(!response.ok)throw Error(body.error);return body}).then(setData).catch(e=>{if(!controller.signal.aborted)setError(e.message)});return()=>controller.abort()},[view,range.from,range.to,page,version])
+ async function receive(id:string){if(lock.current||!window.confirm('Confirmar recebimento? O valor entrará no fluxo de caixa.'))return;lock.current=true;setBusy(true);setError('');try{const response=await fetch('/api/contas-receber',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});const body=await response.json();if(!response.ok)throw Error(body.error);setPage(0);refresh()}catch(e:any){setError(e.message)}finally{lock.current=false;setBusy(false)}}
+ return <div>{error?<p role="alert">{error} <button onClick={refresh}>Atualizar</button></p>:null}{!data&&!error?<p role="status">Carregando…</p>:data?.rows.length?data.rows.map((row:any)=><div key={row.id} className="border-b py-3 flex justify-between items-center gap-3"><div className="min-w-0"><b className="text-sm">{row.descricao||row.nome}</b>{row.data?<small className="block text-gray-500">{new Date(row.data.length===10?row.data+'T12:00:00':row.data).toLocaleDateString('pt-BR')}{row.tipo?' · '+row.tipo:''}</small>:null}</div><div className="text-right shrink-0"><b className={Number(row.amount??row.valor)<0?'text-red-600':'text-green-700'}>{formatCurrency(Number(row.amount??row.valor))}</b>{view==='receber'?<button disabled={busy} className="block text-sm text-green-700 py-2" onClick={()=>void receive(row.id)}>Receber</button>:null}</div></div>):data?<p className="text-sm py-5 text-gray-500">{view==='receber'?'Nenhuma conta a receber.':view==='despesas'?'Nenhuma despesa cadastrada.':'Nenhuma movimentação neste período.'}</p>:null}{page>0||data?.hasMore?<div className="flex justify-between py-3"><button disabled={!page} onClick={()=>setPage(x=>x-1)}>Anterior</button><span>{page+1}</span><button disabled={!data?.hasMore} onClick={()=>setPage(x=>x+1)}>Próxima</button></div>:null}</div>
+}
+function ReceivableModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
+ const [description,setDescription]=useState(''),[value,setValue]=useState(''),[due,setDue]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),lock=useRef(false)
+ async function save(event:React.FormEvent){event.preventDefault();if(lock.current)return;lock.current=true;setBusy(true);setError('');try{const response=await fetch('/api/contas-receber',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({descricao:description,valor:Number(value.replace(',','.')),vencimento:due})});const body=await response.json();if(!response.ok)throw Error(body.error);onSave()}catch(e:any){setError(e.message)}finally{lock.current=false;setBusy(false)}}
+ return <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"><form onSubmit={save} role="dialog" aria-modal="true" aria-label="Nova conta a receber" className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4"><h2 className="text-xl font-semibold">Nova conta a receber</h2>{error?<p role="alert">{error}</p>:null}<label className="block">Descrição<input required maxLength={500} className="form-input w-full" value={description} onChange={e=>setDescription(e.target.value)}/></label><label className="block">Valor (R$)<input required type="number" step="0.01" min="0.01" className="form-input w-full" value={value} onChange={e=>setValue(e.target.value)}/></label><label className="block">Vencimento<input required type="date" className="form-input w-full" value={due} onChange={e=>setDue(e.target.value)}/></label><div className="flex gap-3"><button type="button" disabled={busy} className="btn-secondary flex-1" onClick={onClose}>Cancelar</button><button disabled={busy} className="btn-primary flex-1">{busy?'Salvando…':'Cadastrar conta'}</button></div></form></div>
+}

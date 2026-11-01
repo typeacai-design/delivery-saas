@@ -17,6 +17,7 @@ import { useOrderSound } from '@/components/global-som-pedidos'
 import MerchantDateRange from '@/components/merchant-date-range'
 import MerchantOrderStages from '@/components/merchant-order-stages'
 import { orderPeriodRange } from '@/lib/order-period'
+import MerchantHistoryOrder from '@/components/merchant-history-order'
 import MerchantOrderCard from '@/components/merchant-order-card'
 import MerchantDisclosure from '@/components/merchant-disclosure'
 
@@ -1028,15 +1029,27 @@ export default function PedidosPage() {
   // Cache de itens por pedido (carrega sob demanda)
   const [itensCache, setItensCache] = useState<Record<string, any[]>>({})
   useEffect(() => {
+    let cancelled = false
     const carregarItensCache = async () => {
-      const cache: Record<string, any[]> = {}
-      for (const p of pedidos) {
-        const { data } = await supabase.from('pedido_itens').select('*').eq('pedido_id', p.id)
-        cache[p.id] = data || []
-      }
-      setItensCache(cache)
+      try {
+        const batches = Array.from({ length: Math.ceil(pedidos.length / 50) }, (_, index) => pedidos.slice(index * 50, (index + 1) * 50))
+        const groups = await Promise.all(batches.map(async batch => {
+          const rows: any[] = []
+          for (let offset = 0; ; offset += 1000) {
+            const { data, error } = await supabase.from('pedido_itens').select('*').in('pedido_id', batch.map(p => p.id)).order('id').range(offset, offset + 999)
+            if (error) throw error
+            rows.push(...(data || []))
+            if (!data || data.length < 1000) return rows
+          }
+        }))
+        if (cancelled) return
+        const cache: Record<string, any[]> = Object.fromEntries(pedidos.map(p => [p.id, []]))
+        for (const row of groups.flat()) cache[row.pedido_id]?.push(row)
+        setItensCache(cache)
+      } catch { if (!cancelled) toastError('Não foi possível carregar os itens dos pedidos.') }
     }
-    carregarItensCache()
+    void carregarItensCache()
+    return () => { cancelled = true }
   }, [pedidos])
 
   const [mesasInfo, setMesasInfo] = useState<any[]>([])
@@ -1558,6 +1571,7 @@ export default function PedidosPage() {
 
             return (
               <div key={pedido.id} className="wd-order-pair">
+                {mobile && pedidosTab === 'historico' ? <MerchantHistoryOrder pedido={pedido} statusLabel={config.label}>
                 <MerchantOrderCard pedido={pedido} items={itensCache[pedido.id]} statusLabel={config.label}
                   nextLabel={nextStatus ? STATUS_CONFIG[nextStatus].label : undefined}
                   onAdvance={() => { if (nextStatus) updateStatus(pedido, nextStatus) }}
@@ -1568,6 +1582,18 @@ export default function PedidosPage() {
                   onReview={() => gerarConviteAvaliacao(pedido.id)}>
                   {pedido.status !== 'entregue' && pedido.status !== 'cancelado' && <TempoAlerta dataCriacao={pedido.data_criacao} tempoEstimadoMin={(pedido as any).tempo_estimado_min} />}
                 </MerchantOrderCard>
+                </MerchantHistoryOrder> : <>
+                <MerchantOrderCard pedido={pedido} items={itensCache[pedido.id]} statusLabel={config.label}
+                  nextLabel={nextStatus ? STATUS_CONFIG[nextStatus].label : undefined}
+                  onAdvance={() => { if (nextStatus) updateStatus(pedido, nextStatus) }}
+                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => togglePago(pedido)}
+                  onWhatsApp={() => confirmarPedidoWPP(pedido)} onPrint={() => imprimirPedido(pedido)}
+                  onDiscount={() => abrirModalDesconto(pedido)} onCancel={() => abrirModalCancelamento(pedido)}
+                  onDelete={() => apagarPedido(pedido)} onDetails={() => loadDetalhesPedido(pedido)}
+                  onReview={() => gerarConviteAvaliacao(pedido.id)}>
+                  {pedido.status !== 'entregue' && pedido.status !== 'cancelado' && <TempoAlerta dataCriacao={pedido.data_criacao} tempoEstimadoMin={(pedido as any).tempo_estimado_min} />}
+                </MerchantOrderCard>
+                </>}
               <div
                 className={`wd-order-desktop-card order-card-redesign bg-white rounded-[18px] border overflow-hidden flex flex-col transition-all shadow-sm ${
                   isNovo ? 'ring-2 ring-orange-300' : ''
