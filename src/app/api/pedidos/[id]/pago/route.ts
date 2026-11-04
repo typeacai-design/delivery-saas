@@ -17,7 +17,7 @@ export async function PATCH(request: Request) {
     // Verificar se o pedido pertence ao tenant
     const { data: pedido, error: fetchError } = await supabase
       .from('pedidos')
-      .select('id, codigo, tenant_id, valor_total, forma_pagamento, pago')
+      .select('id, codigo, tenant_id, valor_total, forma_pagamento, pago, tipo_pedido, sessao_mesa_id')
       .eq('id', pedido_id)
       .single()
 
@@ -27,6 +27,11 @@ export async function PATCH(request: Request) {
 
     if (pedido.tenant_id !== tenantId) {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+    }
+
+    // Pedidos de mesa são quitados somente pelo fechamento atômico da comanda.
+    if (pedido.tipo_pedido === 'mesa' || pedido.sessao_mesa_id) {
+      return NextResponse.json({ error: 'O pagamento de pedidos de mesa deve ser realizado em Fechar Mesa' }, { status: 409 })
     }
 
     // Atualizar status de pagamento
