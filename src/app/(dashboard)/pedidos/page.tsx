@@ -3024,9 +3024,23 @@ function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura 
             <h3 id="fechar-mesa-title" className="text-lg font-bold mb-1 flex items-center gap-2">
               🔒 Fechar Mesa {sessao.mesa_numero}
             </h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-3">
               Total da mesa: <strong className="text-gray-900">{formatCurrency(valorAcumulado)}</strong>
             </p>
+            <div className="max-h-44 overflow-y-auto rounded-xl bg-slate-50 p-3 mb-4 space-y-2" aria-label="Resumo de consumo da mesa">
+              {pedidos.filter((p: any) => p.status !== 'cancelado').map((p: any) => (
+                <div key={p.id} className="border-b border-slate-200 pb-2 last:border-0 last:pb-0">
+                  <div className="flex justify-between gap-2 text-xs font-semibold">
+                    <span>Pedido #{String(p.codigo || p.id).slice(0, 8)}</span>
+                    <span>{formatCurrency(Number(p.valor_total || 0))}</span>
+                  </div>
+                  {(p.pedido_itens || []).map((item: any) => (
+                    <p key={item.id} className="text-xs text-slate-600 mt-1">{item.quantidade}× {item.nome}</p>
+                  ))}
+                </div>
+              ))}
+              {pedidos.filter((p: any) => p.status !== 'cancelado').length === 0 && <p className="text-xs text-slate-500">Nenhum produto consumido.</p>}
+            </div>
 
             <label className="block text-xs font-semibold text-gray-700 mb-2">
               Forma de pagamento
