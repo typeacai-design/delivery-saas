@@ -775,7 +775,7 @@ export default function PedidosPage() {
         toastWarning('Cliente sem WhatsApp cadastrado neste pedido.')
         return
       }
-      window.open(`https://wa.me/55${fone}?text=${encodeURIComponent(mensagem)}`, '_blank')
+      window.open(`https://wa.me/${fone.startsWith('55') ? fone : '55' + fone}?text=${encodeURIComponent(mensagem)}`, '_blank')
     } catch (err: any) {
       console.error('Erro ao gerar mensagem WhatsApp:', err)
       toastError('Erro ao abrir WhatsApp', err?.message || 'falha desconhecida')
