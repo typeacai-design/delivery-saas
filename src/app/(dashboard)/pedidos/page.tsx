@@ -1561,7 +1561,7 @@ export default function PedidosPage() {
           pedidosPorData.map((pedido) => {
             const config = STATUS_CONFIG[pedido.status]
             const StatusIcon = config.icon
-            const nextStatus = NEXT_STATUS[pedido.status]
+            const nextStatus = (pedido as any).tipo_pedido === 'mesa' && pedido.status === 'pronto' ? 'entregue' : NEXT_STATUS[pedido.status]
             const isNovo = pedido.status === 'novo'
             const isCancelado = pedido.status === 'cancelado'
             const isEntregue = pedido.status === 'entregue'
@@ -1606,6 +1606,7 @@ export default function PedidosPage() {
                     <h2 className="text-[22px] font-medium tracking-tight" style={{ color: '#172033' }}>
                       Pedido {formatarCodigoPedido(pedido.id, pedido.data_criacao, (pedido as any).codigo)}
                     </h2>
+                    {(pedido as any).tipo_pedido === 'mesa' && <span className="inline-flex rounded-full bg-amber-100 text-amber-900 px-2 py-1 text-xs font-semibold">🍽️ Mesa {(pedido as any).mesa_numero || '—'}</span>}
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
