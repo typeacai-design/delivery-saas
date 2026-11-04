@@ -725,6 +725,7 @@ export default function PedidosPage() {
 
   // Confirmar pedido via WPP (envia msg ao cliente)
   const confirmarPedidoWPP = async (pedido: any) => {
+    const abaWhatsApp = window.open('about:blank', '_blank')
     try {
       // Buscar itens inline se não estiverem no cache (evita itens vazios)
       let itens = itensCache[pedido.id]
@@ -772,11 +773,15 @@ export default function PedidosPage() {
       })
       const fone = (pedido.cliente_whatsapp || '').replace(/\D/g, '')
       if (!fone) {
+        abaWhatsApp?.close()
         toastWarning('Cliente sem WhatsApp cadastrado neste pedido.')
         return
       }
-      window.open(`https://wa.me/${fone.startsWith('55') ? fone : '55' + fone}?text=${encodeURIComponent(mensagem)}`, '_blank')
+      const url = `https://wa.me/${fone.startsWith('55') ? fone : '55' + fone}?text=${encodeURIComponent(mensagem)}`
+      if (abaWhatsApp) abaWhatsApp.location.href = url
+      else window.location.href = url
     } catch (err: any) {
+      abaWhatsApp?.close()
       console.error('Erro ao gerar mensagem WhatsApp:', err)
       toastError('Erro ao abrir WhatsApp', err?.message || 'falha desconhecida')
     }
