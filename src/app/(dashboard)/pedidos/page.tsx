@@ -1775,7 +1775,7 @@ export default function PedidosPage() {
                     <div>
                       <p className="text-xs" style={{ color: '#697386' }}>Forma de pagamento</p>
                       <p className="text-[14px] font-medium capitalize" style={{ color: '#172033' }}>
-                        {formatarFormaPagamentoDisplay((pedido as any).forma_pagamento)}
+                        {(pedido as any).tipo_pedido === 'mesa' ? 'Pagamento ao fechar a mesa' : formatarFormaPagamentoDisplay((pedido as any).forma_pagamento)}
                       </p>
                     </div>
                     <div className="text-right">
@@ -1801,8 +1801,8 @@ export default function PedidosPage() {
 
                   {/* LINHA 2: Grid 2x3 ações */}
                   <div className="grid grid-cols-2 gap-2 mt-3">
-                    {/* Pago */}
-                    <button
+                    {/* Pagamento de mesa é feito exclusivamente no fechamento da comanda */}
+                    {(pedido as any).tipo_pedido !== 'mesa' && <button
                       onClick={() => togglePago(pedido)}
                       className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
                       style={{
@@ -1813,7 +1813,7 @@ export default function PedidosPage() {
                       title={(pedido as any).pago ? 'Pago - clique para desmarcar' : 'Marcar como pago'}
                     >
                       <Check size={14} /> {(pedido as any).pago ? 'Pago' : 'Marcar pago'}
-                    </button>
+                    </button>}
 
                     {/* Editar */}
                     <button
