@@ -53,6 +53,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'mesa_numero e cliente_nome são obrigatórios' }, { status: 400 })
   }
 
+  const { data: mesaExistente, error: buscaError } = await supabase
+    .from('sessoes_mesa').select('id').eq('tenant_id', tenantId)
+    .eq('mesa_numero', mesa_numero).eq('status', 'aberta').maybeSingle()
+  if (buscaError) return NextResponse.json({ error: buscaError.message }, { status: 500 })
+  if (mesaExistente) return NextResponse.json({ error: 'Esta mesa já possui uma comanda aberta' }, { status: 409 })
+
   const { data, error } = await supabase
     .from('sessoes_mesa')
     .insert({
