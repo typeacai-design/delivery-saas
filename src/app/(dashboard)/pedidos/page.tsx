@@ -733,19 +733,13 @@ export default function PedidosPage() {
         itens = fetched || []
       }
 
-      // Buscar formas de pagamento do banco para formatar como o cliente fez
-      const { data: formasPg } = await supabase.from('formas_pagamento').select('id, nome').eq('tenant_id', pedido.tenant_id).eq('ativo', true)
-
-      // Formatar pagamento(s) como o cliente fez no checkout: "PIX: R$ 40,00" ou "PIX: R$ 25,00, Dinheiro: R$ 15,00"
-      const formasSelecionadas: string[] = Array.isArray(pedido.forma_pagamento) ? pedido.forma_pagamento : [pedido.forma_pagamento || 'dinheiro']
-      const pagamentosTexto = formasSelecionadas
-        .map((fp: string) => {
-          const formaNome = formasPg?.find(f => f.id === fp)?.nome || fp
-          // Usa o valor total se não houver rateio
-          const valorPg = pedido.valor_total
-          return `${formaNome}: ${formatCurrency(valorPg)}`
-        })
-        .join(', ')
+      // Mesmo formato do checkout público: Nome: R$ total.
+      const { data: formasPg } = await supabase.from('formas_pagamento')
+        .select('id,nome').eq('tenant_id', pedido.tenant_id)
+      const forma = normalizarFormaPagamento(pedido.forma_pagamento)
+      const formaNome = formasPg?.find(f => f.id === forma)?.nome ||
+        ({ pix: 'Pix', dinheiro: 'Dinheiro', cartao_credito: 'Cartão de crédito', cartao_debito: 'Cartão de débito' } as Record<string, string>)[forma] || forma
+      const pagamentosTexto = forma === '—' ? 'Não informado' : `${formaNome}: ${formatCurrency(Number(pedido.valor_total || 0))}`
 
       const mensagem = gerarMensagemWhatsApp({
         pedidoId: pedido.id,
@@ -767,13 +761,14 @@ export default function PedidosPage() {
         desconto: pedido.valor_desconto || 0,
         total: pedido.valor_total,
         formaPagamento: pagamentosTexto,
-        trocoPara: pedido.troco,
+        trocoPara: Number(pedido.troco_para) || undefined,
         endereco: pedido.endereco_entrega || '',
         numero: pedido.numero_entrega || '',
         complemento: pedido.complemento_entrega,
         bairro: pedido.bairro_entrega || '',
         observacoes: pedido.observacoes || '',
         tipoEntrega: pedido.tipo_entrega || 'delivery',
+        agendamentoPara: pedido.agendamento_para || undefined,
       })
       const fone = (pedido.cliente_whatsapp || '').replace(/\D/g, '')
       if (!fone) {
@@ -787,118 +782,73 @@ export default function PedidosPage() {
     }
   }
 
-  // Imprimir pedido
+  // Impressão térmica: diálogo nativo direto, sem janela intermediária.
   const imprimirPedido = async (pedido: any) => {
     try {
-      const janela = window.open('', '_blank', 'width=400,height=600')
-      if (!janela) {
-        toastWarning('Permita popups para imprimir')
-        return
+      const { data: itens, error } = await supabase.from('pedido_itens')
+        .select('*').eq('pedido_id', pedido.id)
+      if (error) throw error
+      const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, ch =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[ch])
+      const moeda = (v: unknown) => formatCurrency(Number(v) || 0)
+      const itensHtml = (itens || []).map((i: any) => {
+        const comps = parseComplements(i.complementos)
+        const cab = `<tr><td><b>${esc(i.quantidade)}x ${esc(i.nome)}${i.variante_nome ? ' (' + esc(i.variante_nome) + ')' : ''}</b></td><td class="valor"><b>${moeda(savedItemTotal(i))}</b></td></tr>`
+        const adic = comps.map((c: any) => `<tr><td class="complemento">+ ${esc(c.tipo === 'sabor' ? flavorLabel(c) : (c.quantidade > 1 ? c.quantidade + 'x ' : '') + c.nome)}</td><td class="valor complemento">${moeda((c.valor || 0) * (c.quantidade || 1))}</td></tr>`).join('')
+        const obs = i.observacao ? `<tr><td colspan="2"><b>OBS: ${esc(i.observacao)}</b></td></tr>` : ''
+        return cab + adic + obs
+      }).join('')
+      const forma = normalizarFormaPagamento(pedido.forma_pagamento)
+      const troco = Number(pedido.troco_para) || 0
+      const dinheiro = forma.toLowerCase().includes('dinheiro')
+      const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pedido ${esc(pedido.codigo || pedido.id)}</title>
+        <style>
+          @page { size: auto; margin: 2mm; }
+          html,body { margin:0; padding:0; background:#fff !important; color:#000 !important; }
+          body { font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.35; font-weight:600; overflow-wrap:anywhere; }
+          *,*::before,*::after { color:#000 !important; opacity:1 !important; text-shadow:none !important; box-shadow:none !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+          h1 { text-align:center; font-size:19px; margin:0 0 8px; font-weight:900; border-bottom:2px solid #000; }
+          h2 { font-size:14px; margin:10px 0 5px; font-weight:900; border-bottom:2px solid #000; }
+          p { margin:4px 0; }
+          table { width:100%; border-collapse:collapse; table-layout:fixed; }
+          td { padding:5px 2px; vertical-align:top; font-size:13px; border-bottom:1px solid #000; font-weight:700; }
+          td.valor { text-align:right; width:32%; overflow-wrap:normal; }
+          td.complemento { font-size:13px; font-weight:700; }
+          .total { font-size:19px; font-weight:900; border-top:3px solid #000; padding-top:6px; }
+          strong,b { font-weight:900; }
+        </style></head><body>
+        <h1>PEDIDO ${esc(pedido.codigo || pedido.id)}</h1>
+        <h2>CLIENTE</h2><p>${esc(pedido.cliente_nome || 'Cliente')}</p><p>${esc(pedido.cliente_whatsapp || '')}</p>
+        <h2>${pedido.tipo_entrega === 'retirada' ? 'RETIRADA' : pedido.tipo_entrega === 'mesa' ? 'MESA' : 'ENTREGA'}</h2>
+        ${pedido.tipo_entrega === 'retirada' ? '<p>Retirada no balcão</p>' : pedido.tipo_entrega === 'mesa' ? `<p>Mesa ${esc(pedido.mesa_numero || '')}</p>` : `<p>${esc(pedido.endereco_entrega || '')}, ${esc(pedido.numero_entrega || '')}</p><p>${esc(pedido.bairro_entrega || '')} ${esc(pedido.complemento_entrega || '')}</p>`}
+        <h2>ITENS DO PEDIDO</h2><table>${itensHtml}</table>
+        <p>Subtotal: ${moeda(pedido.valor_subtotal)}</p>
+        ${Number(pedido.valor_desconto)>0 ? `<p>Desconto: -${moeda(pedido.valor_desconto)}</p>` : ''}
+        ${Number(pedido.taxa_entrega)>0 ? `<p>Entrega: ${moeda(pedido.taxa_entrega)}</p>` : ''}
+        <p class="total">TOTAL: ${moeda(pedido.valor_total)}</p>
+        <h2>PAGAMENTO</h2><p>${esc(formatarFormaPagamentoDisplay(pedido.forma_pagamento))}</p>
+        ${dinheiro && troco>0 ? `<p><b>TROCO PARA: ${moeda(troco)}</b></p><p>DEVOLVER: ${moeda(Math.max(0,troco-Number(pedido.valor_total||0)))}</p>` : ''}
+        ${pedido.observacoes ? `<h2>OBSERVAÇÕES</h2><p><b>${esc(pedido.observacoes)}</b></p>` : ''}
+        </body></html>`
+      const iframe = document.createElement('iframe')
+      iframe.setAttribute('aria-hidden', 'true')
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden'
+      document.body.appendChild(iframe)
+      const doc = iframe.contentDocument
+      if (!doc) throw new Error('Não foi possível preparar a impressão')
+      let printed = false
+      const imprimir = () => {
+        if (printed) return
+        printed = true
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+        window.setTimeout(() => iframe.remove(), 60000)
       }
-
-      // Buscar itens com complementos do cache
-      const itensDoPedido = itensCache[pedido.id] || []
-
-    // Gerar HTML dos itens com complementos
-    const itensHtml = itensDoPedido.map((i: any) => {
-      const comps = parseComplements(i.complementos)
-
-      let html = `<tr><td class="linha-item"><strong>${i.quantidade}x ${i.nome}</strong>`
-      if (i.variante_nome) html += ` (${i.variante_nome})`
-      html += `</td><td class="valor">R$ ${savedItemTotal(i).toFixed(2)}</td></tr>`
-
-      // Complementos
-      comps.forEach((c: any) => {
-        const compValor = (c.valor || 0) * (c.quantidade || 1)
-        html += `<tr><td class="linha-comp">${c.tipo === 'sabor' ? flavorLabel(c) : `${c.quantidade > 1 ? `${c.quantidade}x ` : ''}${c.nome}`}</td><td class="valor linha-comp">R$ ${compValor.toFixed(2)}</td></tr>`
-      })
-
-      return html
-    }).join('')
-
-    janela.document.write(`
-      <html><head><title>Pedido ${pedido.codigo || pedido.id}</title>
-      <style>
-        /* Impressora termica: tinta preta pura, sem cinza */
-        * { color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        body { font-family: 'Courier New', monospace; font-size: 13px; padding: 12px; max-width: 100%; margin: 0; background: #fff; }
-        h1 { font-size: 18px; margin: 0 0 8px; border-bottom: 2px solid #000; padding-bottom: 6px; font-weight: bold; text-transform: uppercase; }
-        h2 { font-size: 13px; margin: 8px 0 4px; font-weight: bold; text-transform: uppercase; }
-        p { margin: 3px 0; font-size: 13px; }
-        table { width: 100%; border-collapse: collapse; margin: 5px 0; }
-        td { padding: 3px 0; border-bottom: 1px dashed #000; font-size: 13px; vertical-align: top; }
-        td.valor { text-align: right; white-space: nowrap; padding-left: 8px; }
-        hr { border: none; border-top: 1px dashed #000; margin: 8px 0; }
-        .total { font-weight: bold; font-size: 18px; margin-top: 10px; padding-top: 6px; border-top: 2px solid #000; }
-        .info-section { margin-bottom: 10px; }
-        .linha-item { font-weight: bold; }
-        .linha-comp { font-size: 11px; padding-left: 8px; }
-        .label { font-weight: bold; }
-        @media print {
-          body { padding: 0; }
-          @page { margin: 8mm; size: auto; }
-          * { color: #000 !important; }
-        }
-      </style>
-      </head><body>
-      <h1>📋 PEDIDO ${pedido.codigo || pedido.id}</h1>
-
-      <div class="info-section">
-        <h2>👤 CLIENTE</h2>
-        <p><strong>${pedido.cliente_nome || 'Cliente'}</strong></p>
-        <p>📱 ${pedido.cliente_whatsapp || '-'}</p>
-      </div>
-
-      <div class="info-section">
-        <h2>📍 ENDEREÇO</h2>
-        ${pedido.tipo_entrega === 'retirada'
-          ? '<p>🏪 Retirada no local</p>'
-          : `<p>${pedido.endereco_entrega || '-'}, ${pedido.numero_entrega || 's/n'}</p>
-             <p>${pedido.bairro_entrega || ''} ${pedido.complemento_entrega ? `(${pedido.complemento_entrega})` : ''}</p>`
-        }
-      </div>
-
-      <hr>
-      <h2>🛒 ITENS DO PEDIDO</h2>
-      <table>${itensHtml}</table>
-      <hr>
-
-      <div>
-        <p><strong>Subtotal:</strong> R$ ${(pedido.valor_subtotal || 0).toFixed(2)}</p>
-        ${pedido.valor_desconto > 0 ? `<p><strong>Desconto:</strong> -R$ ${(pedido.valor_desconto || 0).toFixed(2)}</p>` : ''}
-        ${pedido.taxa_entrega > 0 ? `<p><strong>Entrega:</strong> R$ ${(pedido.taxa_entrega || 0).toFixed(2)}</p>` : ''}
-        <p class="total">TOTAL: R$ ${(pedido.valor_total || 0).toFixed(2)}</p>
-      </div>
-
-      <hr>
-      <div>
-        <p><strong>💳 Pagamento:</strong> ${Array.isArray(pedido.forma_pagamento) ? pedido.forma_pagamento.join(', ') : (pedido.forma_pagamento || '-')}</p>
-        ${pedido.tipo_entrega === 'delivery' && pedido.forma_pagamento === 'dinheiro' && pedido.troco_para > 0
-          ? `<p><strong>Troco para:</strong> R$ ${(pedido.troco_para || 0).toFixed(2)}</p>`
-          : ''}
-      </div>
-
-      ${pedido.observacoes ? `
-      <hr>
-      <div>
-        <p><strong>📝 Observações:</strong></p>
-        <p style="border:1px solid #000;padding:5px;">${pedido.observacoes}</p>
-      </div>
-      ` : ''}
-
-      <script>
-        // Auto-imprimir quando a página carregar
-        window.addEventListener('load', function() {
-          // Pequeno delay para garantir que tudo foi renderizado
-          setTimeout(function() {
-            window.print();
-            // Fecha a janela após imprimir (opcional)
-            // setTimeout(function() { window.close(); }, 1000);
-          }, 300);
-        });
-      </script>
-      </body></html>
-    `)
+      iframe.onload = imprimir
+      doc.open()
+      doc.write(html)
+      doc.close()
+      window.setTimeout(imprimir, 700)
     } catch (err: any) {
       console.error('Erro ao imprimir pedido:', err)
       toastError('Erro ao imprimir', err?.message || 'falha desconhecida')
