@@ -92,6 +92,16 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
 
+  // Uma comanda já quitada não pode ser reaberta nem cancelada sem estorno financeiro.
+  if (body.status === 'aberta' || body.status === 'cancelada') {
+    const { data: atual, error: atualError } = await supabase.from('sessoes_mesa')
+      .select('status,valor_total_recebido').eq('id', id).eq('tenant_id', tenantId).single()
+    if (atualError || !atual) return NextResponse.json({ error: 'Mesa não encontrada' }, { status: 404 })
+    if (atual.status === 'fechada' && Number(atual.valor_total_recebido || 0) > 0) {
+      return NextResponse.json({ error: 'Mesa quitada não pode ser reaberta ou cancelada sem estorno' }, { status: 409 })
+    }
+  }
+
   const update: any = {}
   if (body.status && ['aberta', 'fechada', 'cancelada'].includes(body.status)) {
     update.status = body.status
