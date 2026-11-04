@@ -3109,7 +3109,7 @@ function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura 
               <button
                 type="button"
                 onClick={confirmarFechamentoMesa}
-                disabled={fecharLoading || (fecharFormaPagamento === 'dinheiro' && valorPagoNum > 0 && valorPagoNum < valorAcumulado)}
+                disabled={fecharLoading || valorAcumulado <= 0 || (fecharFormaPagamento === 'dinheiro' && valorPagoNum < valorAcumulado)}
                 className="flex-1 py-3 rounded-xl font-semibold text-white transition active:scale-95 disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #92400E, #B45309)' }}
               >
