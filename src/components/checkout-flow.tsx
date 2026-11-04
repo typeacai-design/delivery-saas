@@ -186,7 +186,7 @@ export function CheckoutDrawer({
     if (correspondente) setBairroSelecionado(correspondente)
   }, [cliente.bairro, bairroSelecionado, enderecos])
 
-  // Forma de pagamento selecionada (múltiplas)
+  // Forma única de pagamento selecionada
   const [formasPagamentoSelecionadas, setFormasPagamentoSelecionadas] = useState<{ forma: string; valor: number }[]>([])
 
   // Troco para
@@ -286,7 +286,7 @@ export function CheckoutDrawer({
 
   const podeFinalizar = () => {
     if (carrinhoLocal.length === 0) return false
-    if (formasPagamentoSelecionadas.length === 0) return false
+    if (formasPagamentoSelecionadas.length !== 1) return false
     // Validar que a soma dos valores >= total
     const totalPago = formasPagamentoSelecionadas.reduce((sum, fp) => sum + fp.valor, 0)
     if (totalPago < total) return false
@@ -325,30 +325,10 @@ export function CheckoutDrawer({
     }
   }
 
-  // ============================================================
-  // Recalcula os valores das formas de pagamento sempre que o total
-  // muda por causa de cupom, taxa, bairro etc. Mantém a proporção
-  // entre as formas já escolhidas; se nenhuma forma está selecionada,
-  // não faz nada. Não recalcula se a soma já bate com o total.
-  // ============================================================
+  // Atualiza o valor da única forma de pagamento ao mudar o total.
   useEffect(() => {
-    if (formasPagamentoSelecionadas.length === 0) return
-    const somaAtual = formasPagamentoSelecionadas.reduce((s: number, fp: any) => s + Number(fp.valor || 0), 0)
-    if (Math.abs(somaAtual - total) < 0.01) return
-    if (somaAtual <= 0) return
-    const fator = total / somaAtual
-    const redistribuido = formasPagamentoSelecionadas.map((fp: any) => ({
-      ...fp,
-      valor: Math.round(fp.valor * fator * 100) / 100,
-    }))
-    // Ajuste de centavos: a diferença residual vai pra primeira forma
-    const novaSoma = redistribuido.reduce((s: number, fp: any) => s + Number(fp.valor || 0), 0)
-    const diff = Math.round((total - novaSoma) * 100) / 100
-    if (Math.abs(diff) > 0) {
-      redistribuido[0].valor = Math.round((redistribuido[0].valor + diff) * 100) / 100
-    }
-    setFormasPagamentoSelecionadas(redistribuido)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setFormasPagamentoSelecionadas(prev => prev.length === 1 && Math.abs(prev[0].valor - total) > 0.01
+      ? [{ ...prev[0], valor: total }] : prev)
   }, [total])
 
   // ============================================================
@@ -414,7 +394,7 @@ export function CheckoutDrawer({
         taxa_entrega: taxaEntregaAplicada,
         valor_desconto: descontoCupom,
         valor_total: total,
-        // Múltiplas formas de pagamento
+        // Forma única de pagamento
         formas_pagamento: formasPagamentoSelecionadas.map(fp => ({
           forma: fp.forma,
           valor: fp.valor
@@ -465,7 +445,7 @@ export function CheckoutDrawer({
   // ENVIAR WHATSAPP
   // ============================================================
   function enviarWhatsApp(pedido?: any) {
-    // Formatar pagamentos múltiplos para exibição
+    // Formatar forma única para exibição
     const pagamentosTexto = formasPagamentoSelecionadas
       .map(fp => {
         const formaNome = formasPagamento.find(f => f.id === fp.forma)?.nome || fp.forma
@@ -652,7 +632,7 @@ export function CheckoutDrawer({
               taxaEntrega={taxaEntregaAplicada}
               descontoCupom={descontoCupom}
               onContinuar={() => {
-                if (formasPagamentoSelecionadas.length === 0) { alert('Selecione pelo menos uma forma de pagamento'); return }
+                if (formasPagamentoSelecionadas.length !== 1) { alert('Selecione uma única forma de pagamento'); return }
                 const totalPago = formasPagamentoSelecionadas.reduce((sum, fp) => sum + fp.valor, 0)
                 if (totalPago < total) { alert('A soma dos valores pagos deve ser maior ou igual ao total'); return }
                 if (precisaTroco && !trocoPara) { alert('Informe o valor para troco'); return }
@@ -1049,28 +1029,14 @@ function PagamentoView({
   cupomCodigo, setCupomCodigo, cupomAplicado, setCupomAplicado, cupomErro, setCupomErro, cupomLoading, onAplicarCupom,
   subtotal, taxaEntrega, descontoCupom, onContinuar
 }: any) {
-  // Calcular valor restante para preencher automaticamente
-  const totalSelecionado = formasSelecionadas.reduce((sum: number, fp: any) => sum + fp.valor, 0)
-  const valorRestante = Math.max(0, total - totalSelecionado)
-
-  // Toggle forma de pagamento
+  const totalSelecionado = formasSelecionadas.length === 1 ? total : 0
+  // Seleção exclusiva: a nova escolha substitui a anterior.
   const toggleFormaPagamento = (formaId: string) => {
-    const jaSelecionada = formasSelecionadas.find((fp: any) => fp.forma === formaId)
-    if (jaSelecionada) {
-      // Remover
-      setFormasSelecionadas(formasSelecionadas.filter((fp: any) => fp.forma !== formaId))
-    } else {
-      // Adicionar com valor restante (ou sugerido)
-      const valorSugerido = valorRestante > 0 ? valorRestante : total
-      setFormasSelecionadas([...formasSelecionadas, { forma: formaId, valor: Math.round(valorSugerido * 100) / 100 }])
+    setFormasSelecionadas([{ forma: formaId, valor: total }])
+    if (formaId !== 'dinheiro') {
+      setPrecisaTroco(false)
+      setTrocoPara('')
     }
-  }
-
-  // Atualizar valor de uma forma
-  const atualizarValor = (formaId: string, novoValor: number) => {
-    setFormasSelecionadas(formasSelecionadas.map((fp: any) =>
-      fp.forma === formaId ? { ...fp, valor: Math.round(novoValor * 100) / 100 } : fp
-    ))
   }
 
   // Verificar se tem dinheiro selecionado
@@ -1079,9 +1045,9 @@ function PagamentoView({
   return (
     <div className="p-4 space-y-4">
       <p className="text-sm text-gray-600 mb-2">💳 Forma de pagamento</p>
-      <p className="text-xs text-gray-500 -mt-2">Selecione uma ou mais formas de pagamento</p>
+      <p className="text-xs text-gray-500 -mt-2">Selecione apenas uma forma de pagamento</p>
 
-      {/* Formas de pagamento com checkbox */}
+      {/* Seleção exclusiva de pagamento */}
       <div className="space-y-2">
         {formasPagamento.length === 0 ? (
           <p className="text-sm text-gray-500">Nenhuma forma de pagamento cadastrada</p>
@@ -1093,34 +1059,17 @@ function PagamentoView({
                 borderColor: selecionada ? '#22c55e' : '#e5e7eb',
                 backgroundColor: selecionada ? '#f0fdf4' : 'white'
               }}>
-                {/* Checkbox row */}
+                {/* Indicador de seleção exclusiva */}
                 <button
                   onClick={() => toggleFormaPagamento(fp.id)}
                   className="w-full p-4 flex items-center gap-3"
                 >
-                  <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${selecionada ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${selecionada ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
                     {selecionada && <Check className="w-4 h-4 text-white" />}
                   </div>
                   <span className="font-medium">{fp.nome}</span>
                 </button>
 
-                {/* Campo de valor (se selecionada) */}
-                {selecionada && (
-                  <div className="px-4 pb-4 pt-1 border-t border-green-200">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Valor</label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400">R$</span>
-                      <input
-                        type="number"
-                        value={selecionada.valor}
-                        onChange={(e) => atualizarValor(fp.id, parseFloat(e.target.value) || 0)}
-                        className="flex-1 py-2 px-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
-                        step="0.01"
-                        min="0"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             )
           })
