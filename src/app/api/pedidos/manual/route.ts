@@ -66,6 +66,15 @@ export async function POST(request: Request) {
       complemento,
     } = body
 
+    // Regra global: uma única forma de pagamento por pedido.
+    // Recusar arrays com mais de uma opção, inclusive em chamadas diretas à API.
+    if (Array.isArray(forma_pagamento) && forma_pagamento.length !== 1) {
+      return NextResponse.json({ error: 'Selecione apenas uma forma de pagamento' }, { status: 400 })
+    }
+    const formaPagamentoUnica = Array.isArray(forma_pagamento) ? forma_pagamento[0] : forma_pagamento
+    if (formaPagamentoUnica != null && (typeof formaPagamentoUnica !== 'string' || !['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'].includes(formaPagamentoUnica))) {
+      return NextResponse.json({ error: 'Forma de pagamento inválida' }, { status: 400 })
+    }
     if (!itens || itens.length === 0) {
       return NextResponse.json({ error: 'Pedido sem itens' }, { status: 400 })
     }
@@ -115,7 +124,7 @@ export async function POST(request: Request) {
         taxa_entrega: taxa_entrega || 0,
         valor_desconto: valor_desconto || 0,
         valor_total: totalCorrigido,
-        forma_pagamento: tipo_pedido === 'mesa' ? [] : forma_pagamento ? [forma_pagamento] : ['dinheiro'],
+        forma_pagamento: tipo_pedido === 'mesa' ? [] : [formaPagamentoUnica || 'dinheiro'],
         valor_pago: tipo_pedido === 'mesa' ? [] : [totalCorrigido],
         troco: troco_para || 0,
         observacoes: observacoes || null,
