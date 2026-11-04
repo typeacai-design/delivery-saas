@@ -2707,29 +2707,40 @@ interface MesaCardProps {
 }
 
 function MesasGrid({ sessoes, onRefresh, toastError, toastSuccess }: MesaCardProps) {
+  const [criandoMesa, setCriandoMesa] = useState(false)
+  const [numeroNovaMesa, setNumeroNovaMesa] = useState('')
+  const [clienteNovaMesa, setClienteNovaMesa] = useState('')
+  const [salvandoMesa, setSalvandoMesa] = useState(false)
+  async function criarMesa() {
+    if (!numeroNovaMesa.trim()) return toastError('Informe o número da mesa')
+    setSalvandoMesa(true)
+    try {
+      const res = await fetch('/api/sessoes-mesa', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mesa_numero: numeroNovaMesa.trim(), cliente_nome: clienteNovaMesa.trim() || 'Mesa ' + numeroNovaMesa.trim() }) })
+      const data = await res.json()
+      if (!res.ok) return toastError('Não foi possível abrir a mesa', data.error)
+      toastSuccess('Mesa ' + numeroNovaMesa.trim() + ' aberta')
+      setCriandoMesa(false)
+      setNumeroNovaMesa('')
+      setClienteNovaMesa('')
+      onRefresh()
+    } catch { toastError('Falha de conexão ao abrir a mesa') }
+    finally { setSalvandoMesa(false) }
+  }
   const abertas = sessoes.filter((s) => s.status === 'aberta')
   const fechadas = sessoes.filter((s) => s.status !== 'aberta')
 
-  if (sessoes.length === 0) {
-    return (
-      <div className="col-span-full text-center py-12">
-        <div className="text-5xl mb-3">🍽️</div>
-        <h3 className="text-lg font-semibold mb-1">Nenhuma mesa aberta</h3>
-        <p className="hint text-sm">
-          Quando você lançar um pedido do tipo "Mesa", ele aparecerá aqui pra acompanhar e fechar.
-        </p>
-        <a
-          href="/pedidos/novo"
-          className="btn-primary inline-flex items-center gap-2 mt-4"
-        >
-          <Plus size={16} /> Lançar pedido de mesa
-        </a>
-      </div>
-    )
-  }
-
   return (
     <>
+      <div className="flex justify-end mb-3"><button type="button" className="btn-primary flex items-center gap-2 px-4 py-3" onClick={() => setCriandoMesa(true)}><Plus size={16} /> Criar mesa</button></div>
+      {criandoMesa && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Abrir mesa">
+        <div className="bg-white rounded-2xl p-5 w-full max-w-sm space-y-3 shadow-xl">
+          <h3 className="text-lg font-semibold">Abrir nova mesa</h3>
+          <label className="block text-sm">Número da mesa<input className="w-full mt-1 rounded-lg border p-3" value={numeroNovaMesa} onChange={e => setNumeroNovaMesa(e.target.value)} placeholder="Ex.: 01" /></label>
+          <label className="block text-sm">Cliente (opcional)<input className="w-full mt-1 rounded-lg border p-3" value={clienteNovaMesa} onChange={e => setClienteNovaMesa(e.target.value)} placeholder="Nome do cliente" /></label>
+          <div className="flex gap-2"><button className="flex-1 rounded-lg border p-3" disabled={salvandoMesa} onClick={() => setCriandoMesa(false)}>Cancelar</button><button className="flex-1 btn-primary p-3" disabled={salvandoMesa || !numeroNovaMesa.trim()} onClick={criarMesa}>{salvandoMesa ? 'Abrindo...' : 'Abrir mesa'}</button></div>
+        </div>
+      </div>}
       {/* Mesas abertas */}
       {abertas.length === 0 ? (
         <div className="col-span-full text-center py-8">
