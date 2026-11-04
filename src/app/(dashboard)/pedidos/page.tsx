@@ -1728,6 +1728,9 @@ export default function PedidosPage() {
                       <p className="text-[14px] font-medium capitalize" style={{ color: '#172033' }}>
                         {(pedido as any).tipo_pedido === 'mesa' ? 'Pagamento ao fechar a mesa' : formatarFormaPagamentoDisplay((pedido as any).forma_pagamento)}
                       </p>
+                      {normalizarFormaPagamento((pedido as any).forma_pagamento).toLowerCase().includes('dinheiro') && Number((pedido as any).troco_para) > 0 && (
+                        <p className="text-sm font-bold" style={{ color: '#172033' }}>Troco para: {formatCurrency(Number((pedido as any).troco_para))}</p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-xs" style={{ color: '#697386' }}>Total do pedido</p>
