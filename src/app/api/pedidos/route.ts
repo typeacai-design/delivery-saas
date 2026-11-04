@@ -80,6 +80,13 @@ export async function POST(request: Request) {
       tempo_estimado_min,
     } = body
 
+    if (Array.isArray(forma_pagamento) && forma_pagamento.length !== 1) {
+      return NextResponse.json({ error: 'Selecione uma única forma de pagamento' }, { status: 400 })
+    }
+    const pagamentoUnico = Array.isArray(forma_pagamento) ? forma_pagamento[0] : forma_pagamento
+    if (pagamentoUnico != null && (typeof pagamentoUnico !== 'string' || !['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'].includes(pagamentoUnico))) {
+      return NextResponse.json({ error: 'Forma de pagamento inválida' }, { status: 400 })
+    }
     if (!itens || itens.length === 0) {
       return NextResponse.json({ error: 'Pedido sem itens' }, { status: 400 })
     }
@@ -151,7 +158,7 @@ export async function POST(request: Request) {
         taxa_entrega: taxa_entrega || 0,
         valor_desconto: valor_desconto || 0,
         valor_total: totalCorrigido,
-        forma_pagamento: Array.isArray(forma_pagamento) ? forma_pagamento : [forma_pagamento || 'dinheiro'],
+        forma_pagamento: [pagamentoUnico || 'dinheiro'],
         troco_para: troco_para || null,
         bairro_entrega: bairro_entrega || null,
         taxa_bairro: taxa_bairro || 0,
