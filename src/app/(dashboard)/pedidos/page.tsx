@@ -1323,7 +1323,7 @@ export default function PedidosPage() {
           ? [{ id: '', label: 'Todos' }, ...(['novo', 'preparando', 'pronto', 'saiu', 'entregue'] as const).map(id => ({ id, label: STATUS_CONFIG[id].label }))]
           : [{ id: '', label: 'Todos' }, { id: 'concluidos', label: 'Entregue' }, { id: 'cancelado', label: 'Cancelado' }]
         ).map(stage => ({ ...stage, count: pedidos.filter(p => {
-          if (pedidosTab === 'fluxo' && ((p as any).tipo_pedido === 'mesa' || (p as any).tipo_pedido === 'consolidado')) return false
+          if (pedidosTab === 'fluxo' && ((p as any).tipo_pedido === 'consolidado')) return false
           if (stage.id === 'concluidos' && p.status !== 'entregue') return false
           if (stage.id && stage.id !== 'concluidos' && p.status !== stage.id) return false
           if (pedidosTab === 'historico' && !stage.id && p.status === 'cancelado') return false
@@ -1346,7 +1346,7 @@ export default function PedidosPage() {
           }
           // Pedidos válidos para o Fluxo (exclui mesas/consolidados), respeitando o período
           const fluxoBase = pedidos.filter(
-            (p) => (p as any).tipo_pedido !== 'mesa' && (p as any).tipo_pedido !== 'consolidado'
+            (p) => (p as any).tipo_pedido !== 'consolidado'
           )
           const fluxoPorData = (filtroDataDe || filtroDataAte)
             ? fluxoBase.filter((p) => {
@@ -1488,8 +1488,8 @@ export default function PedidosPage() {
 
         // Filtro por tab e status
         if (pedidosTab === 'fluxo') {
-          // Fluxo: oculta pedidos de mesa (vão pra aba Mesas) e pedidos consolidados
-          pedidosFiltrados = pedidos.filter((p) => (p as any).tipo_pedido !== 'mesa' && (p as any).tipo_pedido !== 'consolidado')
+          // Fluxo: pedidos de mesa aparecem para a cozinha; apenas consolidados são ocultados
+          pedidosFiltrados = pedidos.filter((p) => (p as any).tipo_pedido !== 'consolidado')
           if (filtroStatus) {
             pedidosFiltrados = pedidosFiltrados.filter(p => p.status === filtroStatus)
           }
@@ -1561,7 +1561,7 @@ export default function PedidosPage() {
           pedidosPorData.map((pedido) => {
             const config = STATUS_CONFIG[pedido.status]
             const StatusIcon = config.icon
-            const nextStatus = NEXT_STATUS[pedido.status]
+            const nextStatus = (pedido as any).tipo_pedido === 'mesa' && pedido.status === 'pronto' ? 'entregue' : NEXT_STATUS[pedido.status]
             const isNovo = pedido.status === 'novo'
             const isCancelado = pedido.status === 'cancelado'
             const isEntregue = pedido.status === 'entregue'
@@ -1575,7 +1575,7 @@ export default function PedidosPage() {
                 <MerchantOrderCard pedido={pedido} items={itensCache[pedido.id]} statusLabel={config.label}
                   nextLabel={nextStatus ? STATUS_CONFIG[nextStatus].label : undefined}
                   onAdvance={() => { if (nextStatus) updateStatus(pedido, nextStatus) }}
-                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => togglePago(pedido)}
+                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => { if ((pedido as any).tipo_pedido !== 'mesa') togglePago(pedido) }}
                   onWhatsApp={() => confirmarPedidoWPP(pedido)} onPrint={() => imprimirPedido(pedido)}
                   onDiscount={() => abrirModalDesconto(pedido)} onCancel={() => abrirModalCancelamento(pedido)}
                   onDelete={() => apagarPedido(pedido)} onDetails={() => loadDetalhesPedido(pedido)}
@@ -1586,7 +1586,7 @@ export default function PedidosPage() {
                 <MerchantOrderCard pedido={pedido} items={itensCache[pedido.id]} statusLabel={config.label}
                   nextLabel={nextStatus ? STATUS_CONFIG[nextStatus].label : undefined}
                   onAdvance={() => { if (nextStatus) updateStatus(pedido, nextStatus) }}
-                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => togglePago(pedido)}
+                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => { if ((pedido as any).tipo_pedido !== 'mesa') togglePago(pedido) }}
                   onWhatsApp={() => confirmarPedidoWPP(pedido)} onPrint={() => imprimirPedido(pedido)}
                   onDiscount={() => abrirModalDesconto(pedido)} onCancel={() => abrirModalCancelamento(pedido)}
                   onDelete={() => apagarPedido(pedido)} onDetails={() => loadDetalhesPedido(pedido)}
@@ -1606,6 +1606,7 @@ export default function PedidosPage() {
                     <h2 className="text-[22px] font-medium tracking-tight" style={{ color: '#172033' }}>
                       Pedido {formatarCodigoPedido(pedido.id, pedido.data_criacao, (pedido as any).codigo)}
                     </h2>
+                    {(pedido as any).tipo_pedido === 'mesa' && <span className="inline-flex rounded-full bg-amber-100 text-amber-900 px-2 py-1 text-xs font-semibold">🍽️ Mesa {(pedido as any).mesa_numero || '—'}</span>}
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
@@ -1775,7 +1776,7 @@ export default function PedidosPage() {
                     <div>
                       <p className="text-xs" style={{ color: '#697386' }}>Forma de pagamento</p>
                       <p className="text-[14px] font-medium capitalize" style={{ color: '#172033' }}>
-                        {formatarFormaPagamentoDisplay((pedido as any).forma_pagamento)}
+                        {(pedido as any).tipo_pedido === 'mesa' ? 'Pagamento ao fechar a mesa' : formatarFormaPagamentoDisplay((pedido as any).forma_pagamento)}
                       </p>
                     </div>
                     <div className="text-right">
@@ -1801,8 +1802,8 @@ export default function PedidosPage() {
 
                   {/* LINHA 2: Grid 2x3 ações */}
                   <div className="grid grid-cols-2 gap-2 mt-3">
-                    {/* Pago */}
-                    <button
+                    {/* Pagamento de mesa é feito exclusivamente no fechamento da comanda */}
+                    {(pedido as any).tipo_pedido !== 'mesa' && <button
                       onClick={() => togglePago(pedido)}
                       className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
                       style={{
@@ -1813,7 +1814,7 @@ export default function PedidosPage() {
                       title={(pedido as any).pago ? 'Pago - clique para desmarcar' : 'Marcar como pago'}
                     >
                       <Check size={14} /> {(pedido as any).pago ? 'Pago' : 'Marcar pago'}
-                    </button>
+                    </button>}
 
                     {/* Editar */}
                     <button
@@ -2707,29 +2708,40 @@ interface MesaCardProps {
 }
 
 function MesasGrid({ sessoes, onRefresh, toastError, toastSuccess }: MesaCardProps) {
+  const [criandoMesa, setCriandoMesa] = useState(false)
+  const [numeroNovaMesa, setNumeroNovaMesa] = useState('')
+  const [clienteNovaMesa, setClienteNovaMesa] = useState('')
+  const [salvandoMesa, setSalvandoMesa] = useState(false)
+  async function criarMesa() {
+    if (!numeroNovaMesa.trim()) return toastError('Informe o número da mesa')
+    setSalvandoMesa(true)
+    try {
+      const res = await fetch('/api/sessoes-mesa', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mesa_numero: numeroNovaMesa.trim(), cliente_nome: clienteNovaMesa.trim() || 'Mesa ' + numeroNovaMesa.trim() }) })
+      const data = await res.json()
+      if (!res.ok) return toastError('Não foi possível abrir a mesa', data.error)
+      toastSuccess('Mesa ' + numeroNovaMesa.trim() + ' aberta')
+      setCriandoMesa(false)
+      setNumeroNovaMesa('')
+      setClienteNovaMesa('')
+      onRefresh()
+    } catch { toastError('Falha de conexão ao abrir a mesa') }
+    finally { setSalvandoMesa(false) }
+  }
   const abertas = sessoes.filter((s) => s.status === 'aberta')
   const fechadas = sessoes.filter((s) => s.status !== 'aberta')
 
-  if (sessoes.length === 0) {
-    return (
-      <div className="col-span-full text-center py-12">
-        <div className="text-5xl mb-3">🍽️</div>
-        <h3 className="text-lg font-semibold mb-1">Nenhuma mesa aberta</h3>
-        <p className="hint text-sm">
-          Quando você lançar um pedido do tipo "Mesa", ele aparecerá aqui pra acompanhar e fechar.
-        </p>
-        <a
-          href="/pedidos/novo"
-          className="btn-primary inline-flex items-center gap-2 mt-4"
-        >
-          <Plus size={16} /> Lançar pedido de mesa
-        </a>
-      </div>
-    )
-  }
-
   return (
     <>
+      <div className="flex justify-end mb-3"><button type="button" className="btn-primary flex items-center gap-2 px-4 py-3" onClick={() => setCriandoMesa(true)}><Plus size={16} /> Criar mesa</button></div>
+      {criandoMesa && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Abrir mesa">
+        <div className="bg-white rounded-2xl p-5 w-full max-w-sm space-y-3 shadow-xl">
+          <h3 className="text-lg font-semibold">Abrir nova mesa</h3>
+          <label className="block text-sm">Número da mesa<input className="w-full mt-1 rounded-lg border p-3" value={numeroNovaMesa} onChange={e => setNumeroNovaMesa(e.target.value)} placeholder="Ex.: 01" /></label>
+          <label className="block text-sm">Cliente (opcional)<input className="w-full mt-1 rounded-lg border p-3" value={clienteNovaMesa} onChange={e => setClienteNovaMesa(e.target.value)} placeholder="Nome do cliente" /></label>
+          <div className="flex gap-2"><button className="flex-1 rounded-lg border p-3" disabled={salvandoMesa} onClick={() => setCriandoMesa(false)}>Cancelar</button><button className="flex-1 btn-primary p-3" disabled={salvandoMesa || !numeroNovaMesa.trim()} onClick={criarMesa}>{salvandoMesa ? 'Abrindo...' : 'Abrir mesa'}</button></div>
+        </div>
+      </div>}
       {/* Mesas abertas */}
       {abertas.length === 0 ? (
         <div className="col-span-full text-center py-8">
@@ -3012,9 +3024,23 @@ function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura 
             <h3 id="fechar-mesa-title" className="text-lg font-bold mb-1 flex items-center gap-2">
               🔒 Fechar Mesa {sessao.mesa_numero}
             </h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-3">
               Total da mesa: <strong className="text-gray-900">{formatCurrency(valorAcumulado)}</strong>
             </p>
+            <div className="max-h-44 overflow-y-auto rounded-xl bg-slate-50 p-3 mb-4 space-y-2" aria-label="Resumo de consumo da mesa">
+              {pedidos.filter((p: any) => p.status !== 'cancelado').map((p: any) => (
+                <div key={p.id} className="border-b border-slate-200 pb-2 last:border-0 last:pb-0">
+                  <div className="flex justify-between gap-2 text-xs font-semibold">
+                    <span>Pedido #{String(p.codigo || p.id).slice(0, 8)}</span>
+                    <span>{formatCurrency(Number(p.valor_total || 0))}</span>
+                  </div>
+                  {(p.pedido_itens || []).map((item: any) => (
+                    <p key={item.id} className="text-xs text-slate-600 mt-1">{item.quantidade}× {item.nome}</p>
+                  ))}
+                </div>
+              ))}
+              {pedidos.filter((p: any) => p.status !== 'cancelado').length === 0 && <p className="text-xs text-slate-500">Nenhum produto consumido.</p>}
+            </div>
 
             <label className="block text-xs font-semibold text-gray-700 mb-2">
               Forma de pagamento
@@ -3083,7 +3109,7 @@ function MesaCard({ sessao, onRefresh, toastError, toastSuccess, somenteLeitura 
               <button
                 type="button"
                 onClick={confirmarFechamentoMesa}
-                disabled={fecharLoading || (fecharFormaPagamento === 'dinheiro' && valorPagoNum > 0 && valorPagoNum < valorAcumulado)}
+                disabled={fecharLoading || valorAcumulado <= 0 || (fecharFormaPagamento === 'dinheiro' && valorPagoNum < valorAcumulado)}
                 className="flex-1 py-3 rounded-xl font-semibold text-white transition active:scale-95 disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #92400E, #B45309)' }}
               >

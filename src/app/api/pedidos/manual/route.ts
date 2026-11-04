@@ -71,6 +71,14 @@ export async function POST(request: Request) {
     }
 
     const admin = adminClient()
+    if (tipo_pedido === 'mesa' || tipo_entrega === 'mesa') {
+      if (!sessao_mesa_id) return NextResponse.json({ error: 'Selecione uma mesa aberta' }, { status: 400 })
+      const { data: sessao, error: sessaoError } = await admin.from('sessoes_mesa')
+        .select('id,status').eq('id', sessao_mesa_id).eq('tenant_id', tenantId).single()
+      if (sessaoError || !sessao || sessao.status !== 'aberta') {
+        return NextResponse.json({ error: 'Mesa não encontrada ou já fechada' }, { status: 409 })
+      }
+    }
 
     const { data: priceProducts, error: priceError } = await admin.from('produtos')
       .select('id,preco,exibir_preco_a_partir_de').eq('tenant_id', tenantId)
@@ -107,8 +115,8 @@ export async function POST(request: Request) {
         taxa_entrega: taxa_entrega || 0,
         valor_desconto: valor_desconto || 0,
         valor_total: totalCorrigido,
-        forma_pagamento: forma_pagamento ? [forma_pagamento] : ['dinheiro'],
-        valor_pago: [totalCorrigido],
+        forma_pagamento: tipo_pedido === 'mesa' ? [] : forma_pagamento ? [forma_pagamento] : ['dinheiro'],
+        valor_pago: tipo_pedido === 'mesa' ? [] : [totalCorrigido],
         troco: troco_para || 0,
         observacoes: observacoes || null,
         tipo_entrega: tipo_entrega || 'delivery',
