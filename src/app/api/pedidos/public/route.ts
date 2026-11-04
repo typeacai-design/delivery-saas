@@ -310,9 +310,9 @@ export async function POST(request: Request) {
     const valorDescontoTotal = Math.min(subtotalCalculado, descontoAniversario + descontoCupom)
     const valorTotalFinal = Math.max(0, Math.round((subtotalCalculado + taxaCalculada - valorDescontoTotal) * 100) / 100)
 
-    // Validar múltiplas formas de pagamento (após calcular valorTotalFinal)
-    const formasSelecionadas = body.formas_pagamento || []
-    if (!formasSelecionadas.length) return NextResponse.json({ error: 'Nenhuma forma de pagamento selecionada' }, { status: 400 })
+    // Exigir exatamente uma forma de pagamento (após calcular valorTotalFinal)
+    const formasSelecionadas = body.formas_pagamento
+    if (!Array.isArray(formasSelecionadas) || formasSelecionadas.length !== 1) return NextResponse.json({ error: 'Selecione exatamente uma forma de pagamento' }, { status: 400 })
     for (const fp of formasSelecionadas) {
       if (!pagamentosAtivos.includes(fp.forma)) return NextResponse.json({ error: `Forma de pagamento '${fp.forma}' desabilitada` }, { status: 400 })
     }
