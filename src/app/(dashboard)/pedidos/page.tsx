@@ -1323,7 +1323,7 @@ export default function PedidosPage() {
           ? [{ id: '', label: 'Todos' }, ...(['novo', 'preparando', 'pronto', 'saiu', 'entregue'] as const).map(id => ({ id, label: STATUS_CONFIG[id].label }))]
           : [{ id: '', label: 'Todos' }, { id: 'concluidos', label: 'Entregue' }, { id: 'cancelado', label: 'Cancelado' }]
         ).map(stage => ({ ...stage, count: pedidos.filter(p => {
-          if (pedidosTab === 'fluxo' && ((p as any).tipo_pedido === 'mesa' || (p as any).tipo_pedido === 'consolidado')) return false
+          if (pedidosTab === 'fluxo' && ((p as any).tipo_pedido === 'consolidado')) return false
           if (stage.id === 'concluidos' && p.status !== 'entregue') return false
           if (stage.id && stage.id !== 'concluidos' && p.status !== stage.id) return false
           if (pedidosTab === 'historico' && !stage.id && p.status === 'cancelado') return false
@@ -1346,7 +1346,7 @@ export default function PedidosPage() {
           }
           // Pedidos válidos para o Fluxo (exclui mesas/consolidados), respeitando o período
           const fluxoBase = pedidos.filter(
-            (p) => (p as any).tipo_pedido !== 'mesa' && (p as any).tipo_pedido !== 'consolidado'
+            (p) => (p as any).tipo_pedido !== 'consolidado'
           )
           const fluxoPorData = (filtroDataDe || filtroDataAte)
             ? fluxoBase.filter((p) => {
@@ -1488,8 +1488,8 @@ export default function PedidosPage() {
 
         // Filtro por tab e status
         if (pedidosTab === 'fluxo') {
-          // Fluxo: oculta pedidos de mesa (vão pra aba Mesas) e pedidos consolidados
-          pedidosFiltrados = pedidos.filter((p) => (p as any).tipo_pedido !== 'mesa' && (p as any).tipo_pedido !== 'consolidado')
+          // Fluxo: pedidos de mesa aparecem para a cozinha; apenas consolidados são ocultados
+          pedidosFiltrados = pedidos.filter((p) => (p as any).tipo_pedido !== 'consolidado')
           if (filtroStatus) {
             pedidosFiltrados = pedidosFiltrados.filter(p => p.status === filtroStatus)
           }
@@ -1575,7 +1575,7 @@ export default function PedidosPage() {
                 <MerchantOrderCard pedido={pedido} items={itensCache[pedido.id]} statusLabel={config.label}
                   nextLabel={nextStatus ? STATUS_CONFIG[nextStatus].label : undefined}
                   onAdvance={() => { if (nextStatus) updateStatus(pedido, nextStatus) }}
-                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => togglePago(pedido)}
+                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => { if ((pedido as any).tipo_pedido !== 'mesa') togglePago(pedido) }}
                   onWhatsApp={() => confirmarPedidoWPP(pedido)} onPrint={() => imprimirPedido(pedido)}
                   onDiscount={() => abrirModalDesconto(pedido)} onCancel={() => abrirModalCancelamento(pedido)}
                   onDelete={() => apagarPedido(pedido)} onDetails={() => loadDetalhesPedido(pedido)}
@@ -1586,7 +1586,7 @@ export default function PedidosPage() {
                 <MerchantOrderCard pedido={pedido} items={itensCache[pedido.id]} statusLabel={config.label}
                   nextLabel={nextStatus ? STATUS_CONFIG[nextStatus].label : undefined}
                   onAdvance={() => { if (nextStatus) updateStatus(pedido, nextStatus) }}
-                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => togglePago(pedido)}
+                  onEdit={() => abrirModalEditar(pedido)} onPaid={() => { if ((pedido as any).tipo_pedido !== 'mesa') togglePago(pedido) }}
                   onWhatsApp={() => confirmarPedidoWPP(pedido)} onPrint={() => imprimirPedido(pedido)}
                   onDiscount={() => abrirModalDesconto(pedido)} onCancel={() => abrirModalCancelamento(pedido)}
                   onDelete={() => apagarPedido(pedido)} onDetails={() => loadDetalhesPedido(pedido)}
