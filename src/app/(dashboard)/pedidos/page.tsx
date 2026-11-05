@@ -2384,6 +2384,11 @@ export default function PedidosPage() {
         </div>
       )}
 
+      {produtoConfigurando && !produtoConfigurando.sabores_grupo_id && <ProdutoManualModal
+        isOpen onClose={()=>setProdutoConfigurando(null)} produto={produtoConfigurando}
+        listas={listasPorProdutoEdicao[produtoConfigurando.id]||[]}
+        initialItem={indiceConfigurando===null?undefined:itensEditando[indiceConfigurando]}
+        onAdd={aplicarProdutoEdicao} onReplace={(_id:any,item:any)=>aplicarProdutoEdicao(item)} />}
       {/* MODAL DE EDIÇÃO */}
       {modalEditarAberto && pedidoEditando && (
         <div className="wd-order-editor fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -2398,6 +2403,12 @@ export default function PedidosPage() {
             <div className="flex-1 min-h-0 overflow-y-auto">
             {mobile ? (
             <div className="wd-oe-body p-4 space-y-4">
+              <section className="border rounded-xl p-4 bg-white space-y-2">
+                <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Selecionar cliente</h3><button type="button" className="text-green-700 text-xs font-semibold" onClick={()=>setNovoClienteEdicao(v=>!v)}>+ Novo cliente</button></div>
+                <input className="form-input w-full text-sm" placeholder="Buscar por nome ou telefone" value={buscaClienteEdicao} onChange={e=>setBuscaClienteEdicao(e.target.value)} />
+                {buscaClienteEdicao.trim() && <div className="max-h-44 overflow-auto border rounded-lg">{clientesEdicao.filter(cl=>(cl.nome||'').toLowerCase().includes(buscaClienteEdicao.toLowerCase())||(cl.telefone||'').includes(buscaClienteEdicao)).slice(0,30).map(cl=><button type="button" key={cl.id} className="block w-full text-left px-3 py-2 hover:bg-green-50 border-b text-sm" onClick={()=>selecionarClienteEdicao(cl)}>{cl.nome} · {cl.telefone}</button>)}</div>}
+                {novoClienteEdicao && <div className="space-y-2 border-t pt-2"><input className="form-input w-full" placeholder="Nome" value={novoClienteNome} onChange={e=>setNovoClienteNome(e.target.value)}/><input className="form-input w-full" placeholder="Telefone" value={novoClienteTelefone} onChange={e=>setNovoClienteTelefone(e.target.value)}/><button type="button" onClick={cadastrarClienteEdicao} className="rounded-lg bg-green-600 text-white px-4 py-2 text-sm">Cadastrar e selecionar</button></div>}
+              </section>
               {/* BLOCO 1: DADOS DO CLIENTE */}
               <MerchantDisclosure title="Dados do cliente" className="wd-oe-group" initiallyOpen>
 
@@ -2557,6 +2568,12 @@ export default function PedidosPage() {
             ) : (
             <div className="p-5 grid grid-cols-1 lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.7fr)] gap-5 items-start">
               <div className="space-y-4">
+              <section className="border rounded-xl p-4 bg-white space-y-2">
+                <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Selecionar cliente</h3><button type="button" className="text-green-700 text-xs font-semibold" onClick={()=>setNovoClienteEdicao(v=>!v)}>+ Novo cliente</button></div>
+                <input className="form-input w-full text-sm" placeholder="Buscar por nome ou telefone" value={buscaClienteEdicao} onChange={e=>setBuscaClienteEdicao(e.target.value)} />
+                {buscaClienteEdicao.trim() && <div className="max-h-44 overflow-auto border rounded-lg">{clientesEdicao.filter(cl=>(cl.nome||'').toLowerCase().includes(buscaClienteEdicao.toLowerCase())||(cl.telefone||'').includes(buscaClienteEdicao)).slice(0,30).map(cl=><button type="button" key={cl.id} className="block w-full text-left px-3 py-2 hover:bg-green-50 border-b text-sm" onClick={()=>selecionarClienteEdicao(cl)}>{cl.nome} · {cl.telefone}</button>)}</div>}
+                {novoClienteEdicao && <div className="space-y-2 border-t pt-2"><input className="form-input w-full" placeholder="Nome" value={novoClienteNome} onChange={e=>setNovoClienteNome(e.target.value)}/><input className="form-input w-full" placeholder="Telefone" value={novoClienteTelefone} onChange={e=>setNovoClienteTelefone(e.target.value)}/><button type="button" onClick={cadastrarClienteEdicao} className="rounded-lg bg-green-600 text-white px-4 py-2 text-sm">Cadastrar e selecionar</button></div>}
+              </section>
               {/* BLOCO 1: DADOS DO CLIENTE */}
               <div className="bg-white border border-gray-200 rounded-xl p-4">
                 <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
