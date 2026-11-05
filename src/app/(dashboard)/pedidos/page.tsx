@@ -2385,6 +2385,11 @@ export default function PedidosPage() {
         </div>
       )}
 
+      {produtoConfigurando?.sabores_grupo_id && <ProdutoModal isOpen onClose={()=>setProdutoConfigurando(null)} produto={produtoConfigurando}
+        variantes={[]} listas={listasPorProdutoEdicao[produtoConfigurando.id]||[]}
+        complementos={(listasPorProdutoEdicao[produtoConfigurando.id]||[]).flatMap((l:any)=>l.complementos)} saboresAtivo paletaCor="#16a34a"
+        initialItem={indiceConfigurando===null?undefined:itensEditando[indiceConfigurando]}
+        onAddToCart={aplicarProdutoEdicao} onReplaceItem={(_id:any,item:any)=>aplicarProdutoEdicao(item)} />}
       {produtoConfigurando && !produtoConfigurando.sabores_grupo_id && <ProdutoManualModal
         isOpen onClose={()=>setProdutoConfigurando(null)} produto={produtoConfigurando}
         listas={listasPorProdutoEdicao[produtoConfigurando.id]||[]}
