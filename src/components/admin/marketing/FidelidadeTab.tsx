@@ -12,6 +12,7 @@ export default function FidelidadeTab() {
   const [carregando,setCarregando]=useState(true)
   const [mensagem,setMensagem]=useState('')
   const [clientes,setClientes]=useState<any[]>([])
+  const [saldos,setSaldos]=useState<Record<string,number>>({})
   const [busca,setBusca]=useState('')
   const supabase=createClient()
   const tenantId=async()=>{const r=await fetch('/api/auth/session',{cache:'no-store'});const b=await r.json();return r.ok?b.tenant?.id:null}
@@ -27,6 +28,8 @@ export default function FidelidadeTab() {
     if(te||ce)setMensagem('Não foi possível carregar todos os dados')
     const cfg=tenant?.config||{}
     setConfig({cashback_ativo:cfg.cashback_ativo===true,cashback_tipo:cfg.cashback_tipo==='fixo_por_real'?'fixo_por_real':'percentual',cashback_percent:Number(cfg.cashback_percent??5),cashback_valor_por_real:Number(cfg.cashback_valor_por_real??0.05),cashback_validade_dias:cfg.cashback_validade_dias===null?null:Number(cfg.cashback_validade_dias??30)})
+    const res=await fetch('/api/cashback/saldos',{cache:'no-store'});const balances=res.ok?await res.json():{saldos:{}}
+    setSaldos(balances.saldos||{})
     setClientes(lista||[])
     setCarregando(false)
   }
@@ -63,7 +66,7 @@ export default function FidelidadeTab() {
       <div className="flex items-center gap-2"><Wallet className="text-green-700" size={20}/><h3 className="font-bold text-gray-900">Saldo de cashback por cliente</h3></div>
       <p className="text-sm text-gray-500">Consulte o saldo atual de cada cliente da sua loja.</p>
       <input className="form-input w-full" value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por nome ou telefone"/>
-      <div className="max-h-96 overflow-y-auto divide-y">{clientes.filter(c=>(c.nome||'').toLowerCase().includes(busca.toLowerCase())||(c.telefone||'').includes(busca)).map(c=><div key={c.id} className="py-3 flex justify-between items-center gap-3"><div className="min-w-0"><div className="font-semibold text-sm truncate">{c.nome}</div><div className="text-xs text-gray-500">{c.telefone}</div></div><div className="font-bold text-green-700 whitespace-nowrap">{formatCurrency(Number(c.saldo_cashback)||0)}</div></div>)}</div>
+      <div className="max-h-96 overflow-y-auto divide-y">{clientes.filter(c=>(c.nome||'').toLowerCase().includes(busca.toLowerCase())||(c.telefone||'').includes(busca)).map(c=><div key={c.id} className="py-3 flex justify-between items-center gap-3"><div className="min-w-0"><div className="font-semibold text-sm truncate">{c.nome}</div><div className="text-xs text-gray-500">{c.telefone}</div></div><div className="font-bold text-green-700 whitespace-nowrap">{formatCurrency(saldos[c.id]||0)}</div></div>)}</div>
     </section>
   </div>
 }
