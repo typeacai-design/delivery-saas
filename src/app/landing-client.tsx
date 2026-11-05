@@ -27,7 +27,7 @@ function FinanceMock() {
  return <div className="wd-laptop wd-laptop-real"><div className="wd-laptop-screen"><aside><b><span className="wd-shop-avatar">TA</span><span><small>WE DELIVERY</small>Type Açaí</span></b>{['Visão geral','Pedidos','Cardápio','Estoque','Financeiro','Equipe','Marketing','Relatórios','Configurações'].map(x=><span key={x} className={x==='Financeiro'?'active':''}>{x}</span>)}</aside><div className="wd-finance"><div className="wd-finance-search">Buscar pedido, produto, cliente...</div><small className="wd-finance-overline">FINANCEIRO</small><h3>Gestão financeira</h3><div className="wd-finance-balance">Saldo: R$ 6.277,00 <small>▲ Positivo</small></div><div className="wd-finance-tabs"><span className="active">Fluxo de caixa</span><span>Contas a pagar/receber</span><span>Formas de pagamento</span></div><div className="wd-finance-table"><header><b>Fluxo de caixa</b><strong>+ Lançar transação</strong></header>{transactions.map(([id,value])=><div className="wd-finance-line" key={id}><span><i>↗</i><b>Pedido {id}</b><small>03/11/2026</small></span><strong>{value}</strong></div>)}</div></div></div><div className="wd-laptop-foot"/></div>
 }
 function AcaiCup({variant=0}:{variant?:number}){
- return <div className={'wd-acai-cup wd-acai-'+variant}><div className="wd-acai-topping">🍓 🍌</div><div className="wd-acai-body"><span/><span/><span/></div><div className="wd-acai-shadow"/></div>
+ return <div className={'wd-acai-cup wd-acai-'+variant}><div className="wd-acai-topping"></div><div className="wd-acai-body"><span/><span/><span/></div><div className="wd-acai-shadow"/></div>
 }
 function PhoneMock(){
  const products=[['Copo de 300ml','R$ 12,00'],['Copo de 500ml','R$ 18,00'],['Copo de 700ml','R$ 24,00']]
