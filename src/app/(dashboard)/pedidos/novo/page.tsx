@@ -753,6 +753,19 @@ export default function NovoPedidoPage() {
   const [numero, setNumero] = useState('')
   const [complemento, setComplemento] = useState('')
 
+  // Preenche o endereço salvo ao escolher um cliente para Delivery.
+  const selecionarCliente = (cliente: Cliente) => {
+    setClienteSelecionado(cliente)
+    setMostrarListaClientes(false)
+    setBuscaCliente('')
+    setEndereco(cliente.endereco || '')
+    setNumero(cliente.numero || '')
+    setComplemento(cliente.complemento || '')
+    const normalizar = (valor: string) => valor.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase()
+    const bairro = cliente.bairro ? bairros.find(b => normalizar(b.bairro) === normalizar(cliente.bairro!)) : null
+    setBairroSelecionado(bairro || null)
+  }
+
   // Pagamento
   const [formaPagamento, setFormaPagamento] = useState<string>('dinheiro')
   const [valorPago, setValorPago] = useState('')
@@ -939,7 +952,7 @@ export default function NovoPedidoPage() {
       }
       // Atualiza lista local com o cliente que tem UUID real
       setClientes(prev => [...prev, novo as Cliente])
-      setClienteSelecionado(novo as Cliente)
+      selecionarCliente(novo as Cliente)
     } catch (err: any) {
       toastError('Erro ao cadastrar cliente', err.message)
     }
