@@ -2313,14 +2313,15 @@ export default function PedidosPage() {
       {/* MODAL DE EDIÇÃO */}
       {modalEditarAberto && pedidoEditando && (
         <div className="wd-order-editor fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div ref={orderEditorRef} role="dialog" aria-modal="true" aria-labelledby="wd-order-edit-title" className="wd-oe-panel bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-auto">
-            <div className="wd-oe-header p-4 border-b sticky top-0 bg-white z-10 flex items-center justify-between">
+          <div ref={orderEditorRef} role="dialog" aria-modal="true" aria-labelledby="wd-order-edit-title" className="wd-oe-panel bg-white rounded-2xl w-full max-w-6xl h-[min(94vh,950px)] overflow-hidden flex flex-col shadow-2xl">
+            <div className="wd-oe-header p-4 sm:px-6 border-b bg-white shrink-0 flex items-center justify-between">
               <h2 id="wd-order-edit-title" className="text-xl font-bold">Editar pedido {pedidoEditando.codigo || pedidoEditando.id.slice(0, 8)}</h2>
               <button type="button" aria-label="Voltar aos pedidos" disabled={salvandoEdicao} onClick={() => setModalEditarAberto(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            <div className="flex-1 min-h-0 overflow-y-auto">
             {mobile ? (
             <div className="wd-oe-body p-4 space-y-4">
               {/* BLOCO 1: DADOS DO CLIENTE */}
@@ -2480,11 +2481,12 @@ export default function PedidosPage() {
               </MerchantDisclosure>
             </div>
             ) : (
-            <div className="p-4 space-y-4">
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.7fr)] gap-5 items-start">
+              <div className="space-y-4">
               {/* BLOCO 1: DADOS DO CLIENTE */}
-              <div className="bg-blue-50 rounded-xl p-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
                 <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
-                  <span>👤</span> Dados do Cliente
+                  <span>Cliente</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm">
@@ -2507,9 +2509,9 @@ export default function PedidosPage() {
               </div>
 
               {/* BLOCO 2: ENDEREÇO DE ENTREGA */}
-              <div className="bg-green-50 rounded-xl p-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
                 <h3 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
-                  <span>📍</span> Endereço de Entrega
+                  <span>Endereço de Entrega</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm md:col-span-2">
@@ -2557,9 +2559,9 @@ export default function PedidosPage() {
               </div>
 
               {/* BLOCO 3: VALORES */}
-              <div className="bg-yellow-50 rounded-xl p-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
                 <h3 className="font-semibold text-yellow-800 mb-3 flex items-center gap-2">
-                  <span>💰</span> Valores
+                  <span>Ajuste de Valor</span>
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm">
@@ -2585,8 +2587,9 @@ export default function PedidosPage() {
                 </div>
               </div>
 
+              </div>
               {/* BLOCO 4: ITENS */}
-              <div className="border-t pt-4">
+              <div className="rounded-xl border border-gray-200 p-4 min-w-0 bg-white">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold">Itens do pedido</h3>
                   <button
@@ -2644,8 +2647,9 @@ export default function PedidosPage() {
               </div>
             </div>
             )}
+            </div>
 
-            <div className="wd-oe-footer p-4 border-t sticky bottom-0 bg-white flex justify-end gap-2">
+            <div className="wd-oe-footer p-4 border-t bg-white shrink-0 flex justify-end gap-2">
               <button
                 onClick={() => setModalEditarAberto(false)}
                 className="px-4 py-2 border rounded-lg text-sm"
@@ -2655,7 +2659,7 @@ export default function PedidosPage() {
               <button
                 onClick={salvarEdicao}
                 disabled={salvandoEdicao || carregandoItensEdicao}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-1"
+                className="px-6 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
               >
                 <Save className="w-4 h-4" />
                 {salvandoEdicao ? 'Salvando...' : carregandoItensEdicao ? 'Carregando itens...' : 'Salvar alterações'}
