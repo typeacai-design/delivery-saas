@@ -12,7 +12,7 @@ import { currentMonthRange } from '@/lib/finance-period'
 import { useMerchantMobile } from '@/lib/use-merchant-mobile'
 
 type Tab = 'cashflow'|'accounts'|'payments'
-type Order = { id:string; codigo:string|null; created_at:string; valor_total:number; taxa_entrega:number; forma_pagamento:string; status:string; pago:boolean|null }
+type Order = { id:string; codigo:string|null; created_at:string; valor_total:number; taxa_entrega:number; forma_pagamento:string; status:string; pago:boolean|null; sessao_mesa_id?:string|null }
 type Expense = { id:string; nome:string; valor:number; dia_vencimento?:number|null; recorrencia?:string|null; created_at:string; pago:boolean|null }
 type ManualTransaction = { id:string; tipo:'entrada'|'saida'; descricao:string; valor:number; data:string; categoria:string }
 
@@ -59,7 +59,7 @@ function DesktopFinance(){
       )
       const entradasPedidosSemTransacao = (body.orders||[])
         .filter((o:any) => {
-          if (o.pago !== true || o.status === 'cancelado') return false
+          if (o.pago !== true || o.status === 'cancelado' || o.sessao_mesa_id) return false
           const labelComHash = `Pedido #${o.codigo || o.id.slice(0,8)}`
           const labelSemHash = `Pedido ${o.codigo || o.id.slice(0,8)}`
           return !pedidosComTransacao.has(labelComHash) && !pedidosComTransacao.has(labelSemHash)
@@ -133,7 +133,7 @@ function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{order
     // 2) Pedidos pagos que NÃO têm transação manual
     ...orders.filter(o => {
       if (o.pago !== true) return false
-      if (o.status === 'cancelado') return false
+      if (o.status === 'cancelado' || o.sessao_mesa_id) return false
       const labelComHash = `Pedido #${o.codigo || o.id.slice(0,8)}`
       const labelSemHash = `Pedido ${o.codigo || o.id.slice(0,8)}`
       return !transacoesPedidoDescricoes.has(labelComHash) && !transacoesPedidoDescricoes.has(labelSemHash)
@@ -174,7 +174,7 @@ function CashFlow({orders,expenses,transactions,onNewTransaction,onSaved}:{order
               }
               <div>
                 <span className="font-medium">{r.label}</span>
-                <small className="block hint">{new Date(r.date).toLocaleDateString('pt-BR')}</small>
+                <small className="block hint">{(r.date.length === 10 ? new Date(`${r.date}T12:00:00`) : new Date(r.date)).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>
               </div>
             </div>
             <div className="text-right">
