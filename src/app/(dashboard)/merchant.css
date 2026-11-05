@@ -625,3 +625,52 @@
 .wd-merchant :is(.wd-action,.wd-period-apply)[data-primary=true]{background:linear-gradient(90deg,#E60023,#FF3546);color:#fff}
 .wd-merchant :is(a,button,input,select,textarea):focus-visible{outline:3px solid #FF3546;outline-offset:2px}
 @media(max-width:767px){.wd-merchant{--wd-bg:#10090D;--wd-paper:#2B080F;--wd-ink:#FFFFFF;--wd-muted:#e0bac4;--wd-line:#793040;--wd-green:#E60023;--green:#E60023;--ink:#FFFFFF;--ink-2:#ead5da;--ink-muted:#e0bac4;--line:#793040;background:#10090D;color:#FFFFFF}}
+
+/* Contrast-safe red/wine theme v2. Public cardapio is NOT inside .wd-merchant.
+   Light content surfaces always use dark ink; dark shell uses white ink. */
+.wd-merchant{
+ --green:#E60023;--green-2:#FF3546;--green-3:#FF6875;
+ --violet:#E60023;--violet-2:#FF3546;--teal:#E60023;--rose:#E60023;
+ --grad-violet:linear-gradient(90deg,#E60023,#FF3546 50%,#B80020);
+ --grad-teal:linear-gradient(90deg,#E60023,#FF3546);
+ --grad-iridescent:linear-gradient(115deg,#2B080F,#A90C20);
+ --wd-bg:#10090D;--wd-paper:#fff;--wd-ink:#10090D;--wd-muted:#5e5360;--wd-line:#e3cbd0;--wd-green:#E60023;
+ --ink:#10090D;--ink-2:#30252b;--ink-muted:#67565e;--ink-faint:#877b80;
+ --line:#e3cbd0;--line-ink:#e3cbd0;--line-strong:#cfabb5;
+ --glass:rgba(255,255,255,.97);--glass-strong:#fff;--glass-soft:#fff;
+ background:#10090D;color:#fff;
+}
+.wd-merchant :is(.app-shell-inner,.wd-merchant-main){color:#fff}
+.wd-merchant .app-shell-inner :is(.glass,.glass-soft,.glass-iridescent){
+ background:#fff;border-color:#e3cbd0;color:#10090D;
+ box-shadow:0 8px 25px #10090D18;
+}
+.wd-merchant .app-shell-inner :is(.glass,.glass-soft,.glass-iridescent) :is(h1,h2,h3,h4,h5,h6,p){color:#10090D}
+.wd-merchant .app-shell-inner :is(.glass,.glass-soft,.glass-iridescent) :is(.text-white){color:#10090D}
+.wd-merchant :is(.wd-merchant-nav,.wd-shell-toolbar){background:#2B080F;color:#fff;border-color:#793040}
+.wd-merchant .wd-merchant-nav :is(a,button){color:#f4e6e9}
+.wd-merchant .wd-merchant-nav :is(a:hover,button:hover,[aria-current=page],.active){background:#A90C20;color:#fff}
+.wd-merchant .wd-merchant-nav :is(a:hover,button:hover,[aria-current=page],.active) svg{color:#fff}
+.wd-merchant .wd-merchant-main > :is(h1,h2,h3,p),.wd-merchant .wd-merchant-main > section > :is(h1,h2,h3){color:#fff}
+.wd-merchant :is(.wd-menu a,.wd-disclosure,.wd-home-sheet,.wd-period-calendar,.wd-period-trigger,.wd-history-summary){
+ background:#fff;color:#10090D;border-color:#e3cbd0;
+}
+.wd-merchant :is(.wd-menu a,.wd-disclosure,.wd-home-sheet,.wd-period-calendar,.wd-period-trigger,.wd-history-summary) :is(h2,h3,p,strong,small){color:#10090D}
+.wd-merchant :is(input,select,textarea){background:#fff;color:#10090D;border-color:#d6bfc6}
+.wd-merchant :is(input,select,textarea)::placeholder{color:#746a70}
+.wd-merchant :is(.btn-primary,.wd-period-apply){background:linear-gradient(90deg,#E60023,#FF3546 50%,#B80020);color:#fff;border-color:#E60023}
+.wd-merchant :is(.btn-primary,.wd-period-apply) :is(svg,span){color:#fff}
+.wd-merchant .wd-period-days button[aria-pressed=true]{background:#E60023;color:#fff}
+.wd-merchant .wd-period-days button[data-between=true]{background:#ffe3e8;color:#A90C20}
+.wd-merchant .wd-period-trigger>svg:first-child{color:#E60023}
+.wd-merchant .wd-period-month button{color:#A90C20}
+.wd-merchant :is(a,button,input,select,textarea):focus-visible{outline:3px solid #FF3546;outline-offset:2px}
+@media(max-width:767px){
+ .wd-merchant{--wd-bg:#10090D;--wd-paper:#fff;--wd-ink:#10090D;--wd-muted:#5e5360;--wd-line:#e3cbd0;--wd-green:#E60023;--green:#E60023;--ink:#10090D;--ink-2:#30252b;--ink-muted:#67565e;--line:#e3cbd0;background:#10090D;color:#fff}
+ .wd-merchant .wd-mobile-home{background:#10090D;color:#fff}
+ .wd-merchant .wd-home-body{color:#fff}
+ .wd-merchant .wd-home-sheet{background:#fff;color:#10090D}
+ .wd-merchant .wd-disclosure{background:#fff;color:#10090D}
+ .wd-merchant .wd-history-summary{background:#fff;color:#10090D}
+ .wd-merchant .wd-history-summary> :is(b,time),.wd-merchant .wd-history-line>strong{color:#10090D}
+}

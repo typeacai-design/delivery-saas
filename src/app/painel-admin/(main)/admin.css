@@ -104,3 +104,32 @@
 .wd-admin .wd-admin-logout{background:#410d1a;color:#fff;border-color:#793040}
 .wd-admin :is(a,button,input,select,textarea):focus-visible{outline-color:#FF3546}
 .wd-admin .wd-admin-content :is(input,select,textarea){background:#fff;color:#10090D}
+
+/* Contrast-safe admin theme v2: white content surfaces with dark ink. */
+.wd-admin{
+ --green:#E60023;--green-2:#FF3546;--ink:#10090D;--ink-2:#30252b;
+ --ink-muted:#67565e;--line:#e3cbd0;--line-ink:#e3cbd0;
+ --grad-violet:linear-gradient(90deg,#E60023,#FF3546 50%,#B80020);
+ background:linear-gradient(115deg,#10090D,#2B080F 70%,#420d1a);color:#fff;
+}
+.wd-admin .wd-admin-header{background:#2B080F;color:#fff;border-color:#793040}
+.wd-admin .wd-admin-brand :is(strong,small){color:#fff}
+.wd-admin .wd-admin-content,.wd-admin .wd-admin-stat,.wd-admin .wd-admin-shop-card,.wd-admin .wd-admin-more-menu{
+ background:#fff;color:#10090D;border-color:#e3cbd0;
+}
+.wd-admin .wd-admin-content :is(h1,h2,h3,h4,h5,h6,p),.wd-admin .wd-admin-stat :is(h2,h3,p){
+ color:#10090D;
+}
+.wd-admin .wd-admin-content :is(.glass,.glass-soft,.glass-iridescent){background:#fff;color:#10090D;border-color:#e3cbd0}
+.wd-admin .wd-admin-content :is(.glass,.glass-soft,.glass-iridescent) :is(h1,h2,h3,h4,h5,h6,p){color:#10090D}
+.wd-admin :is(.wd-admin-stat-label,.wd-admin-shop-card small,.wd-admin-shop-card dt){color:#67565e}
+.wd-admin .wd-admin-desktop-nav a{color:#f4e6e9}
+.wd-admin .wd-admin-desktop-nav :is(a:hover,.is-active){background:#A90C20;color:#fff}
+.wd-admin .wd-admin-mobile-nav{background:#2B080F;border-color:#793040}
+.wd-admin .wd-admin-mobile-nav :is(a,button){color:#f4e6e9}
+.wd-admin .wd-admin-mobile-nav .is-active{background:#A90C20;color:#fff}
+.wd-admin :is(.btn-primary,button.btn-primary){background:linear-gradient(90deg,#E60023,#FF3546 50%,#B80020);color:#fff;border-color:#E60023}
+.wd-admin .wd-admin-content :is(input,select,textarea){background:#fff;color:#10090D;border-color:#d6bfc6}
+.wd-admin .wd-admin-content :is(input,select,textarea)::placeholder{color:#746a70}
+.wd-admin :is(a,button,input,select,textarea):focus-visible{outline:3px solid #FF3546;outline-offset:2px}
+@media(max-width:767px){.wd-admin .wd-admin-content{background:transparent;color:#fff}.wd-admin .wd-admin-content>.glass,.wd-admin .wd-admin-content .wd-admin-stat,.wd-admin .wd-admin-shop-card{background:#fff;color:#10090D}}
