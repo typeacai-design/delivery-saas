@@ -599,16 +599,27 @@ export default function PedidosPage() {
     }
   }, [])
 
-  // Backup: recarrega pedidos periodicamente (a cada 30s)
+  // Mantém a contagem de mesas abertas atualizada em TODAS as abas.
+  // Carrega na montagem, sincroniza a cada 30s e ao retornar ao navegador.
   useEffect(() => {
-    const interval = setInterval(() => {
-      loadPedidos()
-      if (pedidosTab === 'mesas') loadSessoesMesa()
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [loadPedidos, loadSessoesMesa, pedidosTab])
+    loadSessoesMesa()
+    const refresh = () => {
+      if (document.visibilityState === 'visible') {
+        loadPedidos()
+        loadSessoesMesa()
+      }
+    }
+    const interval = window.setInterval(refresh, 30000)
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [loadPedidos, loadSessoesMesa])
 
-  // Carrega sessões sempre que a aba Mesas for selecionada
+  // Ao selecionar Mesas, atualiza também os cards da comanda imediatamente.
   useEffect(() => {
     if (pedidosTab === 'mesas') loadSessoesMesa()
   }, [pedidosTab, loadSessoesMesa])
