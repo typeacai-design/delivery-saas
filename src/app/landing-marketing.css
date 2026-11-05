@@ -45,3 +45,12 @@
  .wd-page .wd-trust{padding-block:36px}
  .wd-page .wd-pricing{padding-block:36px}
 }
+
+/* Six feature cards: icon centered above title, without secondary copy. */
+.wd-page .wd-feature-grid .wd-feature{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:17px;min-height:175px}
+.wd-page .wd-feature-grid .wd-feature-icon{display:flex;align-items:center;justify-content:center;margin:0}
+.wd-page .wd-feature-grid .wd-feature h3{margin:0;text-align:center;line-height:1.3}
+@media(max-width:760px){
+ .wd-page .wd-feature-grid .wd-feature{min-height:145px;padding:18px 10px;gap:14px}
+ .wd-page .wd-feature-grid .wd-feature h3{font-size:15px}
+}
