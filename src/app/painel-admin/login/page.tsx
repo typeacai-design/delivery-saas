@@ -40,16 +40,16 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--bg-0)' }}>
+    <div className="wd-auth-red min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Brand */}
         <div className="flex items-center justify-center gap-2.5 mb-7">
           <div
             className="size-11 rounded-2xl flex items-center justify-center text-white"
             style={{
-              background: 'var(--green)',
+              background: 'linear-gradient(90deg,#E60023,#FF3546,#B80020)',
               border: '1px solid rgba(255,255,255,.4)',
-              boxShadow: '0 8px 22px -10px rgba(22,163,74,.55)',
+              boxShadow: '0 8px 22px -10px rgba(230,0,35,.55)',
             }}
           >
             <ChefHat size={18} strokeWidth={2.5} />
@@ -59,7 +59,7 @@ export default function AdminLoginPage() {
           </span>
         </div>
 
-        <div className="glass p-8">
+        <div className="glass wd-admin-login-card p-8">
           <div className="text-center mb-7">
             <h1 className="text-2xl font-semibold mb-2" style={{ color: 'var(--ink)' }}>
               Painel do Administrador
