@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
-type Relatorio = 'periodo' | 'item' | 'complemento' | 'pagamento' | 'dias'
+type Relatorio = 'periodo' | 'item' | 'complemento' | 'pagamento' | 'dias' | 'horarios' | 'semana' | 'modalidade' | 'cancelamentos'
 
 export default function RelatoriosPage() {
   const [tab, setTab] = useState<Relatorio>('periodo')
@@ -23,6 +23,8 @@ export default function RelatoriosPage() {
   const [vendasPorFormaPagamento, setVendasPorFormaPagamento] = useState<Record<string, number>>({})
   const [diasMaisVendas, setDiasMaisVendas] = useState<{ dia: string; total: number; count: number }[]>([])
   const [totalGeral, setTotalGeral] = useState(0)
+  const [relatorioExtra, setRelatorioExtra] = useState<Record<string, { nome: string; qtd: number; total: number }[]>>({})
+  const [erroRelatorio, setErroRelatorio] = useState('')
   const [totalEntradas, setTotalEntradas] = useState(0)
   const [totalSaidas, setTotalSaidas] = useState(0)
   const [ticketMedio, setTicketMedio] = useState(0)
@@ -44,111 +46,78 @@ export default function RelatoriosPage() {
   }, [dataInicio, dataFim, formaPagamento, statusFilter])
 
   const loadData = async () => {
+    if (!dataInicio || !dataFim) return
     setLoading(true)
-    const tenantId = await activeTenantId()
-    if (!tenantId) { setLoading(false); return }
-
-    const inicio = `${dataInicio}T00:00:00`
-    const fim = `${dataFim}T23:59:59`
-
-    // Construir query base para pedidos
-    let queryPedidos = supabase
-      .from('pedidos')
-      .select('id, valor_total, data_criacao, status, forma_pagamento, pago')
-      .eq('tenant_id', tenantId)
-      .gte('data_criacao', inicio)
-      .lte('data_criacao', fim)
-      .neq('status', 'cancelado')
-
-    if (formaPagamento) queryPedidos = queryPedidos.eq('forma_pagamento', formaPagamento)
-    if (statusFilter) queryPedidos = queryPedidos.eq('status', statusFilter)
-
-    const { data: pedidos } = await queryPedidos
-
-    // Faturamento: apenas pedidos pagos ou dinheiro entregue
-    const pedidosPagos = (pedidos || []).filter(p =>
-      p.pago === true || (p.status === 'entregue' && p.forma_pagamento === 'dinheiro')
-    )
-
-    // Vendas por dia (apenas pagos)
-    const gruposDia: Record<string, { total: number; count: number }> = {}
-    let total = 0
-    pedidosPagos.forEach((p) => {
-      const dia = p.data_criacao.split('T')[0]
-      if (!gruposDia[dia]) gruposDia[dia] = { total: 0, count: 0 }
-      gruposDia[dia].total += Number(p.valor_total)
-      gruposDia[dia].count += 1
-      total += Number(p.valor_total)
-    })
-    setVendasPorDia(Object.entries(gruposDia).map(([dia, d]) => ({ dia, ...d })).sort((a, b) => a.dia.localeCompare(b.dia)))
-    setTotalGeral(total)
-    // Ticket médio: valor total / número de pedidos pagos
-    const totalCount = pedidosPagos.length
-    setNumeroPedidosPagos(totalCount)
-    setTicketMedio(totalCount > 0 ? total / totalCount : 0)
-
-    // Vendas por forma de pagamento (apenas pagos)
-    const gruposForma: Record<string, number> = {}
-    pedidosPagos.forEach((p) => {
-      const forma = p.forma_pagamento || 'não informado'
-      gruposForma[forma] = (gruposForma[forma] || 0) + Number(p.valor_total)
-    })
-    setVendasPorFormaPagamento(gruposForma)
-
-    // Dias com mais vendas
-    const diasOrdenados = Object.entries(gruposDia)
-      .map(([dia, d]) => ({ dia, ...d }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5)
-    setDiasMaisVendas(diasOrdenados)
-
-    // Buscar despesas para entradas/saídas
-    const { data: despesas } = await supabase.from('despesas').select('valor').eq('tenant_id', tenantId)
-    const totalDespesas = (despesas || []).reduce((s, d) => s + Number(d.valor), 0)
-    setTotalSaidas(totalDespesas)
-    setTotalEntradas(total)
-
-    // Vendas por item
-    const { data: itens } = await supabase
-      .from('pedido_itens')
-      .select('nome, quantidade, valor_unitario, pedidos!inner(data_criacao, status, tenant_id)')
-      .gte('pedidos.data_criacao', inicio)
-      .lte('pedidos.data_criacao', fim)
-      .neq('pedidos.status', 'cancelado')
-      .eq('pedidos.tenant_id', tenantId)
-
-    const gruposItem: Record<string, { qtd: number; total: number }> = {}
-    itens?.forEach((i: any) => {
-      const k = i.nome
-      if (!gruposItem[k]) gruposItem[k] = { qtd: 0, total: 0 }
-      gruposItem[k].qtd += i.quantidade
-      gruposItem[k].total += i.quantidade * Number(i.valor_unitario)
-    })
-    setVendasPorItem(
-      Object.entries(gruposItem).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.total - a.total)
-    )
-
-    // Vendas por complemento
-    const { data: comps } = await supabase
-      .from('pedido_complementos')
-      .select('nome, quantidade, valor, pedido_itens!inner(pedidos!inner(data_criacao, status, tenant_id))')
-      .gte('pedido_itens.pedidos.data_criacao', inicio)
-      .lte('pedido_itens.pedidos.data_criacao', fim)
-      .neq('pedido_itens.pedidos.status', 'cancelado')
-      .eq('pedido_itens.pedidos.tenant_id', tenantId)
-
-    const gruposComp: Record<string, { qtd: number; total: number }> = {}
-    comps?.forEach((c: any) => {
-      const k = c.nome
-      if (!gruposComp[k]) gruposComp[k] = { qtd: 0, total: 0 }
-      gruposComp[k].qtd += c.quantidade
-      gruposComp[k].total += c.quantidade * Number(c.valor)
-    })
-    setVendasPorComplemento(
-      Object.entries(gruposComp).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.total - a.total)
-    )
-
-    setLoading(false)
+    setErroRelatorio('')
+    try {
+      const tenantId = await activeTenantId()
+      if (!tenantId) throw new Error('Loja não identificada')
+      if (dataInicio > dataFim) throw new Error('A data inicial deve ser anterior à data final')
+      // Os limites são calculados no horário de Brasília, não em UTC.
+      const inicio = new Date(dataInicio + 'T00:00:00-03:00').toISOString()
+      const fim = new Date(dataFim + 'T23:59:59.999-03:00').toISOString()
+      const [{data: pedidos, error: erroPedidos}, {data: movimentos, error: erroMovimentos}, {data: sessoes, error: erroMesas}] = await Promise.all([
+        supabase.from('pedidos').select('id,valor_total,data_criacao,status,forma_pagamento,valor_pago,pago,tipo_pedido,tipo_entrega,sessao_mesa_id,motivo_cancelamento,deleted_at').eq('tenant_id',tenantId).gte('data_criacao',inicio).lte('data_criacao',fim).is('deleted_at',null).limit(10000),
+        supabase.from('movimentacoes_financeiras').select('id,tipo,valor,data,referencia_id,categoria').eq('tenant_id',tenantId).gte('data',dataInicio).lte('data',dataFim).limit(10000),
+        supabase.from('sessoes_mesa').select('id,valor_total,forma_pagamento,data_fechamento,status').eq('tenant_id',tenantId).eq('status','fechada').gte('data_fechamento',inicio).lte('data_fechamento',fim).limit(10000),
+      ])
+      if(erroPedidos||erroMovimentos||erroMesas) throw new Error(erroPedidos?.message||erroMovimentos?.message||erroMesas?.message)
+      const todos = pedidos||[]
+      const validos = todos.filter(p=>p.status!=='cancelado' && p.pago===true && !p.sessao_mesa_id)
+      const pagamentos=(formas:any, valores:any, total:number) => {
+        const fs=Array.isArray(formas)?formas.filter(Boolean):formas?[formas]:[]
+        if(!fs.length)return [{nome:'Não informado',valor:total}]
+        if(fs.length===1)return [{nome:fs[0],valor:total}]
+        const vs=Array.isArray(valores)?valores.map(Number):[]
+        if(vs.length===fs.length && vs.every(v=>Number.isFinite(v)&&v>=0) && vs.reduce((s,v)=>s+v,0)>0){
+          const soma=vs.reduce((s,v)=>s+v,0)
+          return fs.map((nome,i)=>({nome,valor:total*vs[i]/soma}))
+        }
+        return [{nome:'Pagamento misto',valor:total}]
+      }
+      const vendas = [
+        ...validos.map(p=>({id:p.id,data:p.data_criacao,valor:Number(p.valor_total)||0,formas:pagamentos(p.forma_pagamento,p.valor_pago,Number(p.valor_total)||0),tipo:p.tipo_pedido||p.tipo_entrega||'Não informado'})),
+        ...(sessoes||[]).map(s=>({id:s.id,data:s.data_fechamento!,valor:Number(s.valor_total)||0,formas:pagamentos(s.forma_pagamento,null,Number(s.valor_total)||0),tipo:'mesa'})),
+      ].filter(v=>!formaPagamento||v.formas.some(f=>f.nome===formaPagamento))
+      const gruposDia:Record<string,{total:number;count:number}>={}
+      const gruposForma:Record<string,number>={}
+      const extras:Record<string,Record<string,{nome:string;qtd:number;total:number}>>={horarios:{},semana:{},modalidade:{},cancelamentos:{}}
+      const add=(categoria:string,nome:string,valor:number)=>{const g=extras[categoria];if(!g[nome])g[nome]={nome,qtd:0,total:0};g[nome].qtd++;g[nome].total+=valor}
+      let total=0
+      for(const v of vendas){
+        const data=new Date(v.data)
+        const dia=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(data)
+        const hora=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false}).format(data)+'h'
+        const semana=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'long'}).format(data)
+        if(!gruposDia[dia])gruposDia[dia]={total:0,count:0}
+        gruposDia[dia].total+=v.valor;gruposDia[dia].count++;total+=v.valor
+        for(const f of v.formas)gruposForma[f.nome]=(gruposForma[f.nome]||0)+f.valor
+        add('horarios',hora,v.valor);add('semana',semana,v.valor);add('modalidade',v.tipo,v.valor)
+      }
+      for(const p of todos.filter(p=>p.status==='cancelado'))add('cancelamentos',p.motivo_cancelamento||'Não informado',Number(p.valor_total)||0)
+      setRelatorioExtra(Object.fromEntries(Object.entries(extras).map(([k,v])=>[k,Object.values(v).sort((a,b)=>b.total-a.total)])))
+      setTotalGeral(total);setTotalEntradas(total);setNumeroPedidosPagos(vendas.length);setTicketMedio(vendas.length?total/vendas.length:0)
+      setVendasPorDia(Object.entries(gruposDia).map(([dia,d])=>({dia,...d})).sort((a,b)=>a.dia.localeCompare(b.dia)))
+      setVendasPorFormaPagamento(gruposForma)
+      setDiasMaisVendas(Object.entries(gruposDia).map(([dia,d])=>({dia,...d})).sort((a,b)=>b.total-a.total).slice(0,5))
+      // Saídas registradas no fluxo financeiro, respeitando o período.
+      setTotalSaidas((movimentos||[]).filter(m=>m.tipo==='saida').reduce((s,m)=>s+Number(m.valor||0),0))
+      // Rankings limitados a pedidos efetivamente pagos; sessões de mesa são consolidadas apenas no financeiro.
+      const ids=todos.filter(p=>p.status!=='cancelado'&&p.pago===true).map(p=>p.id)
+      const itens: any[]=[]
+      for(let i=0;i<ids.length;i+=200){const {data,error}=await supabase.from('pedido_itens').select('id,nome,quantidade,valor_unitario,complementos').in('pedido_id',ids.slice(i,i+200));if(error)throw error;itens.push(...(data||[]))}
+      const porItem:Record<string,{qtd:number;total:number}>={}
+      const porComp:Record<string,{qtd:number;total:number}>={}
+      for(const item of itens){
+        const nome=item.nome||'Sem nome';if(!porItem[nome])porItem[nome]={qtd:0,total:0}
+        porItem[nome].qtd+=Number(item.quantidade)||0;porItem[nome].total+=(Number(item.quantidade)||0)*(Number(item.valor_unitario)||0)
+        const cs=Array.isArray(item.complementos)?item.complementos:[]
+        for(const comp of cs){const cn=comp.nome||comp.name;if(!cn)continue;if(!porComp[cn])porComp[cn]={qtd:0,total:0};const qtd=(Number(comp.quantidade)||1)*(Number(item.quantidade)||1);porComp[cn].qtd+=qtd;porComp[cn].total+=qtd*Number(comp.valor??comp.preco??0)}
+      }
+      setVendasPorItem(Object.entries(porItem).map(([nome,d])=>({nome,...d})).sort((a,b)=>b.total-a.total))
+      setVendasPorComplemento(Object.entries(porComp).map(([nome,d])=>({nome,...d})).sort((a,b)=>b.total-a.total))
+    }catch(e:any){setErroRelatorio(e?.message||'Não foi possível carregar os relatórios')}
+    finally{setLoading(false)}
   }
 
   const tabs = [
@@ -157,6 +126,10 @@ export default function RelatoriosPage() {
     { id: 'item', label: 'Por item', icon: Package },
     { id: 'complemento', label: 'Complementos', icon: Sparkles },
     { id: 'dias', label: 'Top dias', icon: TrendingUp },
+    { id: 'horarios', label: 'Horários de pico', icon: Calendar },
+    { id: 'semana', label: 'Dias da semana', icon: Calendar },
+    { id: 'modalidade', label: 'Modalidades', icon: Package },
+    { id: 'cancelamentos', label: 'Cancelamentos', icon: FileText },
   ] as const
 
   const max = vendasPorDia.length ? Math.max(...vendasPorDia.map(v => v.total)) : 1
@@ -175,7 +148,11 @@ export default function RelatoriosPage() {
             </h1>
             <p className="hint mt-2">Vendas por período, item e complemento</p>
           </div>
-          <button className="btn-primary">
+          <button className="btn-primary" onClick={() => {
+            const rows = [['Relatório','Nome','Quantidade','Valor'], ...Object.entries(relatorioExtra).flatMap(([tipo, dados])=>dados.map(d=>[tipo,d.nome,String(d.qtd),String(d.total)])), ...vendasPorDia.map(d=>['Vendas por dia',d.dia,String(d.count),String(d.total)]), ...vendasPorItem.map(d=>['Produtos',d.nome,String(d.qtd),String(d.total)]), ...vendasPorComplemento.map(d=>['Complementos',d.nome,String(d.qtd),String(d.total)])]
+            const csv='\\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\\r\\n')
+            const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const link=document.createElement('a');link.href=url;link.download='relatorios-'+dataInicio+'-'+dataFim+'.csv';link.click();URL.revokeObjectURL(url)
+          }}>
             <Download size={14} />
             Exportar CSV
           </button>
@@ -263,11 +240,17 @@ export default function RelatoriosPage() {
         </div>
       </div>
 
+      {erroRelatorio && <div role="alert" className="p-4 mb-4 rounded-xl bg-red-50 text-red-700">{erroRelatorio}</div>}
       {/* Conteúdo */}
       {loading ? (
         <div className="text-center py-8 hint">Carregando...</div>
       ) : (
         <>
+          {(['horarios','semana','modalidade','cancelamentos'] as const).includes(tab as any) && (
+            <div className="glass p-6"><h2 className="text-lg font-semibold mb-5">{({horarios:'Vendas por horário',semana:'Vendas por dia da semana',modalidade:'Delivery, retirada e mesas',cancelamentos:'Pedidos cancelados por motivo'} as Record<string,string>)[tab]}</h2>
+              {(relatorioExtra[tab]||[]).length===0?<p className="hint">Sem registros no período</p>:(relatorioExtra[tab]||[]).map(d=><div key={d.nome} className="glass-soft p-4 flex items-center justify-between gap-3 mb-2"><div><div className="font-semibold">{d.nome}</div><div className="hint text-xs">{d.qtd} pedidos</div></div><div className="font-semibold text-green-700">{formatCurrency(d.total)}</div></div>)}
+            </div>
+          )}
           {tab === 'periodo' && (
             <div className="glass p-6">
               <div className="eyebrow mb-1">Distribuição</div>
@@ -456,7 +439,7 @@ function VisitantesCard() {
             <Eye size={18} className="text-purple-700" />
           </div>
           <div>
-            <div className="text-xs text-gray-500">Visitantes do cardápio</div>
+            <div className="text-xs text-gray-500">Visualizações do cardápio</div>
             <div className="text-2xl font-bold text-gray-900">
               {loading ? '...' : dados?.total ?? 0}
             </div>
