@@ -54,18 +54,18 @@ export default function AcessoPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: 'linear-gradient(115deg, #10090D 0%, #2B080F 55%, #A90C20 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ background: '#2B080F', border: '1px solid #793040', color: '#FFFFFF', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'center', marginBottom: '8px', color: '#FFFFFF' }}>
+    <main style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ background: 'white', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'center', marginBottom: '8px', color: '#1f2937' }}>
           Acesso ao Atendimento
         </h1>
-        <p style={{ textAlign: 'center', color: '#e0bac4', fontSize: '14px', marginBottom: '24px' }}>
+        <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '14px', marginBottom: '24px' }}>
           Entre com seu usuário e senha
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#FFFFFF', marginBottom: '4px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
               Usuário
             </label>
             <input
@@ -79,7 +79,7 @@ export default function AcessoPage() {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#FFFFFF', marginBottom: '4px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
               Senha
             </label>
             <input
@@ -104,7 +104,7 @@ export default function AcessoPage() {
             style={{
               width: '100%',
               padding: '14px',
-              background: 'linear-gradient(90deg,#E60023,#FF3546,#B80020)',
+              background: '#16a34a',
               color: 'white',
               border: 'none',
               borderRadius: '10px',
@@ -118,7 +118,7 @@ export default function AcessoPage() {
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: '12px', color: '#e0bac4', marginTop: '24px' }}>
+        <p style={{ textAlign: 'center', fontSize: '12px', color: '#9ca3af', marginTop: '24px' }}>
           Solicite acesso ao administrador
         </p>
       </div>
