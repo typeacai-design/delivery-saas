@@ -21,6 +21,7 @@ export const metadata: Metadata = {
     title: 'We Delivery — Cardápio digital para restaurantes',
     description: 'Receba pedidos online e gerencie seu delivery em um só lugar.',
   },
+  icons: { icon: '/we-delivery-official-green.svg', shortcut: '/we-delivery-official-green.svg', apple: '/we-delivery-official-green.svg' },
   robots: { index: true, follow: true },
 }
 
