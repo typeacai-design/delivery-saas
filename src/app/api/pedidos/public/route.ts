@@ -311,7 +311,7 @@ export async function POST(request: Request) {
     // Cashback solicitado é conferido contra o saldo do cliente autenticado.
     // A dedução efetiva ocorre dentro da RPC transacional, com bloqueio de linha.
     const cashbackSolicitado=Number(cashback_usado||0)
-    if(!Number.isFinite(cashbackSolicitado)||cashbackSolicitado<0||Math.round(cashbackSolicitado*100)!==cashbackSolicitado*100)
+    if(!Number.isFinite(cashbackSolicitado)||cashbackSolicitado<0||Math.abs(Math.round(cashbackSolicitado*100)-cashbackSolicitado*100)>0.000001)
       return NextResponse.json({error:'Valor de cashback inválido'},{status:400})
     if(cashbackSolicitado>0){
       if(cfg.cashback_ativo!==true||!identidadeExistente?.id)
