@@ -61,11 +61,15 @@ export async function GET(request: Request) {
     if (await rateLimited(admin, request, 'customer-profile-read')) return respond({ error: 'Não foi possível consultar o perfil' }, 429)
     const slug = new URL(request.url).searchParams.get('tenant_slug'); const token = bearerToken(request)
     if (!slug || token.length < 32) return respond({ error: 'Não foi possível consultar o perfil' }, 400)
-    const { data: tenant } = await admin.from('tenants').select('id').eq('slug', slug).single()
+    const { data: tenant } = await admin.from('tenants').select('id,config').eq('slug', slug).single()
     if (!tenant) return respond({ error: 'Não foi possível consultar o perfil' }, 404)
-    const { data: matches } = await admin.from('clientes').select('nome,telefone,endereco,data_nascimento,cpf,acesso_token_hash').eq('tenant_id', tenant.id).eq('acesso_token_hash', hashAccessToken(token)).limit(2)
+    const { data: matches } = await admin.from('clientes').select('id,nome,telefone,endereco,data_nascimento,cpf,acesso_token_hash,saldo_cashback').eq('tenant_id', tenant.id).eq('acesso_token_hash', hashAccessToken(token)).limit(2)
     const data = matches?.length === 1 ? matches[0] : null
     if (!data?.acesso_token_hash || !tokenMatches(token, data.acesso_token_hash)) return respond({ error: 'Não foi possível consultar o perfil' }, 404)
-    return respond(profile(data))
+    const cfg=(tenant.config||{}) as any
+    const {data: creditos}=await admin.from('cashback_creditos').select('valor_restante,expira_em,criado_em,valor_original').eq('tenant_id',tenant.id).eq('cliente_id',data.id).order('criado_em',{ascending:false}).limit(100)
+    const now=Date.now()
+    const saldoDisponivel=(creditos||[]).filter(c=>!c.expira_em||new Date(c.expira_em).getTime()>now).reduce((s,c)=>s+Number(c.valor_restante||0),0)
+    return respond({...profile(data),cashback:{ativo:cfg.cashback_ativo===true,saldo:Math.round(saldoDisponivel*100)/100,creditos:(creditos||[]).map(c=>({valor:Number(c.valor_original),restante:Number(c.valor_restante),expira_em:c.expira_em,criado_em:c.criado_em}))}})
   } catch { return respond({ error: 'Não foi possível consultar o perfil' }, 500) }
 }
