@@ -63,7 +63,7 @@ export default function RelatoriosPage() {
       ])
       if(erroPedidos||erroMovimentos||erroMesas) throw new Error(erroPedidos?.message||erroMovimentos?.message||erroMesas?.message)
       const todos = pedidos||[]
-      const validos = todos.filter(p=>p.status!=='cancelado' && p.pago===true && !p.sessao_mesa_id)
+      const validos = todos.filter(p=>p.status!=='cancelado' && p.pago===true && !p.sessao_mesa_id && (!statusFilter || p.status===statusFilter))
       const pagamentos=(formas:any, valores:any, total:number) => {
         const fs=Array.isArray(formas)?formas.filter(Boolean):formas?[formas]:[]
         if(!fs.length)return [{nome:'Não informado',valor:total}]
@@ -77,7 +77,7 @@ export default function RelatoriosPage() {
       }
       const vendas = [
         ...validos.map(p=>({id:p.id,data:p.data_criacao,valor:Number(p.valor_total)||0,formas:pagamentos(p.forma_pagamento,p.valor_pago,Number(p.valor_total)||0),tipo:p.tipo_pedido||p.tipo_entrega||'Não informado'})),
-        ...(sessoes||[]).map(s=>({id:s.id,data:s.data_fechamento!,valor:Number(s.valor_total)||0,formas:pagamentos(s.forma_pagamento,null,Number(s.valor_total)||0),tipo:'mesa'})),
+        ...(!statusFilter||statusFilter==='entregue'?(sessoes||[]):[]).map(s=>({id:s.id,data:s.data_fechamento!,valor:Number(s.valor_total)||0,formas:pagamentos(s.forma_pagamento,null,Number(s.valor_total)||0),tipo:'mesa'})),
       ].filter(v=>!formaPagamento||v.formas.some(f=>f.nome===formaPagamento))
       const gruposDia:Record<string,{total:number;count:number}>={}
       const gruposForma:Record<string,number>={}
@@ -94,7 +94,7 @@ export default function RelatoriosPage() {
         for(const f of v.formas)gruposForma[f.nome]=(gruposForma[f.nome]||0)+f.valor
         add('horarios',hora,v.valor);add('semana',semana,v.valor);add('modalidade',v.tipo,v.valor)
       }
-      for(const p of todos.filter(p=>p.status==='cancelado'))add('cancelamentos',p.motivo_cancelamento||'Não informado',Number(p.valor_total)||0)
+      for(const p of todos.filter(p=>p.status==='cancelado'&&(!formaPagamento||(Array.isArray(p.forma_pagamento)&&p.forma_pagamento.includes(formaPagamento)))))add('cancelamentos',p.motivo_cancelamento||'Não informado',Number(p.valor_total)||0)
       setRelatorioExtra(Object.fromEntries(Object.entries(extras).map(([k,v])=>[k,Object.values(v).sort((a,b)=>b.total-a.total)])))
       setTotalGeral(total);setTotalEntradas(total);setNumeroPedidosPagos(vendas.length);setTicketMedio(vendas.length?total/vendas.length:0)
       setVendasPorDia(Object.entries(gruposDia).map(([dia,d])=>({dia,...d})).sort((a,b)=>a.dia.localeCompare(b.dia)))
@@ -103,7 +103,7 @@ export default function RelatoriosPage() {
       // Saídas registradas no fluxo financeiro, respeitando o período.
       setTotalSaidas((movimentos||[]).filter(m=>m.tipo==='saida').reduce((s,m)=>s+Number(m.valor||0),0))
       // Rankings limitados a pedidos efetivamente pagos; sessões de mesa são consolidadas apenas no financeiro.
-      const ids=todos.filter(p=>p.status!=='cancelado'&&p.pago===true).map(p=>p.id)
+      const ids=todos.filter(p=>p.status!=='cancelado'&&p.pago===true&&(!statusFilter||p.status===statusFilter)&&(!formaPagamento||(Array.isArray(p.forma_pagamento)&&p.forma_pagamento.includes(formaPagamento)))).map(p=>p.id)
       const itens: any[]=[]
       for(let i=0;i<ids.length;i+=200){const {data,error}=await supabase.from('pedido_itens').select('id,nome,quantidade,valor_unitario,complementos').in('pedido_id',ids.slice(i,i+200));if(error)throw error;itens.push(...(data||[]))}
       const porItem:Record<string,{qtd:number;total:number}>={}
