@@ -2531,22 +2531,16 @@ export default function PedidosPage() {
                 <div className="space-y-2">
                   {itensEditando.map((item, idx) => (
                     <div key={item.id || idx} className="space-y-1">
-                    <button type="button" onClick={()=>{const produto=catalogoEdicao.find(p=>p.id===item.produto_id);if(produto)abrirProdutoEdicao(produto,idx);else toastError('Produto indisponível para edição pelo catálogo.')}} className="text-sm text-green-700 font-medium underline">Editar produto e complementos</button>
-                    <ItemEditor
-                      key={idx}
-                      item={item}
-                      idx={idx}
-                      tenantId={tenantIdAtual}
-                      onChange={(i, novo) => {
-                        const novos = [...itensEditando]
-                        novos[i] = novo
-                        setItensEditando(novos)
-                      }}
-                      onRemove={(i) => {
-                        const novos = itensEditando.filter((_, ix) => ix !== i)
-                        setItensEditando(novos)
-                      }}
-                    />
+                    <div className="flex gap-3 rounded-xl border border-gray-200 p-3 bg-white items-start">
+                      {catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url ? <img src={catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url} alt="" className="size-16 rounded-lg object-cover shrink-0" /> : <div className="size-16 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center"><Plus className="size-5 text-gray-400" /></div>}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm">{item.quantidade || 1}x {item.nome}</div>
+                        {(item.complementos || []).length > 0 && <p className="text-xs text-gray-500 mt-1">{item.complementos.map((comp:any)=>comp.nome).join(', ')}</p>}
+                        <p className="text-sm text-green-700 font-semibold mt-1">{formatCurrency((Number(item.valor_unitario)||0)*(Number(item.quantidade)||1))}</p>
+                        <button type="button" onClick={()=>{const produto=catalogoEdicao.find(p=>p.id===item.produto_id);if(produto)abrirProdutoEdicao(produto,idx);else toastError('Produto indisponível para edição pelo catálogo.')}} className="mt-2 text-sm text-green-700 font-semibold underline">Editar produto e complementos</button>
+                      </div>
+                      <button type="button" aria-label="Remover produto" onClick={()=>setItensEditando(ant=>ant.filter((_,i)=>i!==idx))} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="size-4" /></button>
+                    </div>
                     </div>
                   ))}
                 </div>
@@ -2729,22 +2723,16 @@ export default function PedidosPage() {
                 <div className="space-y-2">
                   {itensEditando.map((item, idx) => (
                     <div key={item.id || idx} className="space-y-1">
-                    <button type="button" onClick={()=>{const produto=catalogoEdicao.find(p=>p.id===item.produto_id);if(produto)abrirProdutoEdicao(produto,idx);else toastError('Produto indisponível para edição pelo catálogo.')}} className="text-sm text-green-700 font-medium underline">Editar produto e complementos</button>
-                    <ItemEditor
-                      key={idx}
-                      item={item}
-                      idx={idx}
-                      tenantId={tenantIdAtual}
-                      onChange={(i, novo) => {
-                        const novos = [...itensEditando]
-                        novos[i] = novo
-                        setItensEditando(novos)
-                      }}
-                      onRemove={(i) => {
-                        const novos = itensEditando.filter((_, ix) => ix !== i)
-                        setItensEditando(novos)
-                      }}
-                    />
+                    <div className="flex gap-3 rounded-xl border border-gray-200 p-3 bg-white items-start">
+                      {catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url ? <img src={catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url} alt="" className="size-16 rounded-lg object-cover shrink-0" /> : <div className="size-16 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center"><Plus className="size-5 text-gray-400" /></div>}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm">{item.quantidade || 1}x {item.nome}</div>
+                        {(item.complementos || []).length > 0 && <p className="text-xs text-gray-500 mt-1">{item.complementos.map((comp:any)=>comp.nome).join(', ')}</p>}
+                        <p className="text-sm text-green-700 font-semibold mt-1">{formatCurrency((Number(item.valor_unitario)||0)*(Number(item.quantidade)||1))}</p>
+                        <button type="button" onClick={()=>{const produto=catalogoEdicao.find(p=>p.id===item.produto_id);if(produto)abrirProdutoEdicao(produto,idx);else toastError('Produto indisponível para edição pelo catálogo.')}} className="mt-2 text-sm text-green-700 font-semibold underline">Editar produto e complementos</button>
+                      </div>
+                      <button type="button" aria-label="Remover produto" onClick={()=>setItensEditando(ant=>ant.filter((_,i)=>i!==idx))} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="size-4" /></button>
+                    </div>
                     </div>
                   ))}
                 </div>
