@@ -592,23 +592,6 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
             />
           </CardSection>
 
-          {/* ====== CARD 3: Pontos ====== */}
-          <CardSection title="Pontos de fidelidade" icon={Star}>
-            <p className="text-sm text-gray-500 mb-3 -mt-1">
-              Quantos pontos o cliente ganha ao comprar este item.
-            </p>
-            <Field label="Pontos">
-              <input
-                type="number"
-                min={0}
-                value={form.pontos}
-                onChange={(e) => setForm({ ...form, pontos: e.target.value })}
-                placeholder="0"
-                className="form-input max-w-[200px]"
-              />
-            </Field>
-          </CardSection>
-
           {/* ====== CARD 4: Canais e etiquetas ====== */}
           <CardSection title="Visibilidade no cardápio">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
