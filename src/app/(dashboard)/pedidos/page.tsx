@@ -2397,7 +2397,7 @@ export default function PedidosPage() {
         onAdd={aplicarProdutoEdicao} onReplace={(_id:any,item:any)=>aplicarProdutoEdicao(item)} />}
       {/* MODAL DE EDIÇÃO */}
       {modalEditarAberto && pedidoEditando && (
-        <div className="wd-order-editor fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="wd-order-editor fixed inset-0 bg-black/60 flex items-center justify-center z-40 p-4 overflow-y-auto">
           <div ref={orderEditorRef} role="dialog" aria-modal="true" aria-labelledby="wd-order-edit-title" className="wd-oe-panel bg-white rounded-2xl w-full max-w-6xl h-[min(94vh,950px)] overflow-hidden flex flex-col shadow-2xl">
             <div className="wd-oe-header p-4 sm:px-6 border-b bg-white shrink-0 flex items-center justify-between">
               <h2 id="wd-order-edit-title" className="text-xl font-bold">Editar pedido {pedidoEditando.codigo || pedidoEditando.id.slice(0, 8)}</h2>
