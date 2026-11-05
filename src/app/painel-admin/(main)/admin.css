@@ -90,3 +90,17 @@
 @media (prefers-reduced-motion: reduce) {
   .wd-admin *, .wd-admin *::before, .wd-admin *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+
+/* Preview only: admin red/wine identity. Scope excludes public menus. */
+.wd-admin{--green:#E60023;--green-2:#FF3546;--ink:#FFFFFF;--ink-2:#ead5da;--ink-muted:#d5adb6;--line:#793040;background:linear-gradient(115deg,#10090D,#2B080F 70%,#420d1a);color:#FFFFFF}
+.wd-admin :is(h1,h2,h3,h4,h5,h6){color:#FFFFFF}
+.wd-admin :is(.wd-admin-header,.wd-admin-content,.wd-admin-stat,.wd-admin-shop-card,.wd-admin-more-menu){background:#2B080F;color:#FFFFFF;border-color:#793040}
+.wd-admin :is(.wd-admin-stat-label,.wd-admin-brand small,.wd-admin-shop-card small,.wd-admin-shop-card dt){color:#e0bac4}
+.wd-admin .wd-admin-logo{background:linear-gradient(90deg,#E60023,#FF3546)}
+.wd-admin .wd-admin-desktop-nav a{color:#e0bac4}
+.wd-admin .wd-admin-desktop-nav :is(a:hover,.is-active),.wd-admin .wd-admin-mobile-nav .is-active{background:#A90C20;color:#FFFFFF}
+.wd-admin .wd-admin-mobile-nav{background:#2B080F;border-color:#793040}
+.wd-admin .wd-admin-mobile-nav :is(a,button){color:#e0bac4}
+.wd-admin .wd-admin-logout{background:#410d1a;color:#fff;border-color:#793040}
+.wd-admin :is(a,button,input,select,textarea):focus-visible{outline-color:#FF3546}
+.wd-admin .wd-admin-content :is(input,select,textarea){background:#fff;color:#10090D}
