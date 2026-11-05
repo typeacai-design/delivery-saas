@@ -63,7 +63,6 @@ export async function PATCH(request: Request) {
       })
       .eq('id', pedido_id)
       .eq('tenant_id', tenantId)
-      .eq('pago', !pago)
       .select('id')
 
     if (updateError) {
