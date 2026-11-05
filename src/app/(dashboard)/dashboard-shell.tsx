@@ -178,7 +178,7 @@ export default function DashboardShell({
                   className="size-7 sm:size-8 rounded-xl flex items-center justify-center text-white font-bold text-[11px]"
                   style={{ background: 'var(--grad-violet)' }}
                 >
-                  <img src="/we-delivery-logo.svg" alt="" className="w-full h-full object-contain" />
+                  {initials}
                 </div>
                 <span className="font-display text-sm sm:text-base whitespace-nowrap" style={{ color: 'var(--ink)' }}>
                   We Delivery
