@@ -961,6 +961,7 @@ export default function PedidosPage() {
     setSalvandoEdicao(true)
     try {
       const body = {
+        cliente_id: pedidoEditando.cliente_id,
         cliente_nome: pedidoEditando.cliente_nome,
         cliente_whatsapp: pedidoEditando.cliente_whatsapp,
         endereco_entrega: pedidoEditando.endereco_entrega,
