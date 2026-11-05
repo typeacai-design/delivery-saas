@@ -68,8 +68,9 @@ export async function GET(request: Request) {
     if (!data?.acesso_token_hash || !tokenMatches(token, data.acesso_token_hash)) return respond({ error: 'Não foi possível consultar o perfil' }, 404)
     const cfg=(tenant.config||{}) as any
     const {data: creditos}=await admin.from('cashback_creditos').select('valor_restante,expira_em,criado_em,valor_original').eq('tenant_id',tenant.id).eq('cliente_id',data.id).order('criado_em',{ascending:false}).limit(100)
+    const {data:utilizacoes}=await admin.from('cashback_utilizacoes').select('valor,criado_em').eq('tenant_id',tenant.id).eq('cliente_id',data.id).order('criado_em',{ascending:false}).limit(50)
     const now=Date.now()
     const saldoDisponivel=(creditos||[]).filter(c=>!c.expira_em||new Date(c.expira_em).getTime()>now).reduce((s,c)=>s+Number(c.valor_restante||0),0)
-    return respond({...profile(data),cashback:{ativo:cfg.cashback_ativo===true,saldo:Math.round(saldoDisponivel*100)/100,creditos:(creditos||[]).map(c=>({valor:Number(c.valor_original),restante:Number(c.valor_restante),expira_em:c.expira_em,criado_em:c.criado_em}))}})
+    return respond({...profile(data),cashback:{ativo:cfg.cashback_ativo===true,saldo:Math.round(saldoDisponivel*100)/100,creditos:(creditos||[]).map(c=>({valor:Number(c.valor_original),restante:Number(c.valor_restante),expira_em:c.expira_em,criado_em:c.criado_em})),utilizacoes:(utilizacoes||[]).map(u=>({valor:Number(u.valor),criado_em:u.criado_em}))}})
   } catch { return respond({ error: 'Não foi possível consultar o perfil' }, 500) }
 }
