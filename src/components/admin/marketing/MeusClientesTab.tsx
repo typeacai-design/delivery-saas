@@ -10,6 +10,7 @@ type FiltroCliente = 'todos' | 'top10' | 'aniversariantes'
 export default function MeusClientesTab() {
   const supabase = createClient()
   const [clientes, setClientes] = useState<any[]>([])
+  const [saldos, setSaldos] = useState<Record<string,number>>({})
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<FiltroCliente>('todos')
@@ -39,6 +40,8 @@ export default function MeusClientesTab() {
     const [{ data: cls }] = await Promise.all([
       supabase.from('clientes').select('id, nome, telefone, email, bairro, endereco, cpf, data_nascimento, total_pedidos, saldo_cashback, ltv, created_at, tags').eq('tenant_id', tid).eq('ativo', true).order('nome')
     ])
+    const saldosRes=await fetch('/api/cashback/saldos',{cache:'no-store'})
+    if(saldosRes.ok){const body=await saldosRes.json();setSaldos(body.saldos||{})}
     setClientes(cls || [])
     setLoading(false)
   }
@@ -99,7 +102,7 @@ export default function MeusClientesTab() {
   }, [clientes, busca, filtro, mesAtual])
 
 
-  const totalCashback = clientes.reduce((acc,c)=>acc+Number(c.saldo_cashback||0),0)
+  const totalCashback = clientes.reduce((acc,c)=>acc+Number(saldos[c.id]||0),0)
 
   // Contadores para badges
   const countAniversariantes = clientes.filter((c) => {
@@ -189,7 +192,7 @@ export default function MeusClientesTab() {
       {/* LISTA */}
       <div className="space-y-2">
         {clientesFiltrados.map((c) => {
-          const pts = { cashback: Number(c.saldo_cashback)||0 }
+          const pts = { cashback: Number(saldos[c.id]||0) }
           const expandidoAt = expandido === c.id
           const isAniversariante = c.data_nascimento && new Date(c.data_nascimento).getMonth() + 1 === mesAtual
           return (
