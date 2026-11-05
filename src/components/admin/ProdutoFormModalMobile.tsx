@@ -599,7 +599,7 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
             />
           </CardSection>
 
-          {/* ====== CARD 3: Pontos ====== */}
+
 
 
           {/* ====== CARD 4: Canais e etiquetas ====== */}
@@ -613,21 +613,7 @@ export default function ProdutoFormModal({ produto, categorias, todosProdutos = 
           </CardSection>
 
           {/* ====== CARD 6: Limites de venda ====== */}
-          <CardSection title="Fidelidade e limites de venda" icon={Star}>
-            <p className="text-sm text-gray-500 mb-3 -mt-1">
-              Quantos pontos o cliente ganha ao comprar este item.
-            </p>
-            <Field label="Pontos">
-              <input
-                type="number"
-                min={0}
-                value={form.pontos}
-                onChange={(e) => setForm({ ...form, pontos: e.target.value })}
-                placeholder="0"
-                className="form-input max-w-[200px]"
-              />
-            </Field>
-          
+          <CardSection title="Limites de venda">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Vendidos diariamente" hint="(vazio = sem limite)">
                 <input
