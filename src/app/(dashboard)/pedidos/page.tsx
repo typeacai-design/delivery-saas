@@ -1805,7 +1805,7 @@ export default function PedidosPage() {
                       >
                         <MessageCircle size={14} /> WhatsApp
                       </button>
-                    )
+                    )}
 
                     {/* Imprimir */}
                     <button
