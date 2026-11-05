@@ -235,7 +235,7 @@ function BairroSelector({
 // ============================================================
 // COMPONENTE: Modal de Produto com Complementos por Etapas
 // ============================================================
-function ProdutoModal({
+export function ProdutoModal({
   isOpen,
   onClose,
   produto,
