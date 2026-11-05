@@ -1557,11 +1557,11 @@ export default function PedidosPage() {
               >
                 {/* HEADER */}
                 <div className="px-4 py-4 border-b" style={{ borderColor: '#E4E8EE' }}>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h2 className="text-[22px] font-medium tracking-tight" style={{ color: '#172033' }}>
+                  <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
+                    <h2 className="text-[22px] font-medium tracking-tight min-w-0" style={{ color: '#172033' }}>
                       Pedido {formatarCodigoPedido(pedido.id, pedido.data_criacao, (pedido as any).codigo)}
                     </h2>
-                    {(pedido as any).tipo_pedido === 'mesa' && <span className="inline-flex rounded-full bg-amber-100 text-amber-900 px-2 py-1 text-xs font-semibold">🍽️ Mesa {(pedido as any).mesa_numero || '—'}</span>}
+                    {(pedido as any).tipo_pedido === 'mesa' && <span className="inline-flex items-center shrink-0 whitespace-nowrap rounded-full bg-amber-100 text-amber-900 px-2 py-1 text-xs font-semibold">Mesa {(pedido as any).mesa_numero || '—'}</span>}
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
@@ -2691,7 +2691,7 @@ function MesasGrid({ sessoes, onRefresh, toastError, toastSuccess }: MesaCardPro
 
   return (
     <>
-      <div className="flex justify-end mb-3"><button type="button" className="btn-primary flex items-center gap-2 px-4 py-3" onClick={() => setCriandoMesa(true)}><Plus size={16} /> Criar mesa</button></div>
+      
       {criandoMesa && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Abrir mesa">
         <div className="bg-white rounded-2xl p-5 w-full max-w-sm space-y-3 shadow-xl">
           <h3 className="text-lg font-semibold">Abrir nova mesa</h3>
