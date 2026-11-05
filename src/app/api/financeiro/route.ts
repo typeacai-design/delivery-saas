@@ -35,19 +35,39 @@ export async function GET(request: Request) {
     // 2) Usa service_role para buscar os dados (bypassa RLS)
     const admin = adminClient()
 
-    const [orders, expenses, transactions, tenant] = await Promise.all([
+    const [orders, expenses, transactions, sessions, tenant] = await Promise.all([
       // Pedidos com código
-      allRows((from, to) => admin.from('pedidos').select('id,codigo,created_at,valor_total,taxa_entrega,forma_pagamento,status,pago,pago_em').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
+      allRows((from, to) => admin.from('pedidos').select('id,codigo,created_at,valor_total,taxa_entrega,forma_pagamento,status,pago,pago_em,sessao_mesa_id').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
       // Despesas (não tem coluna `pago`)
       allRows((from, to) => admin.from('despesas').select('id,nome,valor,dia_vencimento,recorrencia,created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
       // Transações manuais (com categoria)
       allRows((from, to) => admin.from('movimentacoes_financeiras').select('id,tipo,descricao,valor,data,categoria,forma_pagamento').eq('tenant_id', tenantId).order('data', { ascending: false }).range(from, to)),
+      allRows((from, to) => admin.from('sessoes_mesa').select('id,mesa_numero,status,data_fechamento').eq('tenant_id', tenantId).order('data_abertura', { ascending: false }).range(from, to)),
       admin.from('tenants').select('id,config').eq('id', tenantId).single(),
     ])
 
     if (tenant.error) throw tenant.error
 
-    return NextResponse.json({ orders, expenses, transactions, tenant: tenant.data }, { headers: { 'Cache-Control': 'no-store' } })
+    // Group table order movements into one cash-flow entry per closed session.
+    // The underlying movements remain untouched for audit and reconciliation.
+    const sessionById = new Map(sessions.map(s => [s.id, s]))
+    const orderSessionById = new Map(orders.filter(o => o.sessao_mesa_id).map(o => [o.id, o.sessao_mesa_id]))
+    const grouped = new Map<string, (typeof transactions)[number]>()
+    const visibleTransactions: typeof transactions = []
+    for (const transaction of transactions) {
+      const sessionId = transaction.referencia_id ? orderSessionById.get(transaction.referencia_id) : null
+      const session = sessionId ? sessionById.get(sessionId) : null
+      if (session?.status === 'fechada' && transaction.categoria === 'pedido' && transaction.tipo === 'entrada') {
+        const previous = grouped.get(sessionId!)
+        if (previous) previous.valor = Number(previous.valor) + Number(transaction.valor)
+        else {
+          const merged = { ...transaction, descricao: `Mesa ${session.mesa_numero} · Fechamento`, valor: Number(transaction.valor), data: session.data_fechamento?.slice(0, 10) || transaction.data }
+          grouped.set(sessionId!, merged)
+          visibleTransactions.push(merged)
+        }
+      } else visibleTransactions.push(transaction)
+    }
+    return NextResponse.json({ orders, expenses, transactions: visibleTransactions, tenant: tenant.data }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('financeiro_read_failed', error)
     return NextResponse.json({ error: 'Não foi possível carregar os dados financeiros' }, { status: 500 })
