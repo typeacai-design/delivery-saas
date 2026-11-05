@@ -1,253 +1,69 @@
 'use client'
-
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Star, Save, TrendingUp, Coins, Eye, Edit } from 'lucide-react'
+import { Coins, Save, Clock, Wallet } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
+type CashbackConfig = { cashback_ativo: boolean; cashback_tipo: 'percentual' | 'fixo_por_real'; cashback_percent: number; cashback_valor_por_real: number; cashback_validade_dias: number | null }
+const initial: CashbackConfig = { cashback_ativo: false, cashback_tipo: 'percentual', cashback_percent: 5, cashback_valor_por_real: 0.05, cashback_validade_dias: 30 }
 export default function FidelidadeTab() {
-  const [config, setConfig] = useState({
-    fidelidade_ativo: false,
-    pontos_por_real: 1,
-    cashback_ativo: false,
-    cashback_percent: 1,
-  })
-  const [produtos, setProdutos] = useState<any[]>([])
-  const [editandoPts, setEditandoPts] = useState<string | null>(null)
-  const [salvando, setSalvando] = useState(false)
-  const [salvo, setSalvo] = useState(false)
-  const supabase = createClient()
+  const [config,setConfig]=useState<CashbackConfig>(initial)
+  const [salvando,setSalvando]=useState(false)
+  const [carregando,setCarregando]=useState(true)
+  const [mensagem,setMensagem]=useState('')
+  const [clientes,setClientes]=useState<any[]>([])
+  const [busca,setBusca]=useState('')
+  const supabase=createClient()
   const tenantId=async()=>{const r=await fetch('/api/auth/session',{cache:'no-store'});const b=await r.json();return r.ok?b.tenant?.id:null}
-
-  useEffect(() => { loadAll() }, [])
-
-  const loadAll = async () => {
-    const tid=await tenantId();if(!tid)return
-
-    // Config geral
-    const { data: t } = await supabase.from('tenants').select('config').eq('id', tid).single()
-    if (t?.config) {
-      const c = t.config as any
-      setConfig({
-        fidelidade_ativo: !!c.fidelidade_ativo,
-        pontos_por_real: c.pontos_por_real ?? 1,
-        cashback_ativo: !!c.cashback_ativo,
-        cashback_percent: c.cashback_percent ?? 1,
-      })
-    }
-
-    // Produtos
-    const { data: prods } = await supabase
-      .from('produtos')
-      .select('id, nome, preco, pontos, ativo')
-      .eq('tenant_id', tid)
-      .order('nome')
-    setProdutos(prods || [])
+  useEffect(()=>{void carregar()},[])
+  async function carregar(){
+    setCarregando(true)
+    const tid=await tenantId()
+    if(!tid){setMensagem('Não foi possível identificar a loja');setCarregando(false);return}
+    const [{data:tenant,error:te},{data:lista,error:ce}]=await Promise.all([
+      supabase.from('tenants').select('config').eq('id',tid).single(),
+      supabase.from('clientes').select('id,nome,telefone,saldo_cashback').eq('tenant_id',tid).eq('ativo',true).order('nome')
+    ])
+    if(te||ce)setMensagem('Não foi possível carregar todos os dados')
+    const cfg=tenant?.config||{}
+    setConfig({cashback_ativo:cfg.cashback_ativo===true,cashback_tipo:cfg.cashback_tipo==='fixo_por_real'?'fixo_por_real':'percentual',cashback_percent:Number(cfg.cashback_percent??5),cashback_valor_por_real:Number(cfg.cashback_valor_por_real??0.05),cashback_validade_dias:cfg.cashback_validade_dias===null?null:Number(cfg.cashback_validade_dias??30)})
+    setClientes(lista||[])
+    setCarregando(false)
   }
-
-  const salvarConfig = async () => {
-    setSalvando(true)
-    const tid=await tenantId();if(!tid){setSalvando(false);return}
-    const { data: t } = await supabase.from('tenants').select('config').eq('id', tid).single()
-    const configAtual = (t?.config || {}) as any
-    await supabase.from('tenants').update({
-      config: {
-        ...configAtual,
-        fidelidade_ativo: config.fidelidade_ativo,
-        fidelidade_tipo: config.fidelidade_ativo ? 'por_produto' : 'por_valor',
-        pontos_por_real: config.pontos_por_real,
-        cashback_ativo: config.cashback_ativo,
-        cashback_percent: config.cashback_percent,
-      },
-    }).eq('id', tid)
-    setSalvando(false); setSalvo(true)
-    setTimeout(() => setSalvo(false), 2000)
+  async function salvar(){
+    const valor=config.cashback_tipo==='percentual'?config.cashback_percent:config.cashback_valor_por_real
+    if(!Number.isFinite(valor)||valor<0||(config.cashback_tipo==='percentual'&&valor>100)||(config.cashback_tipo==='fixo_por_real'&&valor>1)){setMensagem('Informe uma recompensa válida (até 100% do pedido)');return}
+    setSalvando(true);setMensagem('')
+    const tid=await tenantId()
+    if(!tid){setMensagem('Loja não identificada');setSalvando(false);return}
+    const {data:tenant,error:readError}=await supabase.from('tenants').select('config').eq('id',tid).single()
+    if(readError){setMensagem('Erro ao carregar configuração atual');setSalvando(false);return}
+    const {error}=await supabase.from('tenants').update({config:{...(tenant?.config||{}),...config,fidelidade_ativo:false,fidelidade_tipo:'desativado',pontos_por_real:0}}).eq('id',tid)
+    setMensagem(error?'Não foi possível salvar: '+error.message:'Configurações de cashback salvas!')
+    setSalvando(false)
   }
-
-  const salvarPontos = async (produtoId: string, pontos: number) => {
-    await supabase.from('produtos').update({ pontos }).eq('id', produtoId)
-    setEditandoPts(null)
-    setProdutos(produtos.map((p) => p.id === produtoId ? { ...p, pontos } : p))
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="bg-white rounded-2xl border p-5 flex items-start gap-4" style={{ borderColor: '#E5E7EB' }}>
-        <div className="size-12 rounded-xl flex items-center justify-center bg-yellow-100">
-          <Star size={22} className="text-yellow-700" />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900">Programa de Fidelidade + Cashback</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            Configure regras globais (regras de fallback) e pontos por produto (regra principal).
-            Os pontos por produto têm prioridade sobre as regras globais.
-          </p>
-        </div>
-      </div>
-
-      {/* Regras globais (fallback) */}
-      <div className="bg-white rounded-2xl border p-5 space-y-4" style={{ borderColor: '#E5E7EB' }}>
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-          <span>⚙️</span> Regras globais (usado quando o produto não tem pontos definidos)
-        </div>
-
-        {/* Pontos por produto */}
-        <div className="border-t pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="size-9 rounded-lg flex items-center justify-center bg-green-100">
-                <TrendingUp size={18} className="text-green-700" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-gray-900">Pontos por produto</h4>
-                <p className="text-xs text-gray-500">Cada produto define sua própria pontuação</p>
-              </div>
-            </div>
-            <Switch
-              checked={config.fidelidade_ativo}
-              onChange={(v) => setConfig({ ...config, fidelidade_ativo: v })}
-            />
-          </div>
-          {config.fidelidade_ativo && (
-            <div className="bg-green-50 rounded-2xl p-4">
-              <p className="text-xs text-gray-600">
-                💡 Cada produto pode ter uma quantidade de pontos diferente. Os pontos são somados com base na quantidade de cada produto no pedido. Configure os pontos de cada produto no cadastro ou na lista abaixo.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Cashback */}
-        <div className="border-t pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="size-9 rounded-lg flex items-center justify-center bg-emerald-100">
-                <Coins size={18} className="text-emerald-700" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-gray-900">Cashback em %</h4>
-                <p className="text-xs text-gray-500">Cliente recebe de volta X% do valor do pedido</p>
-              </div>
-            </div>
-            <Switch
-              checked={config.cashback_ativo}
-              onChange={(v) => setConfig({ ...config, cashback_ativo: v })}
-            />
-          </div>
-          {config.cashback_ativo && (
-            <div className="bg-emerald-50 rounded-2xl p-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Porcentagem de cashback
-              </label>
-              <div className="flex items-center gap-2 max-w-[200px]">
-                <input
-                  type="number" min={0} step={0.1}
-                  value={config.cashback_percent}
-                  onChange={(e) => setConfig({ ...config, cashback_percent: parseFloat(e.target.value) || 0 })}
-                  className="form-input"
-                />
-                <span className="text-gray-500">%</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                O valor é acumulado no saldo de cashback do cliente. Pode ser usado em descontos futuros.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <button onClick={salvarConfig} disabled={salvando} className="btn-primary">
-          <Save size={14} />
-          {salvando ? 'Salvando...' : salvo ? '✓ Salvo!' : 'Salvar regras globais'}
-        </button>
-      </div>
-
-      {/* TABELA DE PONTOS POR PRODUTO */}
-      <div className="bg-white rounded-2xl border p-5" style={{ borderColor: '#E5E7EB' }}>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-2xl">⭐</span>
-          <div>
-            <h3 className="text-lg font-semibold">Pontos por produto</h3>
-            <p className="text-xs text-gray-500">Configure quantos pontos cada produto dá ao cliente. Tem prioridade sobre a regra global.</p>
-          </div>
-        </div>
-
-        <div className="space-y-2 max-h-[500px] overflow-y-auto">
-          {produtos.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm">{p.nome}</div>
-                <div className="text-xs text-gray-500">{formatCurrency(Number(p.preco))}{!p.ativo && ' · Inativo'}</div>
-              </div>
-              {editandoPts === p.id ? (
-                <>
-                  <input
-                    type="number"
-                    min={0}
-                    defaultValue={p.pontos || 0}
-                    autoFocus
-                    className="form-input w-20 text-center"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') salvarPontos(p.id, Number((e.target as HTMLInputElement).value) || 0)
-                      if (e.key === 'Escape') setEditandoPts(null)
-                    }}
-                  />
-                  <button
-                    onClick={(e) => {
-                      const input = (e.currentTarget.previousElementSibling as HTMLInputElement)
-                      salvarPontos(p.id, Number(input.value) || 0)
-                    }}
-                    className="px-2 py-1 bg-green-600 text-white rounded text-xs"
-                  >✓</button>
-                  <button onClick={() => setEditandoPts(null)} className="px-2 py-1 bg-gray-300 rounded text-xs">×</button>
-                </>
-              ) : (
-                <>
-                  <span className="font-bold text-yellow-700 min-w-[60px] text-right">
-                    ⭐ {p.pontos || 0}
-                  </span>
-                  <button
-                    onClick={() => setEditandoPts(p.id)}
-                    className="p-1.5 hover:bg-white rounded-lg text-gray-600"
-                    title="Editar pontos"
-                  >
-                    <Edit size={14} />
-                  </button>
-                </>
-              )}
-            </div>
-          ))}
-          {produtos.length === 0 && (
-            <p className="text-center py-8 text-gray-500 text-sm">Nenhum produto cadastrado</p>
-          )}
-        </div>
-      </div>
-
-      {/* INFO BOX - Como o cliente vê */}
-      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
-        <h4 className="font-semibold text-blue-900 mb-2">💡 Como o cliente vê?</h4>
-        <ul className="text-sm text-blue-800 space-y-1">
-          <li>• Após cada pedido finalizado, os pontos são creditados na conta do cliente</li>
-          <li>• O cliente vê seu saldo de pontos e cashback no cardápio (login com WhatsApp)</li>
-          <li>• Pode usar pontos/cashback como desconto em pedidos futuros</li>
-          <li>• Acesse "Meus Clientes" na aba ao lado para ver saldo de cada cliente</li>
-        </ul>
-      </div>
-    </div>
-  )
-}
-
-function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className="w-11 h-6 rounded-full transition relative"
-      style={{ background: checked ? 'var(--green)' : '#D1D5DB' }}
-    >
-      <div
-        className="size-5 rounded-full bg-white absolute top-0.5 transition-all shadow"
-        style={{ left: checked ? '22px' : '2px' }}
-      />
-    </button>
-  )
+  const exemplo=100*(config.cashback_tipo==='percentual'?config.cashback_percent/100:config.cashback_valor_por_real)
+  return <div className="space-y-5">
+    <section className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 space-y-5">
+      <div className="flex items-start gap-3"><div className="bg-green-100 text-green-700 p-3 rounded-xl"><Coins size={22}/></div><div><h2 className="text-lg font-bold text-gray-900">Programa de cashback</h2><p className="text-sm text-gray-500">Recompense clientes em reais a cada compra paga. A taxa de entrega entra no cálculo.</p></div></div>
+      <label className="flex justify-between items-center gap-3 border rounded-xl p-4"><div><div className="font-semibold text-gray-900">Ativar cashback</div><p className="text-xs text-gray-500">O cliente poderá acumular e utilizar créditos em compras futuras</p></div><input type="checkbox" checked={config.cashback_ativo} onChange={e=>setConfig({...config,cashback_ativo:e.target.checked})} className="size-5 accent-green-600"/></label>
+      {config.cashback_ativo&&<div className="space-y-4">
+        <div><label className="text-sm font-semibold block mb-2">Como calcular a recompensa?</label><div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button type="button" onClick={()=>setConfig({...config,cashback_tipo:'percentual'})} className={`text-left p-4 rounded-xl border-2 ${config.cashback_tipo==='percentual'?'border-green-600 bg-green-50':'border-gray-200'}`}><strong>Porcentagem (%)</strong><p className="text-xs text-gray-500 mt-1">Ex.: 5% do valor total pago</p></button>
+          <button type="button" onClick={()=>setConfig({...config,cashback_tipo:'fixo_por_real'})} className={`text-left p-4 rounded-xl border-2 ${config.cashback_tipo==='fixo_por_real'?'border-green-600 bg-green-50':'border-gray-200'}`}><strong>Valor por R$ 1</strong><p className="text-xs text-gray-500 mt-1">Ex.: R$ 0,05 para cada R$ 1 gasto</p></button>
+        </div></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><label className="text-sm font-semibold">Valor da recompensa<input className="form-input w-full mt-2" type="number" min="0" max={config.cashback_tipo==='percentual'?'100':'1'} step="0.01" value={config.cashback_tipo==='percentual'?config.cashback_percent:config.cashback_valor_por_real} onChange={e=>setConfig({...config,[config.cashback_tipo==='percentual'?'cashback_percent':'cashback_valor_por_real']:Number(e.target.value)})}/><span className="text-xs text-gray-500">{config.cashback_tipo==='percentual'?'Percentual do pedido':'Reais de cashback por real gasto'}</span></label>
+        <label className="text-sm font-semibold">Validade dos créditos<select className="form-input w-full mt-2" value={config.cashback_validade_dias??'sem'} onChange={e=>setConfig({...config,cashback_validade_dias:e.target.value==='sem'?null:Number(e.target.value)})}>{[7,15,30,60,90,180,365].map(d=><option key={d} value={d}>{d} dias</option>)}<option value="sem">Sem vencimento</option></select><span className="text-xs text-gray-500">Contados a partir do crédito após pagamento</span></label></div>
+        <div className="bg-green-50 border border-green-100 rounded-xl p-4"><p className="text-xs text-green-900">Exemplo em pedido de R$ 100,00, incluindo entrega</p><p className="text-xl font-bold text-green-700 mt-1">{formatCurrency(exemplo)} de cashback</p></div>
+      </div>}
+      <button type="button" disabled={salvando||carregando} onClick={salvar} className="btn-primary"><Save size={16}/>{salvando?'Salvando...':'Salvar configurações'}</button>
+      {mensagem&&<p role="status" className="text-sm text-gray-700">{mensagem}</p>}
+    </section>
+    <section className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 space-y-3">
+      <div className="flex items-center gap-2"><Wallet className="text-green-700" size={20}/><h3 className="font-bold text-gray-900">Saldo de cashback por cliente</h3></div>
+      <p className="text-sm text-gray-500">Consulte o saldo atual de cada cliente da sua loja.</p>
+      <input className="form-input w-full" value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por nome ou telefone"/>
+      <div className="max-h-96 overflow-y-auto divide-y">{clientes.filter(c=>(c.nome||'').toLowerCase().includes(busca.toLowerCase())||(c.telefone||'').includes(busca)).map(c=><div key={c.id} className="py-3 flex justify-between items-center gap-3"><div className="min-w-0"><div className="font-semibold text-sm truncate">{c.nome}</div><div className="text-xs text-gray-500">{c.telefone}</div></div><div className="font-bold text-green-700 whitespace-nowrap">{formatCurrency(Number(c.saldo_cashback)||0)}</div></div>)}</div>
+    </section>
+  </div>
 }
