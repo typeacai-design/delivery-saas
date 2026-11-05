@@ -993,6 +993,27 @@ export default function PedidosPage() {
   }
 
   // Cache de itens por pedido (carrega sob demanda)
+  // Catálogo visual compartilhado pelo editor de pedidos desktop e mobile.
+  const [catalogoEdicao, setCatalogoEdicao] = useState<any[]>([])
+  const [buscaCatalogoEdicao, setBuscaCatalogoEdicao] = useState('')
+  useEffect(() => {
+    if (!modalEditarAberto || !tenantIdAtual) return
+    let cancelled = false
+    supabase.from('produtos').select('id,nome,preco,imagem_url,ativo,sabores_grupo_id,exibir_preco_a_partir_de').eq('tenant_id', tenantIdAtual).eq('ativo', true).order('nome').then(({ data, error }) => {
+      if (!cancelled) {
+        if (error) toastError('Não foi possível carregar o catálogo de produtos.')
+        setCatalogoEdicao(data || [])
+      }
+    })
+    return () => { cancelled = true }
+  }, [modalEditarAberto, tenantIdAtual])
+  const adicionarProdutoEdicao = (produto: any) => {
+    setItensEditando(anteriores => [...anteriores, {
+      produto_id: produto.id, nome: produto.nome, quantidade: 1,
+      valor_unitario: chargedProductBase(produto), complementos: [],
+    }])
+  }
+
   const [itensCache, setItensCache] = useState<Record<string, any[]>>({})
   useEffect(() => {
     let cancelled = false
@@ -2588,6 +2609,29 @@ export default function PedidosPage() {
               </div>
 
               </div>
+              <div className="space-y-4 min-w-0">
+              <section className="rounded-xl border border-gray-200 p-4 bg-white min-w-0">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <h3 className="font-semibold text-gray-900">Produtos</h3>
+                  <span className="text-xs text-gray-500">Selecione para adicionar ao pedido</span>
+                </div>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input className="form-input w-full pl-9 text-sm" placeholder="Buscar produtos do cardápio..."
+                    value={buscaCatalogoEdicao} onChange={e => setBuscaCatalogoEdicao(e.target.value)} />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+                  {catalogoEdicao.filter(p => p.nome.toLocaleLowerCase('pt-BR').includes(buscaCatalogoEdicao.toLocaleLowerCase('pt-BR'))).map(p => (
+                    <button key={p.id} type="button" onClick={() => adicionarProdutoEdicao(p)}
+                      className="min-w-0 text-left border border-gray-200 rounded-xl p-2 hover:border-green-500 hover:bg-green-50 focus-visible:ring-2 focus-visible:ring-green-600 transition">
+                      {p.imagem_url ? <img src={p.imagem_url} alt={p.nome} className="w-full h-20 sm:h-24 rounded-lg object-cover mb-2" /> :
+                        <div className="w-full h-20 sm:h-24 rounded-lg bg-gray-100 flex items-center justify-center mb-2 text-gray-400"><Plus className="w-6 h-6" /></div>}
+                      <div className="text-xs font-medium text-gray-900 line-clamp-2">{p.nome}</div>
+                      <div className="text-xs font-semibold text-green-700 mt-1">{formatCurrency(Number(p.preco) || 0)}</div>
+                    </button>
+                  ))}
+                </div>
+              </section>
               {/* BLOCO 4: ITENS */}
               <div className="rounded-xl border border-gray-200 p-4 min-w-0 bg-white">
                 <div className="flex items-center justify-between mb-2">
@@ -2644,6 +2688,7 @@ export default function PedidosPage() {
                     )
                   })()}
                 </div>
+              </div>
               </div>
             </div>
             )}
