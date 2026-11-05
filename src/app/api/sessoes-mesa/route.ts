@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SALES_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
+import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,19 +17,47 @@ export async function GET(req: NextRequest) {
   const { supabase, tenantId } = auth
   const incluirFechadas = req.nextUrl.searchParams.get('fechadas') === '1'
 
-  let query = supabase
-    .from('sessoes_mesa')
-    .select('id, mesa_numero, cliente_nome, cliente_whatsapp, valor_total, data_abertura, status, observacoes, pedidos(id, status, valor_total, data_criacao, tipo_pedido, codigo, pedido_itens(id, nome, quantidade))')
+  // The order list uses service role because merchant RLS can hide rows.
+  // Scope both sessions and nested orders to the authenticated tenant.
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+  let query = admin.from('sessoes_mesa')
+    .select('id, tenant_id, mesa_numero, cliente_nome, cliente_whatsapp, valor_total, data_abertura, status, observacoes')
     .eq('tenant_id', tenantId)
     .order('data_abertura', { ascending: false })
-
-  if (!incluirFechadas) {
-    query = query.eq('status', 'aberta')
-  }
-
+  if (!incluirFechadas) query = query.eq('status', 'aberta')
   const { data: sessoes, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ sessoes: sessoes || [] })
+  const ids = (sessoes || []).map(s => s.id)
+  if (!ids.length) return NextResponse.json({ sessoes: [] })
+  const { data: pedidos, error: pedidosError } = await admin.from('pedidos')
+    .select('id, sessao_mesa_id, status, valor_total, data_criacao, tipo_pedido, codigo')
+    .eq('tenant_id', tenantId).in('sessao_mesa_id', ids)
+  if (pedidosError) return NextResponse.json({ error: pedidosError.message }, { status: 500 })
+  const pedidoIds = (pedidos || []).map(p => p.id)
+  const { data: itens, error: itensError } = pedidoIds.length
+    ? await admin.from('pedido_itens').select('id, pedido_id, nome, quantidade').in('pedido_id', pedidoIds)
+    : { data: [], error: null }
+  if (itensError) return NextResponse.json({ error: itensError.message }, { status: 500 })
+  const itensPorPedido = new Map<string, any[]>()
+  for (const item of itens || []) {
+    const list = itensPorPedido.get(item.pedido_id) || []
+    list.push(item)
+    itensPorPedido.set(item.pedido_id, list)
+  }
+  const pedidosPorSessao = new Map<string, any[]>()
+  for (const pedido of pedidos || []) {
+    const list = pedidosPorSessao.get(pedido.sessao_mesa_id) || []
+    list.push({ ...pedido, pedido_itens: itensPorPedido.get(pedido.id) || [] })
+    pedidosPorSessao.set(pedido.sessao_mesa_id, list)
+  }
+  const sessoesComPedidos = (sessoes || []).map(sessao => ({
+    ...sessao, pedidos: pedidosPorSessao.get(sessao.id) || []
+  }))
+  return NextResponse.json({ sessoes: sessoesComPedidos })
 }
 
 /**
