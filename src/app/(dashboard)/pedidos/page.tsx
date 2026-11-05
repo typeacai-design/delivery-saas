@@ -12,6 +12,7 @@ import { gerarMensagemWhatsApp, formatarFormaPagamentoDisplay, normalizarFormaPa
 import { useToast } from '@/components/toast'
 import { flavorLabel, parseComplements, flavorCount } from '@/lib/flavor-pricing'
 import { ProdutoModal } from '@/components/checkout-flow'
+import { ProdutoModal as ProdutoManualModal } from './novo/page'
 import { useMerchantMobile } from '@/lib/use-merchant-mobile'
 import { useOrderSound } from '@/components/global-som-pedidos'
 import MerchantDateRange from '@/components/merchant-date-range'
@@ -1014,6 +1015,8 @@ export default function PedidosPage() {
     }])
   }
 
+  const [produtoConfigurando, setProdutoConfigurando] = useState<any>(null)
+  const [indiceConfigurando, setIndiceConfigurando] = useState<number | null>(null)
   const [itensCache, setItensCache] = useState<Record<string, any[]>>({})
   useEffect(() => {
     let cancelled = false
