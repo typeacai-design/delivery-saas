@@ -2532,7 +2532,7 @@ export default function PedidosPage() {
                   {itensEditando.map((item, idx) => (
                     <div key={item.id || idx} className="space-y-1">
                     <div className="flex gap-3 rounded-xl border border-gray-200 p-3 bg-white items-start">
-                      {catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url ? <img src={catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url} alt="" className="size-16 rounded-lg object-cover shrink-0" /> : <div className="size-16 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center"><Plus className="size-5 text-gray-400" /></div>}
+                      {catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url ? <img src={catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url} alt="" className="size-20 sm:size-24 rounded-lg object-contain bg-gray-50 shrink-0" /> : <div className="size-20 sm:size-24 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center"><Plus className="size-5 text-gray-400" /></div>}
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sm">{item.quantidade || 1}x {item.nome}</div>
                         {(item.complementos || []).length > 0 && <p className="text-xs text-gray-500 mt-1">{item.complementos.map((comp:any)=>comp.nome).join(', ')}</p>}
@@ -2697,8 +2697,8 @@ export default function PedidosPage() {
                   {catalogoEdicao.filter(p => p.nome.toLocaleLowerCase('pt-BR').includes(buscaCatalogoEdicao.toLocaleLowerCase('pt-BR'))).map(p => (
                     <button key={p.id} type="button" onClick={() => adicionarProdutoEdicao(p)}
                       className="min-w-0 text-left border border-gray-200 rounded-xl p-2 hover:border-green-500 hover:bg-green-50 focus-visible:ring-2 focus-visible:ring-green-600 transition">
-                      {p.imagem_url ? <img src={p.imagem_url} alt={p.nome} className="w-full h-20 sm:h-24 rounded-lg object-cover mb-2" /> :
-                        <div className="w-full h-20 sm:h-24 rounded-lg bg-gray-100 flex items-center justify-center mb-2 text-gray-400"><Plus className="w-6 h-6" /></div>}
+                      {p.imagem_url ? <img src={p.imagem_url} alt={p.nome} className="w-full aspect-square rounded-lg object-contain bg-gray-50 mb-2" /> :
+                        <div className="w-full aspect-square rounded-lg bg-gray-100 flex items-center justify-center mb-2 text-gray-400"><Plus className="w-6 h-6" /></div>}
                       <div className="text-xs font-medium text-gray-900 line-clamp-2">{p.nome}</div>
                       <div className="text-xs font-semibold text-green-700 mt-1">{formatCurrency(Number(p.preco) || 0)}</div>
                     </button>
@@ -2724,7 +2724,7 @@ export default function PedidosPage() {
                   {itensEditando.map((item, idx) => (
                     <div key={item.id || idx} className="space-y-1">
                     <div className="flex gap-3 rounded-xl border border-gray-200 p-3 bg-white items-start">
-                      {catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url ? <img src={catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url} alt="" className="size-16 rounded-lg object-cover shrink-0" /> : <div className="size-16 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center"><Plus className="size-5 text-gray-400" /></div>}
+                      {catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url ? <img src={catalogoEdicao.find(p=>p.id===item.produto_id)?.imagem_url} alt="" className="size-20 sm:size-24 rounded-lg object-contain bg-gray-50 shrink-0" /> : <div className="size-20 sm:size-24 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center"><Plus className="size-5 text-gray-400" /></div>}
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sm">{item.quantidade || 1}x {item.nome}</div>
                         {(item.complementos || []).length > 0 && <p className="text-xs text-gray-500 mt-1">{item.complementos.map((comp:any)=>comp.nome).join(', ')}</p>}
