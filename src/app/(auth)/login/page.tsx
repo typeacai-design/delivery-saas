@@ -53,16 +53,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="app-shell wd-auth-red">
+    <div className="app-shell">
       <div className="app-shell-inner flex items-center justify-center min-h-[calc(100vh-8rem)]">
         <div className="w-full max-w-md">
           <div className="flex items-center justify-center gap-2.5 mb-7">
             <div
               className="size-11 rounded-2xl flex items-center justify-center text-white font-bold text-[13px]"
               style={{
-                background: 'linear-gradient(90deg,#E60023,#FF3546,#B80020)',
+                background: 'var(--grad-violet)',
                 border: '1px solid rgba(255,255,255,.4)',
-                boxShadow: '0 8px 22px -10px rgba(230,0,35,.55)',
+                boxShadow: '0 8px 22px -10px rgba(139,92,246,.55)',
               }}
             >
               <img src="/we-delivery-logo.svg" alt="We Delivery" className="w-full h-full object-contain" />
@@ -143,8 +143,8 @@ export default function LoginPage() {
                   href="/acesso"
                   className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-medium text-sm border-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
                   style={{
-                    borderColor: '#E60023',
-                    color: '#E60023',
+                    borderColor: 'var(--green)',
+                    color: 'var(--green)',
                     background: 'transparent',
                   }}
                 >
