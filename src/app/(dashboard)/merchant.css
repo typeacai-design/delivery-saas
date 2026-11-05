@@ -615,3 +615,13 @@
  .wd-history-summary>time { color:#64766a; font-size:12px; }
  .wd-history-order>.wd-mobile-order { margin-top:8px; }
 }
+
+/* Preview only: merchant interface identity, never public cardapio theme. */
+.wd-merchant{--wd-bg:#10090D;--wd-paper:#2B080F;--wd-ink:#FFFFFF;--wd-muted:#e0bac4;--wd-line:#793040;--wd-green:#E60023;--green:#E60023;--green-2:#FF3546;--ink:#FFFFFF;--ink-2:#ead5da;--ink-muted:#e0bac4;--line:#793040;background:#10090D;color:#FFFFFF}
+.wd-merchant :is(.wd-merchant-main,.wd-home-body){color:#fff}
+.wd-merchant :is(.wd-merchant-nav,.wd-mobile-home,.wd-home-sheet,.wd-disclosure,.wd-menu a){border-color:#793040}
+.wd-merchant :is(.wd-merchant-nav,.wd-home-sheet,.wd-disclosure,.wd-menu a){background:#2B080F;color:#FFFFFF}
+.wd-merchant .wd-merchant-nav :is(a,button){color:#e0bac4}
+.wd-merchant :is(.wd-action,.wd-period-apply)[data-primary=true]{background:linear-gradient(90deg,#E60023,#FF3546);color:#fff}
+.wd-merchant :is(a,button,input,select,textarea):focus-visible{outline:3px solid #FF3546;outline-offset:2px}
+@media(max-width:767px){.wd-merchant{--wd-bg:#10090D;--wd-paper:#2B080F;--wd-ink:#FFFFFF;--wd-muted:#e0bac4;--wd-line:#793040;--wd-green:#E60023;--green:#E60023;--ink:#FFFFFF;--ink-2:#ead5da;--ink-muted:#e0bac4;--line:#793040;background:#10090D;color:#FFFFFF}}
