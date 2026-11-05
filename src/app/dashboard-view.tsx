@@ -431,9 +431,9 @@ export default function VisaoGeralPage() {
             <div className="flex items-center gap-1.5 text-xs">
               <span
                 className="inline-block w-2 h-2 rounded-full"
-                style={{ background: lojaEstaAberta ? '#16A34A' : '#DC2626' }}
+                style={{ background: lojaEstaAberta ? '#FF3546' : '#A90C20' }}
               />
-              <span style={{ color: lojaEstaAberta ? '#15803D' : '#B91C1C' }}>
+              <span style={{ color: lojaEstaAberta ? '#FF6875' : '#FF6875' }}>
                 {lojaEstaAberta ? 'Aberta' : 'Fechada'}
               </span>
               {horarioMsg && (
@@ -441,7 +441,7 @@ export default function VisaoGeralPage() {
               )}
               {temOverride && (
                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                  lojaAberta ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                  lojaAberta ? 'bg-red-900 text-white' : 'bg-red-200 text-red-800'
                 }`} title={lojaAberta ? 'Loja aberta manualmente - fechará no próximo horário programado' : 'Loja fechada manualmente - abrirá no próximo horário programado'}>
                   {lojaAberta ? 'manual' : 'manual'}
                 </span>
@@ -456,7 +456,7 @@ export default function VisaoGeralPage() {
                 className={`px-3 py-1.5 text-xs rounded-lg font-medium transition flex items-center gap-1.5 ${
                   lojaEstaAberta
                     ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    : 'bg-red-900 text-white hover:bg-red-800'
                 }`}
                 title={lojaEstaAberta ? 'Fechar loja agora (segue horário automaticamente)' : 'Abrir loja agora (fecha no próximo horário programado)'}
               >
@@ -482,8 +482,8 @@ export default function VisaoGeralPage() {
           <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full opacity-20" style={{ background: 'var(--green)', filter: 'blur(50px)' }} />
           <div className="relative">
             <div className="flex items-center gap-2 mb-3">
-              <div className="size-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(22,163,74,.14)' }}>
-                <TrendingUp size={18} style={{ color: '#15803D' }} strokeWidth={2.5} />
+              <div className="size-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(230,0,35,.18)' }}>
+                <TrendingUp size={18} style={{ color: '#FF3546' }} strokeWidth={2.5} />
               </div>
               <span className="eyebrow">Vendas hoje</span>
             </div>
