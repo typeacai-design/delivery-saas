@@ -162,20 +162,36 @@ export function CheckoutDrawer({
   }, [isOpen, startAtCustomer])
   useEffect(()=>{if(!isOpen)return;const previous=document.activeElement as HTMLElement|null;const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose();const d=document.querySelector<HTMLElement>('.wd-checkout-dialog');if(d)keepFocusInside(d,e)};document.addEventListener('keydown',onKey);requestAnimationFrame(()=>document.querySelector<HTMLElement>('.wd-checkout-dialog button, .wd-checkout-dialog input')?.focus());return()=>{document.removeEventListener('keydown',onKey);previous?.focus()}},[isOpen,onClose])
 
-  // Dados do cliente (persisted in localStorage)
-  const [cliente, setCliente] = useState<ClienteLocal>(() => {
-    if (typeof window !== 'undefined') {
+  // O perfil é restaurado após a montagem para não sobrescrever os dados
+  // existentes durante a hidratação do Next.js.
+  const perfilVazio: ClienteLocal = { nome: '', whatsapp: '', aniversario: '', endereco: '', numero: '', bairro: '', complemento: '', observacoes: '', cpf: '', accessToken: '' }
+  const [cliente, setCliente] = useState<ClienteLocal>(perfilVazio)
+  const [perfilCarregado, setPerfilCarregado] = useState(false)
+
+  useEffect(() => {
+    setPerfilCarregado(false)
+    try {
       let saved = localStorage.getItem(clienteKey)
       if (!saved) {
         const legacy = localStorage.getItem('delivery_cliente_dados')
-        if (legacy) { try { const parsed = JSON.parse(legacy); if (parsed.tenantSlug === tenantSlug) { saved = legacy; localStorage.setItem(clienteKey, legacy) } } catch { /* legado ignorado */ } }
+        if (legacy) {
+          const parsed = JSON.parse(legacy)
+          if (parsed.tenantSlug === tenantSlug) {
+            saved = legacy
+            localStorage.setItem(clienteKey, legacy)
+          }
+        }
       }
-      if (saved) {
-        try { return JSON.parse(saved) } catch { /* ignore */ }
-      }
+      const parsed = saved ? JSON.parse(saved) : null
+      setCliente(parsed && typeof parsed === 'object' && parsed.tenantSlug === tenantSlug
+        ? { ...perfilVazio, ...parsed }
+        : perfilVazio)
+    } catch {
+      setCliente(perfilVazio)
+    } finally {
+      setPerfilCarregado(true)
     }
-    return { nome: '', whatsapp: '', aniversario: '', endereco: '', numero: '', bairro: '', complemento: '', observacoes: '', cpf: '', accessToken: '' }
-  })
+  }, [clienteKey, tenantSlug])
 
   // Bairro selecionado
   const [bairroSelecionado, setBairroSelecionado] = useState<EnderecoEntrega | null>(null)
@@ -207,10 +223,10 @@ export function CheckoutDrawer({
 
   // Salvando cliente no localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (perfilCarregado) {
       localStorage.setItem(clienteKey, JSON.stringify({ ...cliente, tenantSlug }))
     }
-  }, [cliente, clienteKey, tenantSlug])
+  }, [cliente, clienteKey, tenantSlug, perfilCarregado])
 
   useEffect(() => {
     const atualizarDoNavegador = () => {
