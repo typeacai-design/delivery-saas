@@ -100,6 +100,7 @@ export async function POST(request: Request) {
       cliente_access_token,
       cliente_latitude,
       cliente_longitude,
+      cashback_usado,
     } = body
 
     if (!tenant_slug) {
@@ -242,7 +243,7 @@ export async function POST(request: Request) {
     const whatsappLimpo = cliente_whatsapp.replace(/\D/g, '')
     if (!cliente_access_token || String(cliente_access_token).length < 32) return NextResponse.json({ error: 'Identidade local ausente' }, { status: 400 })
     const clienteTokenHash = hashAccessToken(String(cliente_access_token))
-    const { data: identityMatches } = await admin.from('clientes').select('acesso_token_hash').eq('tenant_id', tenant.id).eq('acesso_token_hash', clienteTokenHash).limit(2)
+    const { data: identityMatches } = await admin.from('clientes').select('id,acesso_token_hash').eq('tenant_id', tenant.id).eq('acesso_token_hash', clienteTokenHash).limit(2)
     if ((identityMatches || []).length > 1) return NextResponse.json({ error: 'Não foi possível processar a solicitação' }, { status: 409 })
     const identidadeExistente = identityMatches?.[0]
     if (identidadeExistente?.acesso_token_hash && !tokenMatches(String(cliente_access_token), identidadeExistente.acesso_token_hash)) {
@@ -307,7 +308,21 @@ export async function POST(request: Request) {
       descontoCupom = Math.round(Math.min(subtotalCalculado, descontoCupom) * 100) / 100
       cupomValidado = codigo
     }
-    const valorDescontoTotal = Math.min(subtotalCalculado, descontoAniversario + descontoCupom)
+    // Cashback solicitado é conferido contra o saldo do cliente autenticado.
+    // A dedução efetiva ocorre dentro da RPC transacional, com bloqueio de linha.
+    const cashbackSolicitado=Number(cashback_usado||0)
+    if(!Number.isFinite(cashbackSolicitado)||cashbackSolicitado<0||Math.round(cashbackSolicitado*100)!==cashbackSolicitado*100)
+      return NextResponse.json({error:'Valor de cashback inválido'},{status:400})
+    if(cashbackSolicitado>0){
+      if(cfg.cashback_ativo!==true||!identidadeExistente?.id)
+        return NextResponse.json({error:'Cashback não disponível para este cliente'},{status:400})
+      const {data: creditos,error:erroCreditos}=await admin.from('cashback_creditos').select('valor_restante,expira_em').eq('tenant_id',tenant.id).eq('cliente_id',identidadeExistente.id)
+      if(erroCreditos)return NextResponse.json({error:'Não foi possível consultar o cashback'},{status:500})
+      const saldo=(creditos||[]).filter(cr=>!cr.expira_em||new Date(cr.expira_em)>new Date()).reduce((s,cr)=>s+Number(cr.valor_restante||0),0)
+      if(cashbackSolicitado>Math.round(saldo*100)/100||cashbackSolicitado>Math.max(0,subtotalCalculado+taxaCalculada-descontoAniversario-descontoCupom))
+        return NextResponse.json({error:'Saldo de cashback insuficiente'},{status:409})
+    }
+    const valorDescontoTotal = Math.min(subtotalCalculado+taxaCalculada, descontoAniversario + descontoCupom + cashbackSolicitado)
     const valorTotalFinal = Math.max(0, Math.round((subtotalCalculado + taxaCalculada - valorDescontoTotal) * 100) / 100)
 
     // Exigir exatamente uma forma de pagamento (após calcular valorTotalFinal)
@@ -347,7 +362,7 @@ export async function POST(request: Request) {
       p_token_hash: clienteTokenHash,
       p_idempotency_hash: hashAccessToken(`${tenant.id}:${String(idempotencyKey)}`),
       p_cliente: { nome: cliente_nome, telefone: whatsappLimpo, endereco: endereco_entrega || '', data_nascimento: aniversarioIso, cpf: cliente_cpf ? normalizeCpf(cliente_cpf) : '' },
-      p_pedido: { valor_subtotal: subtotalCalculado, taxa_entrega: taxaCalculada, valor_desconto: valorDescontoTotal, valor_total: valorTotalFinal, formas_pagamento: formasSelecionadas, troco_para: troco_para || '', bairro_entrega: bairro_entrega || '', endereco_entrega: endereco_entrega || '', numero_entrega: numero_entrega || '', complemento_entrega: complemento_entrega || '', tipo_entrega, observacoes: observacoes || '', cupom_aplicado: cupomValidado || '' },
+      p_pedido: { cashback_usado: cashbackSolicitado, valor_subtotal: subtotalCalculado, taxa_entrega: taxaCalculada, valor_desconto: valorDescontoTotal, valor_total: valorTotalFinal, formas_pagamento: formasSelecionadas, troco_para: troco_para || '', bairro_entrega: bairro_entrega || '', endereco_entrega: endereco_entrega || '', numero_entrega: numero_entrega || '', complemento_entrega: complemento_entrega || '', tipo_entrega, observacoes: observacoes || '', cupom_aplicado: cupomValidado || '' },
       p_itens: itensValidados,
       p_ignorar_estoque: venderSemEstoque,
     })
@@ -360,6 +375,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Um dos complementos nao tem estoque suficiente' }, { status: 409 })
       } else if (erroMsg.includes('estoque_insumo')) {
         return NextResponse.json({ error: 'Um dos ingredientes nao tem estoque suficiente' }, { status: 409 })
+      } else if (erroMsg.includes('cashback')) {
+        return NextResponse.json({ error: 'Cashback indisponível ou saldo insuficiente. Atualize seu saldo e tente novamente.' }, { status: 409 })
       } else if (erroMsg.includes('cupom')) {
         return NextResponse.json({ error: 'Cupom indisponivel ou invalido' }, { status: 409 })
       }
