@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authenticatedTenant } from '@/lib/tenant-auth'
+import { createClient } from '@supabase/supabase-js'
 
 export async function PATCH(request: Request) {
   try {
@@ -14,15 +15,28 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'pedido_id é obrigatório' }, { status: 400 })
     }
 
-    // Verificar se o pedido pertence ao tenant
-    const { data: pedido, error: fetchError } = await supabase
+    // Authenticated membership above; use the server-side service role for order operations,
+    // matching the order listing endpoint (which bypasses restrictive order RLS).
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    )
+
+    // Always scope the lookup by tenant to prevent cross-store access.
+    const { data: pedido, error: fetchError } = await admin
       .from('pedidos')
       .select('id, codigo, tenant_id, valor_total, forma_pagamento, pago, tipo_pedido, sessao_mesa_id')
       .eq('id', pedido_id)
-      .single()
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
 
-    if (fetchError || !pedido) {
-      return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
+    if (fetchError) {
+      console.error('Erro ao consultar pedido para pagamento:', fetchError)
+      return NextResponse.json({ error: 'Erro ao consultar pedido' }, { status: 500 })
+    }
+    if (!pedido) {
+      return NextResponse.json({ error: 'Pedido não encontrado para esta loja' }, { status: 404 })
     }
 
     if (pedido.tenant_id !== tenantId) {
@@ -34,8 +48,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'O pagamento de pedidos de mesa deve ser realizado em Fechar Mesa' }, { status: 409 })
     }
 
+    // No-op when already in the desired state; prevents duplicate cash entries.
+    if (Boolean(pedido.pago) === pago) {
+      return NextResponse.json({ success: true, pago, unchanged: true })
+    }
+
     // Atualizar status de pagamento
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await admin
       .from('pedidos')
       .update({
         pago: pago,
@@ -43,10 +62,17 @@ export async function PATCH(request: Request) {
         pago_por: pago ? 'lojista' : null
       })
       .eq('id', pedido_id)
+      .eq('tenant_id', tenantId)
+      .eq('pago', !pago)
+      .select('id')
 
     if (updateError) {
       console.error('Erro ao atualizar pago:', updateError)
       return NextResponse.json({ error: 'Erro ao atualizar' }, { status: 500 })
+    }
+
+    if (!updated?.length) {
+      return NextResponse.json({ success: true, pago, unchanged: true })
     }
 
     // Se está marcando como pago, registrar no fluxo de caixa
@@ -55,7 +81,16 @@ export async function PATCH(request: Request) {
         ? pedido.forma_pagamento[0]
         : pedido.forma_pagamento || 'outro'
 
-      const { error: lancError } = await supabase
+      // Avoid inserting a second entry if one already exists for this order.
+      const { data: existingMovement, error: movementLookupError } = await admin
+        .from('movimentacoes_financeiras')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('referencia_id', pedido_id)
+        .eq('tipo', 'entrada')
+        .limit(1)
+      if (movementLookupError) console.error('Erro ao consultar movimentação:', movementLookupError)
+      const { error: lancError } = existingMovement?.length || movementLookupError ? { error: null } : await admin
         .from('movimentacoes_financeiras')
         .insert({
           tenant_id: tenantId,
@@ -74,7 +109,7 @@ export async function PATCH(request: Request) {
       }
     } else {
       // Se está desmarcando pago, remover a movimentação do fluxo de caixa
-      await supabase
+      await admin
         .from('movimentacoes_financeiras')
         .delete()
         .eq('referencia_id', pedido_id)
