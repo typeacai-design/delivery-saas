@@ -1784,15 +1784,17 @@ export default function PedidosPage() {
                       <Pencil size={14} /> Editar
                     </button>
 
-                    {/* WhatsApp */}
-                    <button
-                      onClick={() => confirmarPedidoWPP(pedido)}
-                      className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
-                      style={{ background: '#EEFAF3', color: '#00A240' }}
-                      title="Confirmar pedido (WhatsApp)"
-                    >
-                      <MessageCircle size={14} /> WhatsApp
-                    </button>
+                    {/* WhatsApp apenas para Delivery e Retirada */}
+                    {(pedido as any).tipo_pedido !== 'mesa' && (pedido as any).tipo_pedido !== 'consolidado' && (
+                      <button
+                        onClick={() => confirmarPedidoWPP(pedido)}
+                        className="min-h-[43px] flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition"
+                        style={{ background: '#EEFAF3', color: '#00A240' }}
+                        title="Confirmar pedido (WhatsApp)"
+                      >
+                        <MessageCircle size={14} /> WhatsApp
+                      </button>
+                    )
 
                     {/* Imprimir */}
                     <button
