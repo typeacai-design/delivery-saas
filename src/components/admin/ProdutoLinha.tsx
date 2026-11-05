@@ -118,7 +118,7 @@ export default function ProdutoLinha({
           <div className="wd-fp-stats">
             <div><small><Wallet size={12} aria-hidden="true" />Preço</small><b>{formatCurrency(Number(produto.preco))}</b></div>
             <div><small><ListOrdered size={12} aria-hidden="true" />Ordem</small><b>{produto.ordem ?? 0}</b></div>
-            <div><small><Star size={12} aria-hidden="true" />Pontos</small><b className="wd-fp-points">{Number(produto.pontos) || 0}</b></div>
+
           </div>
           {complementosCount > 0 && <small className="wd-fp-count">{complementosCount} complementos</small>}
         </div>
@@ -177,16 +177,6 @@ export default function ProdutoLinha({
           valor={Number(produto.preco)}
         />
       </div>
-
-      {/* Pontos editável */}
-      {Number(produto.pontos) > 0 && (
-        <div className="wd-product-points text-xs flex flex-col items-center min-w-[50px]">
-          <span className="hint">Pontos</span>
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-100 text-green-800 text-sm font-bold">
-            {produto.pontos}
-          </span>
-        </div>
-      )}
 
       {/* Ações */}
       <div className="wd-product-actions flex items-center gap-1 shrink-0">
