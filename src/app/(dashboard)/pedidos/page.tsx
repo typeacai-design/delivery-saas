@@ -2524,6 +2524,7 @@ export default function PedidosPage() {
 
                 <div className="space-y-2">
                   {itensEditando.map((item, idx) => (
+                    <div key={item.id || idx} className="space-y-1">
                     <button type="button" onClick={()=>{const produto=catalogoEdicao.find(p=>p.id===item.produto_id);if(produto)abrirProdutoEdicao(produto,idx);else toastError('Produto indisponível para edição pelo catálogo.')}} className="text-sm text-green-700 font-medium underline">Editar produto e complementos</button>
                     <ItemEditor
                       key={idx}
@@ -2540,6 +2541,7 @@ export default function PedidosPage() {
                         setItensEditando(novos)
                       }}
                     />
+                    </div>
                   ))}
                 </div>
 
@@ -2720,6 +2722,7 @@ export default function PedidosPage() {
 
                 <div className="space-y-2">
                   {itensEditando.map((item, idx) => (
+                    <div key={item.id || idx} className="space-y-1">
                     <button type="button" onClick={()=>{const produto=catalogoEdicao.find(p=>p.id===item.produto_id);if(produto)abrirProdutoEdicao(produto,idx);else toastError('Produto indisponível para edição pelo catálogo.')}} className="text-sm text-green-700 font-medium underline">Editar produto e complementos</button>
                     <ItemEditor
                       key={idx}
@@ -2736,6 +2739,7 @@ export default function PedidosPage() {
                         setItensEditando(novos)
                       }}
                     />
+                    </div>
                   ))}
                 </div>
 
