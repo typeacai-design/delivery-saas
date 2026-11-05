@@ -426,15 +426,7 @@ function MesasTab({ tenant }: { tenant: any }) {
   const [editando, setEditando] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
 
-  // Estado do toggle mesas_habilitadas (vem do tenant)
-  const [mesasHabilitadas, setMesasHabilitadas] = useState(tenant?.mesas_habilitadas || false)
-
-  // Form de nova mesa
   const [form, setForm] = useState({ numero: '', nome: '', capacidade: '4' })
-
-  useEffect(() => {
-    setMesasHabilitadas(tenant?.mesas_habilitadas || false)
-  }, [tenant?.mesas_habilitadas])
 
   const carregar = async () => {
     const tid = await activeTenantId()
@@ -450,18 +442,6 @@ function MesasTab({ tenant }: { tenant: any }) {
   }
 
   useEffect(() => { carregar() }, [])
-
-  const toggleHabilitado = async (novoValor: boolean) => {
-    const tid = await activeTenantId()
-    if (!tid) return
-    const { error } = await supabase
-      .from('tenants')
-      .update({ mesas_habilitadas: novoValor })
-      .eq('id', tid)
-    if (error) { setMsg('Erro: ' + error.message); return }
-    setMesasHabilitadas(novoValor)
-    setMsg(novoValor ? '✅ Mesas ativadas' : '⏸️ Mesas desativadas')
-  }
 
   const salvarMesa = async () => {
     if (!form.numero || Number(form.numero) < 1) {
@@ -522,37 +502,7 @@ function MesasTab({ tenant }: { tenant: any }) {
 
   return (
     <div className="space-y-5">
-      {/* Card: ativar/desativar mesas */}
-      <div className="glass p-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Utensils className="w-5 h-5 text-orange-600" />
-              Gestão de mesas do salão
-            </h2>
-            <p className="hint mt-1">
-              Quando ativado, a opção <strong>"Mesa"</strong> aparece no pedido e a aba <strong>Mesas</strong> fica disponível.
-            </p>
-          </div>
-          <button
-            onClick={() => toggleHabilitado(!mesasHabilitadas)}
-            className={`relative w-14 h-7 rounded-full transition ${mesasHabilitadas ? 'bg-orange-500' : 'bg-gray-300'}`}
-          >
-            <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${mesasHabilitadas ? 'left-7' : 'left-0.5'}`} />
-          </button>
-        </div>
-        <div className="mt-3 text-xs">
-          {mesasHabilitadas ? (
-            <span className="text-orange-700 font-medium">🟢 Ativado — {mesas.length} mesa{mesas.length !== 1 ? 's' : ''} cadastrada{mesas.length !== 1 ? 's' : ''}</span>
-          ) : (
-            <span className="text-gray-500">⚪ Desativado — pedidos do tipo mesa não aparecem no painel</span>
-          )}
-        </div>
-      </div>
-
-      {/* Form de cadastro */}
-      {mesasHabilitadas && (
-        <>
+      {/* Cadastro e gerenciamento sempre disponíveis para todas as lojas. */}
           <div className="glass p-6">
             <h2 className="text-lg font-semibold mb-4">{editando ? '✏️ Editar mesa' : '➕ Nova mesa'}</h2>
             <div className="grid md:grid-cols-4 gap-3">
@@ -644,9 +594,6 @@ function MesasTab({ tenant }: { tenant: any }) {
               </div>
             )}
           </div>
-        </>
-      )}
-
       {msg && <p className="text-sm text-center text-gray-700">{msg}</p>}
     </div>
   )
