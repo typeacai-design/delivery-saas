@@ -65,7 +65,7 @@ export default function LoginPage() {
                 boxShadow: '0 8px 22px -10px rgba(139,92,246,.55)',
               }}
             >
-              <img src="/we-delivery-logo.svg" alt="We Delivery" className="w-full h-full object-contain" />
+              <Sparkles size={18} strokeWidth={2.5} />
             </div>
             <span className="font-display text-xl font-semibold" style={{ color: 'var(--ink)' }}>
               We Delivery
