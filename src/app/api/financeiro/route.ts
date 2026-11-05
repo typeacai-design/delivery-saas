@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       // Despesas (não tem coluna `pago`)
       allRows((from, to) => admin.from('despesas').select('id,nome,valor,dia_vencimento,recorrencia,created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).range(from, to)),
       // Transações manuais (com categoria)
-      allRows((from, to) => admin.from('movimentacoes_financeiras').select('id,tipo,descricao,valor,data,categoria,forma_pagamento').eq('tenant_id', tenantId).order('data', { ascending: false }).range(from, to)),
+      allRows((from, to) => admin.from('movimentacoes_financeiras').select('id,tipo,descricao,valor,data,categoria,forma_pagamento,referencia_id').eq('tenant_id', tenantId).order('data', { ascending: false }).range(from, to)),
       allRows((from, to) => admin.from('sessoes_mesa').select('id,mesa_numero,status,data_fechamento').eq('tenant_id', tenantId).order('data_abertura', { ascending: false }).range(from, to)),
       admin.from('tenants').select('id,config').eq('id', tenantId).single(),
     ])
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
         const previous = grouped.get(sessionId!)
         if (previous) previous.valor = Number(previous.valor) + Number(transaction.valor)
         else {
-          const merged = { ...transaction, descricao: `Mesa ${session.mesa_numero} · Fechamento`, valor: Number(transaction.valor), data: session.data_fechamento?.slice(0, 10) || transaction.data }
+          const merged = { ...transaction, descricao: `Mesa ${session.mesa_numero} · Fechamento`, valor: Number(transaction.valor), data: session.data_fechamento ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(session.data_fechamento)) : transaction.data }
           grouped.set(sessionId!, merged)
           visibleTransactions.push(merged)
         }
