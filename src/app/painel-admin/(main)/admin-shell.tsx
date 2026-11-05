@@ -54,7 +54,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       <div className="wd-admin-container">
         <header className="wd-admin-header">
           <Link href="/painel-admin" className="wd-admin-brand" aria-label="We Delivery — início do administrador">
-            <span className="wd-admin-logo"><Store size={22} aria-hidden="true" /></span>
+            <span className="wd-admin-logo"><img src="/we-delivery-logo.svg" alt="" width={36} height={36} /></span>
             <span><strong>We Delivery</strong><small>Administração</small></span>
           </Link>
           <button type="button" onClick={handleLogout} disabled={loggingOut} className="wd-admin-logout">
