@@ -15,7 +15,7 @@ export default function MeusClientesTab() {
   const [filtro, setFiltro] = useState<FiltroCliente>('todos')
   const [expandido, setExpandido] = useState<string | null>(null)
   const [pedidosCliente, setPedidosCliente] = useState<any[]>([])
-  const [pontos, setPontos] = useState<Record<string, { pontos: number; cashback: number }>>({})
+
 
   // Recarregar quando a aba volta a ficar visivel (cache-busting)
   useEffect(() => {
@@ -36,16 +36,10 @@ export default function MeusClientesTab() {
 
     // Clientes com pontos + cashback
     // Filtra apenas ativos para nao mostrar duplicatas ([dup-...]) ou desativados
-    const [{ data: cls }, { data: pts }] = await Promise.all([
-      supabase.from('clientes').select('id, nome, telefone, email, bairro, endereco, cpf, data_nascimento, total_pedidos, saldo_cashback, ltv, created_at, tags').eq('tenant_id', tid).eq('ativo', true).order('nome'),
-      supabase.from('cliente_pontos').select('cliente_id, saldo, saldo_cashback').eq('tenant_id', tid)
+    const [{ data: cls }] = await Promise.all([
+      supabase.from('clientes').select('id, nome, telefone, email, bairro, endereco, cpf, data_nascimento, total_pedidos, saldo_cashback, ltv, created_at, tags').eq('tenant_id', tid).eq('ativo', true).order('nome')
     ])
     setClientes(cls || [])
-    const pontosMap: Record<string, { pontos: number; cashback: number }> = {}
-    pts?.forEach((p: any) => {
-      pontosMap[p.cliente_id] = { pontos: Number(p.saldo) || 0, cashback: Number(p.saldo_cashback) || 0 }
-    })
-    setPontos(pontosMap)
     setLoading(false)
   }
 
@@ -104,8 +98,8 @@ export default function MeusClientesTab() {
     return resultado
   }, [clientes, busca, filtro, mesAtual])
 
-  const totalPontos = Object.values(pontos).reduce((acc, p) => acc + p.pontos, 0)
-  const totalCashback = Object.values(pontos).reduce((acc, p) => acc + p.cashback, 0)
+
+  const totalCashback = clientes.reduce((acc,c)=>acc+Number(c.saldo_cashback||0),0)
 
   // Contadores para badges
   const countAniversariantes = clientes.filter((c) => {
@@ -195,7 +189,7 @@ export default function MeusClientesTab() {
       {/* LISTA */}
       <div className="space-y-2">
         {clientesFiltrados.map((c) => {
-          const pts = pontos[c.id] || { pontos: 0, cashback: 0 }
+          const pts = { cashback: Number(c.saldo_cashback)||0 }
           const expandidoAt = expandido === c.id
           const isAniversariante = c.data_nascimento && new Date(c.data_nascimento).getMonth() + 1 === mesAtual
           return (
@@ -224,7 +218,7 @@ export default function MeusClientesTab() {
                 </div>
                 <div className="text-right">
                   <div className="text-sm">
-                    <span className="font-bold text-yellow-600">⭐ {pts.pontos}</span>
+                    
                     {pts.cashback > 0 && <span className="ml-2 font-bold text-green-600">{formatCurrency(pts.cashback)}</span>}
                   </div>
                   <div className="text-xs text-gray-500">
@@ -271,11 +265,11 @@ export default function MeusClientesTab() {
                     </div>
                   </div>
 
-                  {/* Saldo de pontos/cashback */}
+                  {/* Saldo de cashback */}
                   <div className="border-t pt-3 grid grid-cols-2 gap-3">
                     <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-center">
                       <p className="text-xs text-yellow-700">⭐ Pontos acumulados</p>
-                      <p className="text-2xl font-bold text-yellow-900">{pts.pontos}</p>
+                      <p className="text-2xl font-bold text-yellow-900">{formatCurrency(pts.cashback)}</p>
                     </div>
                     <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
                       <p className="text-xs text-green-700">💰 Cashback disponível</p>
