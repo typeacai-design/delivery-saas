@@ -1009,14 +1009,64 @@ export default function PedidosPage() {
     return () => { cancelled = true }
   }, [modalEditarAberto, tenantIdAtual])
   const adicionarProdutoEdicao = (produto: any) => {
-    setItensEditando(anteriores => [...anteriores, {
-      produto_id: produto.id, nome: produto.nome, quantidade: 1,
-      valor_unitario: chargedProductBase(produto), complementos: [],
-    }])
+    abrirProdutoEdicao(produto)
   }
 
   const [produtoConfigurando, setProdutoConfigurando] = useState<any>(null)
   const [indiceConfigurando, setIndiceConfigurando] = useState<number | null>(null)
+  const [listasPorProdutoEdicao, setListasPorProdutoEdicao] = useState<Record<string, any[]>>({})
+  const [clientesEdicao, setClientesEdicao] = useState<any[]>([])
+  const [buscaClienteEdicao, setBuscaClienteEdicao] = useState('')
+  const [novoClienteEdicao, setNovoClienteEdicao] = useState(false)
+  const [novoClienteNome, setNovoClienteNome] = useState('')
+  const [novoClienteTelefone, setNovoClienteTelefone] = useState('')
+  useEffect(() => {
+    if (!modalEditarAberto || !tenantIdAtual || !catalogoEdicao.length) return
+    let cancelled = false
+    const carregar = async () => {
+      const ids = catalogoEdicao.map(p => p.id)
+      const [clientes, grupos, comps, links] = await Promise.all([
+        supabase.from('clientes').select('*').eq('tenant_id',tenantIdAtual).eq('ativo',true).order('nome'),
+        supabase.from('categorias_complementos').select('*').eq('tenant_id',tenantIdAtual).eq('ativo',true).order('ordem'),
+        supabase.from('complementos').select('*').eq('tenant_id',tenantIdAtual).eq('ativo',true).order('ordem'),
+        supabase.from('produto_complementos').select('produto_id,complemento_id').in('produto_id',ids),
+      ])
+      if(cancelled)return
+      setClientesEdicao(clientes.data||[])
+      const mapped:Record<string,any[]> = {}
+      for(const produto of catalogoEdicao){
+        const vinculados=(comps.data||[]).filter(comp=>(links.data||[]).some(link=>link.produto_id===produto.id && link.complemento_id===comp.id))
+        const gruposProduto=(grupos.data||[]).map(grupo=>({...grupo,complementos:vinculados.filter(comp=>comp.categoria_id===grupo.id)})).filter(grupo=>grupo.complementos.length)
+        const avulsos=vinculados.filter(comp=>!comp.categoria_id)
+        if(avulsos.length)gruposProduto.push({id:'avulsos',nome:'Adicionais',qtd_minima:0,qtd_maxima:99,max_um_de_cada:false,complementos:avulsos})
+        mapped[produto.id]=gruposProduto
+      }
+      setListasPorProdutoEdicao(mapped)
+    }
+    void carregar()
+    return()=>{cancelled=true}
+  },[modalEditarAberto,tenantIdAtual,catalogoEdicao])
+  const abrirProdutoEdicao = (produto:any, indice:number|null=null) => {
+    setProdutoConfigurando(produto)
+    setIndiceConfigurando(indice)
+  }
+  const aplicarProdutoEdicao = (item:any) => {
+    if(indiceConfigurando===null)setItensEditando(ant=>[...ant,{...item,id:undefined}])
+    else setItensEditando(ant=>ant.map((antigo,i)=>i===indiceConfigurando?{...item,id:antigo.id}:antigo))
+    setProdutoConfigurando(null)
+    setIndiceConfigurando(null)
+  }
+  const selecionarClienteEdicao = (cliente:any) => {
+    setPedidoEditando((p:any)=>({...p,cliente_id:cliente.id,cliente_nome:cliente.nome,cliente_whatsapp:cliente.telefone||'',endereco_entrega:cliente.endereco||'',numero_entrega:cliente.numero||'',bairro_entrega:cliente.bairro||'',complemento_entrega:cliente.complemento||''}))
+    setBuscaClienteEdicao('')
+  }
+  const cadastrarClienteEdicao = async () => {
+    if(!novoClienteNome.trim()||!novoClienteTelefone.replace(/\\D/g,''))return toastError('Informe nome e telefone.')
+    const {data,error}=await supabase.from('clientes').insert({tenant_id:tenantIdAtual,nome:novoClienteNome.trim(),telefone:novoClienteTelefone.replace(/\\D/g,''),ativo:true}).select().single()
+    if(error||!data)return toastError(error?.message||'Erro ao cadastrar cliente')
+    setClientesEdicao(ant=>[...ant,data]);selecionarClienteEdicao(data);setNovoClienteEdicao(false);setNovoClienteNome('');setNovoClienteTelefone('')
+  }
+
   const [itensCache, setItensCache] = useState<Record<string, any[]>>({})
   useEffect(() => {
     let cancelled = false
