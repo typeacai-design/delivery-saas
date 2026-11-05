@@ -52,5 +52,5 @@ export default async function EmployeeLayout({
     redirect('/acesso')
   }
 
-  return <div className="wd-employee-red">{children}</div>
+  return <>{children}</>
 }
