@@ -52,7 +52,7 @@ export default function AdminLoginPage() {
               boxShadow: '0 8px 22px -10px rgba(22,163,74,.55)',
             }}
           >
-            <img src="/we-delivery-logo.svg" alt="We Delivery" className="w-full h-full object-contain" />
+            <ChefHat size={18} strokeWidth={2.5} />
           </div>
           <span className="font-display text-xl font-semibold" style={{ color: 'var(--ink)' }}>
             We Delivery · Admin
