@@ -26,6 +26,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         updates[field] = Number(body[field])
       }
     }
+    if (body.cliente_id !== undefined && body.cliente_id !== null) {
+      const { data: cliente, error: clienteError } = await admin.from('clientes').select('id').eq('id', body.cliente_id).eq('tenant_id', auth.tenantId!).eq('ativo', true).maybeSingle()
+      if (clienteError || !cliente) return NextResponse.json({ error: 'Cliente não pertence à loja ou está inativo.' }, { status: 400 })
+      updates.cliente_id = cliente.id
+    }
     let newItems: any[] | null = null
     if (body.itens !== undefined) {
       if (!Array.isArray(body.itens) || !body.itens.length) return NextResponse.json({ error: 'Pedido sem itens' }, { status: 400 })
