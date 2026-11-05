@@ -40,7 +40,7 @@ export default function AguardandoAprovacaoPage() {
   }
 
   return (
-    <div className="app-shell wd-auth-red">
+    <div className="app-shell">
       <div className="app-shell-inner flex items-center justify-center min-h-[calc(100vh-8rem)] py-8">
         <div className="w-full max-w-md">
           {/* Brand */}
@@ -48,12 +48,12 @@ export default function AguardandoAprovacaoPage() {
             <div
               className="size-11 rounded-2xl flex items-center justify-center text-white"
               style={{
-                background: 'linear-gradient(90deg,#E60023,#FF3546,#B80020)',
+                background: 'var(--green)',
                 border: '1px solid rgba(255,255,255,.4)',
-                boxShadow: '0 8px 22px -10px rgba(230,0,35,.55)',
+                boxShadow: '0 8px 22px -10px rgba(22,163,74,.55)',
               }}
             >
-              <img src="/we-delivery-logo.svg" alt="We Delivery" className="w-full h-full object-contain" />
+              <ChefHat size={18} strokeWidth={2.5} />
             </div>
             <span className="font-display text-xl font-semibold" style={{ color: 'var(--ink)' }}>
               We Delivery
