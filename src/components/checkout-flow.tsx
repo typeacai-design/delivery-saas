@@ -260,7 +260,24 @@ export function CheckoutDrawer({
   const tipoRecebimento = cliente.tipo_recebimento || 'delivery'
   const taxaEntregaAplicada = tipoRecebimento === 'retirada' ? 0 : taxaEntrega
   const descontoCupom = cupomAplicado?.desconto || 0
-  const total = Math.max(0, subtotal + taxaEntregaAplicada - descontoCupom)
+  const [saldoCashback,setSaldoCashback]=useState(0)
+  const [cashbackAtivo,setCashbackAtivo]=useState(false)
+  const [usarCashback,setUsarCashback]=useState(false)
+  const [valorCashback,setValorCashback]=useState('')
+  const [cashbackCarregando,setCashbackCarregando]=useState(false)
+  useEffect(()=>{
+    if(!isOpen||step!=='pagamento'||!cliente.accessToken||!tenantSlug){setSaldoCashback(0);setCashbackAtivo(false);setUsarCashback(false);return}
+    let cancelled=false
+    setCashbackCarregando(true)
+    fetch('/api/clientes/public?tenant_slug='+encodeURIComponent(tenantSlug),{headers:{Authorization:'Bearer '+cliente.accessToken},cache:'no-store'})
+      .then(r=>r.ok?r.json():null).then(d=>{if(!cancelled){setSaldoCashback(Number(d?.cashback?.saldo)||0);setCashbackAtivo(d?.cashback?.ativo===true)}})
+      .catch(()=>{if(!cancelled){setSaldoCashback(0);setCashbackAtivo(false)}})
+      .finally(()=>{if(!cancelled)setCashbackCarregando(false)})
+    return()=>{cancelled=true}
+  },[isOpen,step,cliente.accessToken,tenantSlug])
+  const totalAntesCashback = Math.max(0,subtotal+taxaEntregaAplicada-descontoCupom)
+  const cashbackUsado = usarCashback&&cashbackAtivo ? Math.round(Math.min(totalAntesCashback,saldoCashback,Math.max(0,Number(valorCashback.replace(',','.'))||0))*100)/100 : 0
+  const total = Math.max(0,Math.round((totalAntesCashback-cashbackUsado)*100)/100)
 
   const totalItens = carrinhoLocal.reduce((acc, item) => acc + item.quantidade, 0)
 
@@ -408,7 +425,8 @@ export function CheckoutDrawer({
         })),
         valor_subtotal: subtotal,
         taxa_entrega: taxaEntregaAplicada,
-        valor_desconto: descontoCupom,
+        valor_desconto: descontoCupom + cashbackUsado,
+        cashback_usado: cashbackUsado,
         valor_total: total,
         // Forma única de pagamento
         formas_pagamento: formasPagamentoSelecionadas.map(fp => ({
@@ -634,6 +652,14 @@ export function CheckoutDrawer({
               precisaTroco={precisaTroco}
               setPrecisaTroco={setPrecisaTroco}
               total={total}
+              saldoCashback={saldoCashback}
+              cashbackAtivo={cashbackAtivo}
+              cashbackCarregando={cashbackCarregando}
+              usarCashback={usarCashback}
+              setUsarCashback={setUsarCashback}
+              valorCashback={valorCashback}
+              setValorCashback={setValorCashback}
+              cashbackUsado={cashbackUsado}
               cupomCodigo={cupomCodigo}
               setCupomCodigo={setCupomCodigo}
               cupomAplicado={cupomAplicado}
@@ -1043,7 +1069,7 @@ function PagamentoView({
   formasPagamento, formasSelecionadas, setFormasSelecionadas,
   trocoPara, setTrocoPara, precisaTroco, setPrecisaTroco, total,
   cupomCodigo, setCupomCodigo, cupomAplicado, setCupomAplicado, cupomErro, setCupomErro, cupomLoading, onAplicarCupom,
-  subtotal, taxaEntrega, descontoCupom, onContinuar
+  subtotal, taxaEntrega, descontoCupom, saldoCashback, cashbackAtivo, cashbackCarregando, usarCashback, setUsarCashback, valorCashback, setValorCashback, cashbackUsado, onContinuar
 }: any) {
   const totalSelecionado = formasSelecionadas.length === 1 ? total : 0
   // Seleção exclusiva: a nova escolha substitui a anterior.
@@ -1194,6 +1220,12 @@ function PagamentoView({
         {cupomErro && <p className="text-sm text-red-500 mt-1">{cupomErro}</p>}
       </div>
 
+      {cashbackAtivo && <div className="mt-4 border border-green-200 bg-green-50 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3"><div><p className="font-semibold text-green-900">Meu Cashback</p><p className="text-xs text-green-800">Saldo disponível para usar nesta compra</p></div><strong className="text-green-700">{formatCurrency(saldoCashback)}</strong></div>
+        <label className="flex gap-2 items-center text-sm font-medium"><input type="checkbox" checked={usarCashback} onChange={e=>{setUsarCashback(e.target.checked);if(e.target.checked)setValorCashback(String(Math.min(saldoCashback,total+cashbackUsado).toFixed(2)))}} className="size-4 accent-green-600"/>Quero usar meu cashback</label>
+        {usarCashback&&<label className="block text-xs font-semibold text-gray-700">Valor a utilizar (R$)<input type="number" min="0" step="0.01" max={saldoCashback} value={valorCashback} onChange={e=>setValorCashback(e.target.value)} className="form-input w-full mt-1"/></label>}
+      </div>}
+      {cashbackCarregando&&<p className="text-xs text-gray-500 mt-3">Consultando saldo de cashback...</p>}
       {/* Resumo */}
       <div className="mt-4 pt-4 border-t space-y-2">
         <div className="flex justify-between text-sm">
@@ -1206,6 +1238,7 @@ function PagamentoView({
             <span>{formatCurrency(taxaEntrega)}</span>
           </div>
         )}
+        {cashbackUsado>0&&<div className="flex justify-between text-sm text-green-700"><span>Cashback utilizado</span><strong>-{formatCurrency(cashbackUsado)}</strong></div>}
         {descontoCupom > 0 && (
           <div className="flex justify-between text-sm text-green-600">
             <span>Desconto</span>
