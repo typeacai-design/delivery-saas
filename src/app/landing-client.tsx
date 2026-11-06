@@ -24,7 +24,7 @@ function Logo() {
  return <Link href="/" className="wd-logo" aria-label="WeDelivery, início"><img src="/we-delivery-official-green.svg" width={46} height={46} alt="" style={{display:"block",width:46,height:46,objectFit:"contain"}} /><span><em>We</em>Delivery</span></Link>
 }
 function FinanceMock() {
- return <Image sizes="(max-width: 760px) 100vw, 780px" className="wd-device-laptop" src="/marketing/financeiro-notebook.png" width={1080} height={1080} alt="Financeiro do WeDelivery em notebook, com saldo e lançamentos fictícios" fetchPriority="high" decoding="async" />
+ return <Image sizes="(max-width: 760px) 100vw, 780px" className="wd-device-laptop" src="/marketing/financeiro-notebook.webp" width={1080} height={1080} alt="Financeiro do WeDelivery em notebook, com saldo e lançamentos fictícios" fetchPriority="high" decoding="async" />
 }
 function PhoneMock() {
  return <Image sizes="(max-width: 760px) 65vw, 490px" className="wd-device-phones" src="/marketing/cardapio-iphone.png" width={1080} height={1080} alt="Cardápio digital real da Type Açaí no WeDelivery, exibido em iPhones" fetchPriority="high" decoding="async" />
