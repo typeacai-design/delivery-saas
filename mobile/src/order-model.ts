@@ -1,0 +1,104 @@
+export type CartLine = {
+  id?: string;
+  produto_id: string;
+  nome: string;
+  quantidade: number;
+  valor_unitario: number;
+  complementos: any[];
+  observacao?: string | null;
+  variante_id?: string | null;
+  variante_nome?: string | null;
+  sabores_quantidade?: number;
+  pontos?: number;
+};
+export function lineTotal(i: CartLine) {
+  return (
+    Math.round(
+      (Number(i.valor_unitario) +
+        i.complementos.reduce(
+          (n, c) =>
+            n + Number(c.valor ?? c.preco ?? 0) * Number(c.quantidade ?? 1),
+          0,
+        )) *
+        i.quantidade *
+        100,
+    ) / 100
+  );
+}
+export function totals(
+  lines: CartLine[],
+  fee: unknown,
+  discount: unknown,
+  surcharge: unknown = 0,
+) {
+  const number = (v: unknown) => Number(String(v || 0).replace(",", ".")),
+    taxa = number(fee),
+    desconto = number(discount),
+    acrescimo = number(surcharge);
+  if ([taxa, desconto, acrescimo].some((n) => !Number.isFinite(n) || n < 0))
+    throw new Error("Confira a taxa, desconto e acréscimo.");
+  for (const i of lines) {
+    if (
+      !Number.isInteger(i.quantidade) ||
+      i.quantidade < 1 ||
+      i.quantidade > 99 ||
+      !Number.isFinite(i.valor_unitario) ||
+      i.valor_unitario < 0
+    )
+      throw new Error("Confira os produtos.");
+    for (const c of i.complementos)
+      if (
+        !Number.isInteger(Number(c.quantidade)) ||
+        Number(c.quantidade) < 1 ||
+        !Number.isFinite(Number(c.valor ?? c.preco ?? 0)) ||
+        Number(c.valor ?? c.preco ?? 0) < 0
+      )
+        throw new Error("Confira os complementos.");
+  }
+  const subtotal =
+    Math.round(lines.reduce((n, i) => n + lineTotal(i), 0) * 100) / 100;
+  if (desconto > subtotal + taxa + acrescimo)
+    throw new Error("Desconto maior que o pedido.");
+  return {
+    subtotal,
+    taxa,
+    desconto,
+    acrescimo,
+    total: Math.round((subtotal + taxa + acrescimo - desconto) * 100) / 100,
+  };
+}
+export function manualBody(
+  f: Record<string, string>,
+  lines: CartLine[],
+  sessionId?: string,
+) {
+  if (!f.cliente_nome?.trim() || !lines.length)
+    throw new Error("Preencha o cliente e adicione produtos.");
+  if (f.tipo_entrega === "mesa" && !sessionId)
+    throw new Error("Selecione uma mesa aberta.");
+  const t = totals(lines, f.taxa_entrega, f.valor_desconto, f.valor_acrescimo),
+    troco = Number(String(f.troco_para || 0).replace(",", "."));
+  if (!Number.isFinite(troco) || troco < 0) throw new Error("Confira o troco.");
+  return {
+    cliente_id: f.cliente_id || null,
+    cliente_nome: f.cliente_nome.trim(),
+    cliente_whatsapp: f.cliente_whatsapp || null,
+    itens: lines,
+    valor_subtotal: t.subtotal,
+    taxa_entrega: t.taxa,
+    taxa_bairro: t.taxa,
+    valor_desconto: t.desconto,
+    valor_acrescimo: t.acrescimo,
+    valor_total: t.total,
+    forma_pagamento: f.forma_pagamento || "dinheiro",
+    troco_para: troco || null,
+    observacoes: f.observacoes || null,
+    tipo_entrega: f.tipo_entrega,
+    tipo_pedido: f.tipo_entrega,
+    sessao_mesa_id: sessionId || null,
+    endereco: f.endereco_entrega || null,
+    numero: f.numero_entrega || null,
+    complemento: f.complemento_entrega || null,
+    bairro_entrega: f.bairro_entrega || null,
+  };
+}

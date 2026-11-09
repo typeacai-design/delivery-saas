@@ -1,0 +1,149 @@
+import { supabase } from "./supabase";
+import {
+  dateRange,
+  type Store,
+  type Order,
+  type Period,
+  type Stage,
+  type Category,
+  type Product,
+} from "./domain";
+
+export async function stores(signal: AbortSignal): Promise<Store[]> {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user)
+    throw new Error("Sua sessão expirou. Entre novamente.");
+  const { data: memberships, error } = await supabase
+    .from("usuarios_loja")
+    .select("tenant_id,role")
+    .eq("user_id", user.id)
+    .eq("ativo", true)
+    .in("role", ["owner", "manager"])
+    .abortSignal(signal);
+  if (error) throw new Error("Não foi possível verificar seu acesso às lojas.");
+  if (!memberships?.length) return [];
+  const { data, error: storeError } = await supabase
+    .from("tenants")
+    .select("id,nome,logo_url,status,bloqueado,loja_aberta_manual")
+    .in(
+      "id",
+      memberships.map((m) => m.tenant_id),
+    )
+    .order("nome")
+    .abortSignal(signal);
+  if (storeError) throw new Error("Não foi possível carregar suas lojas.");
+  return data || [];
+}
+const orderFields =
+  "id,codigo,status,valor_total,valor_subtotal,taxa_entrega,valor_desconto,data_criacao,cliente_nome,cliente_whatsapp,forma_pagamento,endereco_entrega,numero_entrega,complemento_entrega,bairro_entrega,observacoes,tipo_entrega,pago,motoboy_id,motoboy_comissao,pedido_itens(id,nome,quantidade,observacao,variante_nome,complementos,pedido_complementos(nome,quantidade,valor))";
+export async function orders(
+  storeId: string,
+  period: Period,
+  stage: Stage | "todos",
+  page: number,
+  signal: AbortSignal,
+  customRange?: { from: string; to: string },
+) {
+  const range = customRange
+    ? {
+        from: customRange.from ? customRange.from + "T00:00:00-03:00" : "",
+        until: customRange.to
+          ? new Date(
+              new Date(customRange.to + "T00:00:00-03:00").getTime() + 86400000,
+            ).toISOString()
+          : "",
+      }
+    : dateRange(period);
+  let query = supabase
+    .from("pedidos")
+    .select(orderFields, { count: "exact" })
+    .eq("tenant_id", storeId)
+    .is("deleted_at", null);
+  if (stage !== "todos") query = query.eq("status", stage);
+  if (range.from) query = query.gte("data_criacao", range.from);
+  if (range.until) query = query.lt("data_criacao", range.until);
+  const { data, error, count } = await query
+    .order("data_criacao", { ascending: false })
+    .order("id", { ascending: false })
+    .range(page * 25, page * 25 + 24)
+    .abortSignal(signal);
+  if (error)
+    throw new Error("Não foi possível carregar os pedidos. Tente novamente.");
+  return { orders: (data || []) as unknown as Order[], count: count || 0, filter: { ...range, stage, page } };
+}
+export async function counts(storeId: string, signal: AbortSignal) {
+  const range = dateRange("hoje");
+  const base = () =>
+    supabase
+      .from("pedidos")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", storeId)
+      .is("deleted_at", null)
+      .gte("data_criacao", range.from)
+      .lt("data_criacao", range.until);
+  const [all, fresh] = await Promise.all([
+    base().abortSignal(signal),
+    base().eq("status", "novo").abortSignal(signal),
+  ]);
+  if (all.error || fresh.error)
+    throw new Error("Não foi possível atualizar os indicadores.");
+  return { today: all.count || 0, fresh: fresh.count || 0 };
+}
+export async function catalog(storeId: string, signal: AbortSignal) {
+  const categoriesPromise = supabase
+    .from("categorias")
+    .select("id,nome,ordem")
+    .eq("tenant_id", storeId)
+    .order("ordem")
+    .abortSignal(signal);
+  const productsPromise = (async () => {
+  const products: Product[] = [];
+  for (let offset = 0; ; offset += 100) {
+    const { data, error } = await supabase
+      .from("produtos")
+      .select(
+        "id,categoria_id,nome,descricao,imagem_url,imagem_path,preco,preco_riscado,pontos,ativo,ordem,exibir_preco_a_partir_de,codigo_externo,tempo_preparo_min,eh_adicional,disponivel_mesa,disponivel_delivery,disponivel_retirada,etiquetas,pode_ser_metade,texto_metade,fracionar_item,dias_disponiveis,horario_inicio,horario_fim,limite_vendas_dia,limite_vendas_turno,controlar_estoque,quantidade_estoque,sabores_grupo_id,sabores_maximo",
+      )
+      .eq("tenant_id", storeId)
+      .is("deleted_at", null)
+      .order("ordem")
+      .order("id")
+      .range(offset, offset + 99)
+      .abortSignal(signal);
+    if (error) throw new Error("Não foi possível carregar os produtos.");
+    products.push(...(data || []));
+    if (!data || data.length < 100) break;
+  }
+  return products;
+  })();
+  const [categories, products] = await Promise.all([categoriesPromise, productsPromise]);
+  if (categories.error) throw new Error("Não foi possível carregar as seções.");
+  return { categories: (categories.data || []) as Category[], products };
+}
+export async function markPaid(
+  storeId: string,
+  orderId: string,
+  paid: boolean,
+) {
+  const { error } = await supabase.rpc("mobile_marcar_pedido_pago", {
+    p_tenant_id: storeId,
+    p_pedido_id: orderId,
+    p_pago: paid,
+  });
+  if (error)
+    throw new Error(
+      "Não foi possível alterar o pagamento. Nenhum lançamento parcial foi confirmado. Atualize o pedido e tente novamente.",
+    );
+}
+
+
+export async function order(storeId: string, id: string, signal?: AbortSignal) {
+  const r = await supabase.from("pedidos").select(orderFields).eq("tenant_id", storeId).eq("id", id).is("deleted_at", null).abortSignal(signal || new AbortController().signal).maybeSingle();
+  if (r.error) throw new Error("Não foi possível atualizar o pedido.");
+  return r.data as unknown as Order | null;
+}
+
+export function todayKey() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
