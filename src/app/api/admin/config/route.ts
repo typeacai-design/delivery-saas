@@ -11,14 +11,15 @@ function admin() {
 }
 
 const PUBLIC_CONFIG_FIELDS = [
-  'valorMensalidade', 'valorMinimo', 'emailCobranca', 'nomeAdmin', 'emailAdmin',
-  'termosUso', 'politicaPrivacidade', 'notificarVencimento',
-  'notificarNovoCadastro', 'notificarInadimplencia',
+  'nomeAdmin', 'emailAdmin', 'termosUso', 'politicaPrivacidade',
 ] as const
 
 function safeConfig(value: unknown) {
   const source = value && typeof value === 'object' ? value as Record<string, unknown> : {}
-  return Object.fromEntries(PUBLIC_CONFIG_FIELDS.filter(key => key in source).map(key => [key, source[key]]))
+  const config = Object.fromEntries(PUBLIC_CONFIG_FIELDS.filter(key => key in source).map(key => [key, source[key]]))
+  if (config.termosUso === 'Termos de uso padrão para lojistas...') config.termosUso = ''
+  if (config.politicaPrivacidade === 'Política de privacidade padrão...') config.politicaPrivacidade = ''
+  return config
 }
 
 // GET /api/admin/config — retorna a config do sistema (linha 'admin' em saas_config)

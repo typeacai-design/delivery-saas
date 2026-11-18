@@ -1,31 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Settings, Mail, DollarSign, Lock, Bell, FileText, Shield, Save, Check, AlertCircle, Loader2 } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { Settings, DollarSign, FileText, Shield, Save, Check, AlertCircle, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import CheckoutMercadoPago from '@/components/admin/checkout-mercado-pago'
 import { adminFetch } from '@/lib/admin-fetch'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 const DEFAULTS = {
-  valorMensalidade: '99.90',
-  valorMinimo: '49.90',
-  emailCobranca: '',
   nomeAdmin: 'Rick Machado',
   emailAdmin: '',
   senhaAtual: '',
   novaSenha: '',
   confirmarSenha: '',
-  termosUso: 'Termos de uso padrão para lojistas...',
-  politicaPrivacidade: 'Política de privacidade padrão...',
-  notificarVencimento: true,
-  notificarNovoCadastro: true,
-  notificarInadimplencia: true,
+  termosUso: '',
+  politicaPrivacidade: '',
+}
+
+function abaValida(tab: string | null) {
+  return tab === 'financeiro' || tab === 'admin' || tab === 'legais' ? tab : 'geral'
 }
 
 export default function ConfiguracoesPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') === 'admin' ? 'admin' : 'geral')
+  const [activeTab, setActiveTab] = useState(() => abaValida(searchParams.get('tab')))
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
@@ -52,8 +51,7 @@ export default function ConfiguracoesPage() {
   }, [])
 
   useEffect(() => {
-    const tab = searchParams.get('tab')
-    setActiveTab(['geral', 'financeiro', 'admin', 'notificacoes', 'legais'].includes(tab || '') ? tab! : 'geral')
+    setActiveTab(abaValida(searchParams.get('tab')))
   }, [searchParams])
 
   const selectTab = (tab: string) => {
@@ -65,7 +63,6 @@ export default function ConfiguracoesPage() {
     { id: 'geral', label: 'Geral', icon: Settings },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
     { id: 'admin', label: 'Perfil e segurança', icon: Shield },
-    { id: 'notificacoes', label: 'Notificações', icon: Bell },
     { id: 'legais', label: 'Legais', icon: FileText },
   ]
 
@@ -167,62 +164,37 @@ export default function ConfiguracoesPage() {
               </div>
             </div>
 
-            <div>
-              <label>Email para Cobranças</label>
-              <input
-                type="email"
-                value={config.emailCobranca}
-                onChange={(e) => setConfig({ ...config, emailCobranca: e.target.value })}
-              />
-              <p className="hint text-xs mt-1">Email usado para enviar cobranças aos lojistas</p>
-            </div>
           </div>
         )}
 
         {activeTab === 'financeiro' && (
           <div className="space-y-6">
-            <SectionTitle title="Configurações Financeiras" description="Valores e políticas de pagamento" />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label>Valor Padrão da Mensalidade (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={config.valorMensalidade}
-                  onChange={(e) => setConfig({ ...config, valorMensalidade: e.target.value })}
-                />
-                <p className="hint text-xs mt-1">Valor cobrado por padrão de novos lojistas</p>
-              </div>
-              <div>
-                <label>Valor Mínimo Aceito (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={config.valorMinimo}
-                  onChange={(e) => setConfig({ ...config, valorMinimo: e.target.value })}
-                />
-                <p className="hint text-xs mt-1">Menor valor aceito para planos</p>
-              </div>
+            <SectionTitle title="Cobrança da assinatura" description="Valor calculado sobre o faturamento do mês anterior." />
+            <div className="overflow-x-auto rounded-xl border p-4">
+              <table className="w-full text-sm">
+                <thead><tr><th className="pb-2 text-left">Faturamento</th><th className="pb-2 text-right">Mensalidade</th></tr></thead>
+                <tbody className="divide-y">
+                  {[
+                    ['Sem faturamento', 'R$ 0'],
+                    ['Até R$ 5.000', 'R$ 50'],
+                    ['De R$ 5.000,01 a R$ 10.000', 'R$ 100'],
+                    ['De R$ 10.000,01 a R$ 15.000', 'R$ 150'],
+                  ].map(([faixa, valor]) => (
+                    <tr key={faixa}><td className="py-2">{faixa}</td><td className="py-2 text-right font-semibold">{valor}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="hint mt-2 text-sm">Mais R$ 50 por faixa adicional de R$ 5 mil. Primeiro pagamento após pelo menos 30 dias de cadastro.</p>
             </div>
-
-            <div className="p-4 rounded-xl" style={{ background: 'rgba(22,163,74,.08)', border: '1px solid rgba(22,163,74,.2)' }}>
-              <p className="font-medium text-sm mb-2" style={{ color: 'var(--green)' }}>Resumo Financeiro</p>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-xl font-bold gradient-text">{formatCurrency(Number(config.valorMensalidade))}</p>
-                  <p className="hint text-xs">Mensalidade padrão</p>
-                </div>
-                <div>
-                  <p className="text-xl font-bold" style={{ color: 'var(--ink)' }}>{formatCurrency(Number(config.valorMinimo))}</p>
-                  <p className="hint text-xs">Mínimo aceito</p>
-                </div>
-                <div>
-                  <p className="text-xl font-bold" style={{ color: 'var(--ink)' }}>10</p>
-                  <p className="hint text-xs">Dia do vencimento</p>
-                </div>
+            <div className="flex flex-wrap items-start justify-between gap-3 text-sm">
+              <div>
+                <p><strong>Dia 5:</strong> emissão da fatura do mês anterior.</p>
+                <p><strong>Dia 10:</strong> vencimento.</p>
+                <p><strong>A partir do dia 11:</strong> fatura vencida em aberto bloqueia os pedidos e o cardápio público.</p>
               </div>
+              <Link href="/painel-admin/faturamento" className="btn-ghost">Ver cobranças</Link>
             </div>
+            <CheckoutMercadoPago />
           </div>
         )}
 
@@ -271,36 +243,9 @@ export default function ConfiguracoesPage() {
           </div>
         )}
 
-        {activeTab === 'notificacoes' && (
-          <div className="space-y-6">
-            <SectionTitle title="Preferências de Notificação" description="Escolha quais emails receber" />
-
-            <div className="space-y-4">
-              <ToggleField
-                label="Avisar vencimento de mensalidade"
-                description="Receba um email 3 dias antes do vencimento"
-                checked={config.notificarVencimento}
-                onChange={(v) => setConfig({ ...config, notificarVencimento: v })}
-              />
-              <ToggleField
-                label="Novo cadastro de lojista"
-                description="Receba um email quando um novo lojista se cadastrar"
-                checked={config.notificarNovoCadastro}
-                onChange={(v) => setConfig({ ...config, notificarNovoCadastro: v })}
-              />
-              <ToggleField
-                label="Alerta de inadimplência"
-                description="Receba um email quando um lojista ficar inadimplente"
-                checked={config.notificarInadimplencia}
-                onChange={(v) => setConfig({ ...config, notificarInadimplencia: v })}
-              />
-            </div>
-          </div>
-        )}
-
         {activeTab === 'legais' && (
           <div className="space-y-6">
-            <SectionTitle title="Documentos Legais" description="Termos e políticas exibidos aos lojistas" />
+            <SectionTitle title="Rascunhos de documentos legais" description="Textos não publicados." />
 
             <div>
               <label>Termos de Uso</label>
@@ -310,7 +255,7 @@ export default function ConfiguracoesPage() {
                 rows={6}
                 className="w-full"
               />
-              <p className="hint text-xs mt-1">Texto exibido na aceitação de termos ao criar conta</p>
+              <p className="hint text-xs mt-1">Rascunho dos termos de uso.</p>
             </div>
 
             <div>
@@ -321,13 +266,13 @@ export default function ConfiguracoesPage() {
                 rows={6}
                 className="w-full"
               />
-              <p className="hint text-xs mt-1">Texto exibido na política de privacidade</p>
+              <p className="hint text-xs mt-1">Rascunho da política de privacidade.</p>
             </div>
           </div>
         )}
 
         {/* Botão Salvar */}
-        <div className="flex items-center justify-between pt-6 border-t" style={{ borderColor: 'var(--line)' }}>
+        {activeTab !== 'financeiro' && <div className="flex items-center justify-between pt-6 border-t" style={{ borderColor: 'var(--line)' }}>
           {feedback && (
             <div
               className="text-sm flex items-center gap-2"
@@ -342,7 +287,7 @@ export default function ConfiguracoesPage() {
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {saving ? 'Salvando...' : 'Salvar Alterações'}
           </button>
-        </div>
+        </div>}
       </div>
     </div>
   )
@@ -353,31 +298,6 @@ function SectionTitle({ title, description }: { title: string; description: stri
     <div className="pb-4 border-b" style={{ borderColor: 'var(--line)' }}>
       <h2 className="font-semibold" style={{ color: 'var(--ink)' }}>{title}</h2>
       <p className="hint text-sm">{description}</p>
-    </div>
-  )
-}
-
-function ToggleField({ label, description, checked, onChange }: {
-  label: string
-  description: string
-  checked: boolean
-  onChange: (v: boolean) => void
-}) {
-  return (
-    <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'rgba(0,0,0,.03)' }}>
-      <div>
-        <p className="font-medium text-sm" style={{ color: 'var(--ink)' }}>{label}</p>
-        <p className="hint text-xs">{description}</p>
-      </div>
-      <button
-        onClick={() => onChange(!checked)}
-        className={`relative w-12 h-7 rounded-full transition-all ${checked ? '' : 'opacity-50'}`}
-        style={{ background: checked ? 'var(--green)' : 'rgba(0,0,0,.2)' }}
-      >
-        <span
-          className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-all shadow ${checked ? 'translate-x-5' : ''}`}
-        />
-      </button>
     </div>
   )
 }

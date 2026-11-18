@@ -1,3 +1,4 @@
+import { lerConexaoMercadoPago } from '@/lib/mercado-pago-credenciais'
 import { adminUnauthorizedResponse, getAdminSession } from '@/lib/admin-auth'
 import { dataBrasilia, situacaoFatura, type Fatura } from '@/lib/assinaturas'
 import { billingClient, camposFatura } from '@/lib/assinaturas-server'
@@ -7,11 +8,12 @@ export async function GET() {
   try {
     const admin = billingClient()
     const competencia = dataBrasilia().slice(0, 7) + '-01'
-    const [lojas, receita, faturas] = await Promise.all([
+    const [lojas, receita, faturas, conexao] = await Promise.all([
       admin.from('tenants').select('id,nome').order('nome'),
       admin.rpc('faturamento_assinatura', { p_competencia: competencia }),
       admin.from('faturas_assinatura').select(camposFatura).order('competencia', { ascending: false })
         .order('id').limit(100).returns<Fatura[]>(),
+      lerConexaoMercadoPago().catch(() => null),
     ])
     if (lojas.error || receita.error || faturas.error) throw Error('consulta_de_cobrancas_falhou')
     const nomes = new Map(lojas.data.map(loja => [loja.id, loja.nome]))
@@ -25,7 +27,7 @@ export async function GET() {
       estimativas,
       faturas: faturas.data.map(row => ({ ...row, loja: row.loja_nome, situacao: situacaoFatura(row) })),
       integracaoConfigurada: Boolean(process.env.CRON_SECRET && process.env.ASSINATURAS_PRIMEIRA_COMPETENCIA
-        && process.env.MERCADO_PAGO_ACCESS_TOKEN && process.env.MERCADO_PAGO_WEBHOOK_SECRET),
+        && conexao?.webhookValidado),
     })
   } catch {
     return Response.json({ error: 'Não foi possível carregar as cobranças.' }, { status: 500 })

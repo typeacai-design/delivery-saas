@@ -41,7 +41,7 @@ export default function FaturasAssinatura() {
         </div>
         <div className="flex items-center gap-3">
           <strong>{formatCurrency(fatura.valor_centavos / 100)}</strong>
-          {fatura.situacao !== 'Paga' && <a href={`/api/assinaturas/pagar?id=${fatura.id}`} className="btn-primary">Pagar</a>}
+          {fatura.situacao !== 'Paga' && <a href={`/api/assinaturas/pagar?id=${fatura.id}`} className="btn-primary">Pagar no Mercado Pago</a>}
         </div>
       </article>
     ))}

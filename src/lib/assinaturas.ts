@@ -1,3 +1,4 @@
+export const MERCADO_PAGO_WEBHOOK_URL = 'https://wedelivery.site/api/webhooks/mercado-pago-assinaturas'
 export const FINANCEIRO_FATURAS = '/financeiro?aba=contas'
 export const PEDIDOS_BLOQUEADOS = 'Os pedidos estão bloqueados até a confirmação do pagamento da assinatura.'
 export const CARDAPIO_BLOQUEADO = 'Esta loja não pode receber pedidos no momento. Entre em contato via WhatsApp.'

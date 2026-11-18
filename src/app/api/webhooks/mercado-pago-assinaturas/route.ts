@@ -1,16 +1,26 @@
+import { confirmarWebhookMercadoPago, lerConexaoMercadoPago } from '@/lib/mercado-pago-credenciais'
 import { billingClient } from '@/lib/assinaturas-server'
 import { consultarPagamento, notificacaoValida } from '@/lib/mercado-pago-assinaturas'
 
 export async function POST(request: Request) {
-  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET
-  if (!secret) return new Response(null, { status: 503 })
   const id = new URL(request.url).searchParams.get('data.id') || ''
-  if (!/^\d{1,30}$/.test(id) || !notificacaoValida(request, id, secret)) return new Response(null, { status: 401 })
-  const evento = await request.json().catch(() => null)
-  if (evento?.type !== 'payment' || String(evento.data?.id) !== id) return new Response(null, { status: 200 })
-
+  if (!/^\d{1,30}$/.test(id) || !request.headers.has('x-signature')) return new Response(null, { status: 401 })
   try {
-    const pagamento = await consultarPagamento(id)
+    const conexao = await lerConexaoMercadoPago()
+    if (!conexao) return new Response(null, { status: 503 })
+    if (!notificacaoValida(request, id, conexao.webhookSecret)) return new Response(null, { status: 401 })
+    const evento = await request.json().catch(() => null)
+    if (evento?.type !== 'payment' || String(evento.data?.id) !== id) return new Response(null, { status: 200 })
+
+    if (!conexao.webhookValidado && conexao.atualizadaEm) await confirmarWebhookMercadoPago(conexao.atualizadaEm)
+    let pagamento
+    try {
+      pagamento = await consultarPagamento(id, conexao.accessToken)
+    } catch (e) {
+      if (e instanceof Error && e.message === 'mercado_pago_http_404') return new Response(null, { status: 200 })
+      throw e
+    }
+    if (conexao.contaId && String(pagamento.collector_id) !== conexao.contaId) return new Response(null, { status: 200 })
     const referencia = pagamento.external_reference
     if (String(pagamento.id) !== id || pagamento.live_mode !== true || pagamento.currency_id !== 'BRL'
       || typeof referencia !== 'string' || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(referencia)) {

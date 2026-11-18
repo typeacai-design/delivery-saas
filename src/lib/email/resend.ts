@@ -8,7 +8,7 @@ const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@wedelivery.site'
 
 export const resend = apiKey ? new Resend(apiKey) : null
 
-export async function enviarEmail({ to, subject, html, text }: { to: string; subject: string; html: string; text?: string }) {
+export async function enviarEmail({ to, subject, html, text, idempotencyKey }: { to: string; subject: string; html: string; text?: string; idempotencyKey?: string }) {
   if (!resend) {
     console.warn('Resend não configurado (RESEND_API_KEY ausente)')
     return { success: false, error: 'Resend não configurado' }
@@ -21,7 +21,7 @@ export async function enviarEmail({ to, subject, html, text }: { to: string; sub
       subject,
       html,
       text: text || html.replace(/<[^>]+>/g, ''),
-    })
+    }, idempotencyKey ? { idempotencyKey } : undefined)
     if (error) throw error
     return { success: true, data }
   } catch (error: any) {
