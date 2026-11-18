@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { getAdminSession } from '@/lib/admin-auth'
+import { dataBrasilia, nomeCompetencia } from '@/lib/assinaturas'
 import { situacaoDasLojas } from '@/lib/assinaturas-server'
 import { formatCurrency } from '@/lib/utils'
-import { Store, DollarSign, ShoppingBag, AlertTriangle, Plus, ArrowUpRight } from 'lucide-react'
+import { Store, DollarSign, ShoppingBag, AlertTriangle, Plus, ArrowUpRight, TrendingUp, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 
 // Server Component do dashboard admin.
@@ -46,7 +47,14 @@ export default async function AdminDashboard() {
   const totalLojistas = tenants?.length || 0
   const faturamentoMes = pedidosMes?.reduce((acc, p) => acc + Number(p.valor_total), 0) || 0
   const vendas30dias = pedidosRecentes?.reduce((acc, p) => acc + Number(p.valor_total), 0) || 0
-  const { aberto, vencido } = await situacaoDasLojas()
+  const competencia = dataBrasilia().slice(0, 7) + '-01'
+  const [{ data: previsaoCentavos, error: erroPrevisao }, { aberto, vencido }] = await Promise.all([
+    supabase.rpc('previsao_receita_assinaturas', { p_competencia: competencia }),
+    situacaoDasLojas(),
+  ])
+  const previsao = erroPrevisao || previsaoCentavos == null
+    ? 'Indisponível'
+    : formatCurrency(Number(previsaoCentavos) / 100)
   const inadimplentes = vencido.size
 
   const lojistasComMetricas = (tenants || []).map(tenant => {
@@ -86,6 +94,14 @@ export default async function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="wd-admin-stats">
+        <StatCard
+          icon={TrendingUp}
+          label="Previsão de receita"
+          value={previsao}
+          note={`Mensalidades de ${nomeCompetencia(competencia)}`}
+          color="green"
+          isCurrency
+        />
         <StatCard icon={Store} label="Lojistas" value={totalLojistas} color="green" />
         <StatCard icon={DollarSign} label="Faturamento mês" value={formatCurrency(faturamentoMes)} color="green" isCurrency />
         <StatCard icon={ShoppingBag} label="Vendas 30d" value={formatCurrency(vendas30dias)} color="green" isCurrency />
@@ -173,12 +189,13 @@ export default async function AdminDashboard() {
   )
 }
 
-function StatCard({ icon: Icon, label, value, color, isCurrency }: {
-  icon: any
+function StatCard({ icon: Icon, label, value, color, isCurrency, note }: {
+  icon: LucideIcon
   label: string
   value: string | number
   color: 'green' | 'white' | 'red'
   isCurrency?: boolean
+  note?: string
 }) {
   const colorMap = {
     green: 'rgba(22,163,74,.12)',
@@ -203,6 +220,7 @@ function StatCard({ icon: Icon, label, value, color, isCurrency }: {
         </div>
       <p className={`wd-admin-stat-value ${textMap[color]}`}>{value}</p>
       <p className="wd-admin-stat-label">{label}</p>
+      {note && <p className="wd-admin-stat-note">{note}</p>}
     </div>
   )
 }
