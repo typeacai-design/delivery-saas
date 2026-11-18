@@ -1,3 +1,5 @@
+import { assinaturaVencida } from '@/lib/assinaturas-server'
+import { PEDIDOS_BLOQUEADOS } from '@/lib/assinaturas'
 import { FlavorValidationError, normalizeManualFlavorItems, manualFlavorTotals } from '@/lib/flavor-order-server'
 import { removeReferenceCharges } from '@/lib/product-pricing'
 import { NextResponse } from 'next/server'
@@ -43,6 +45,7 @@ export async function POST(request: Request) {
       tipoAcesso = 'lojista'
     }
 
+    if (tenantId && await assinaturaVencida(tenantId)) return NextResponse.json({ error: PEDIDOS_BLOQUEADOS }, { status: 402 })
     const body = await request.json()
     const {
       cliente_id,

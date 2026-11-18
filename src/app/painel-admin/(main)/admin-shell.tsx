@@ -8,7 +8,7 @@ import { usePathname, useRouter } from 'next/navigation'
 const navItems = [
   { href: '/painel-admin', label: 'Visão geral', mobileLabel: 'Início', icon: LayoutDashboard },
   { href: '/painel-admin/lojistas', label: 'Lojistas', mobileLabel: 'Lojistas', icon: Users },
-  { href: '/painel-admin/faturamento', label: 'Cobrança 1%', mobileLabel: 'Cobranças', icon: DollarSign },
+  { href: '/painel-admin/faturamento', label: 'Cobranças', mobileLabel: 'Cobranças', icon: DollarSign },
   { href: '/painel-admin/relatorios', label: 'Relatórios', mobileLabel: 'Relatórios', icon: BarChart3 },
   { href: '/painel-admin/configuracoes', label: 'Configurações', icon: Settings },
   { href: '/painel-admin/configuracoes?tab=admin', label: 'Perfil e segurança', icon: Shield },

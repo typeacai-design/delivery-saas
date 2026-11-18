@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { WalletCards, Receipt, CreditCard, Plus, X, ArrowUpRight, ArrowDownRight, TrendingUp, Calendar } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useToast } from '@/components/toast'
+import FaturasAssinatura from '@/components/faturas-assinatura'
 import MerchantDisclosure from '@/components/merchant-disclosure'
 
 import MerchantDateRange from '@/components/merchant-date-range'
@@ -12,6 +13,11 @@ import { currentMonthRange } from '@/lib/finance-period'
 import { useMerchantMobile } from '@/lib/use-merchant-mobile'
 
 type Tab = 'cashflow'|'accounts'|'payments'
+
+function abaInicial(): Tab {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('aba') === 'contas'
+    ? 'accounts' : 'cashflow'
+}
 type Order = { id:string; codigo:string|null; created_at:string; valor_total:number; taxa_entrega:number; forma_pagamento:string; status:string; pago:boolean|null; sessao_mesa_id?:string|null }
 type Expense = { id:string; nome:string; valor:number; dia_vencimento?:number|null; recorrencia?:string|null; created_at:string; pago:boolean|null }
 type ManualTransaction = { id:string; tipo:'entrada'|'saida'; descricao:string; valor:number; data:string; categoria:string }
@@ -30,7 +36,7 @@ export default function FinanceiroPage(){
 function DesktopFinance(){
   const { error: toastError, success: toastSuccess } = useToast()
   const supabase=useMemo(()=>createClient(),[])
-  const [tab,setTab]=useState<Tab>('cashflow')
+  const [tab,setTab]=useState<Tab>(abaInicial)
   const [orders,setOrders]=useState<Order[]>([])
   const [expenses,setExpenses]=useState<Expense[]>([])
   const [transactions,setTransactions]=useState<ManualTransaction[]>([])
@@ -198,6 +204,7 @@ function Accounts({orders,expenses,onNewExpense}:{orders:Order[];expenses:Expens
           <Plus size={12}/> Nova conta
         </button>
       </div>
+      <FaturasAssinatura />
       {expenses.length?expenses.map(e=>(
         <div key={e.id} className="border-b py-3 flex justify-between items-center">
           <div>
@@ -375,7 +382,7 @@ function LancarModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
 
 
 function MobileFinance(){
- const [tab,setTab]=useState<Tab>('cashflow'),[range,setRange]=useState(currentMonthRange),[summary,setSummary]=useState<any>(null),[error,setError]=useState(''),[version,setVersion]=useState(0),[transaction,setTransaction]=useState(false),[account,setAccount]=useState(false)
+ const [tab,setTab]=useState<Tab>(abaInicial),[range,setRange]=useState(currentMonthRange),[summary,setSummary]=useState<any>(null),[error,setError]=useState(''),[version,setVersion]=useState(0),[transaction,setTransaction]=useState(false),[account,setAccount]=useState(false)
  const refresh=()=>setVersion(x=>x+1)
  useEffect(()=>{const controller=new AbortController();setSummary(null);setError('');const query=new URLSearchParams({...range,view:'resumo'});fetch('/api/financeiro?'+query,{signal:controller.signal,cache:'no-store'}).then(async response=>{const body=await response.json();if(!response.ok)throw Error(body.error);return body}).then(setSummary).catch(e=>{if(!controller.signal.aborted)setError(e.message)});return()=>controller.abort()},[range.from,range.to,version])
  // Reset the default period after a month rollover; a chosen custom range remains selected.
@@ -387,7 +394,7 @@ function MobileFinance(){
   {error?<p role="alert">{error} <button onClick={refresh}>Tentar novamente</button></p>:!summary?<p role="status">Carregando…</p>:<div className="wd-finance-summary"><section className="wd-sales"><div className="wd-sales-top">Recebido no período</div><strong className="wd-total">{formatCurrency(summary.received)}</strong><p>Pedidos do período marcados como pagos</p></section><div className="wd-finance-metrics"><div className="wd-metric"><span>Contas a receber</span><b>{formatCurrency(summary.receivable)}</b></div><div className="wd-metric"><span>Saldo do período</span><b>{formatCurrency(summary.balance)}</b></div></div></div>}
   <button type="button" className="wd-action wd-primary" onClick={()=>setTransaction(true)}><Plus size={18}/>Lançar movimentação</button>
   <div className="wd-finance-tabs grid grid-cols-3 gap-2">{tabs.map(([id,label,Icon])=><button type="button" key={id} onClick={()=>setTab(id)} className={`glass-soft rounded-2xl p-3 text-center ${tab===id?'ring-2 ring-green-500':''}`}><Icon size={18} className="mx-auto"/><span className="block text-xs font-semibold mt-2">{label}</span></button>)}</div>
-  {tab==='cashflow'?<MerchantDisclosure title="Movimentações" initiallyOpen><FinanceRecords key={`fluxo:${range.from}:${range.to}`} view="fluxo" range={range} version={version} refresh={refresh}/></MerchantDisclosure>:tab==='accounts'?<><section className="glass p-4 space-y-3"><h2 className="font-semibold">Contas a receber</h2><p className="text-sm text-gray-500">Somente contas cadastradas manualmente. Período por vencimento.</p><button className="btn-primary" onClick={()=>setAccount(true)}><Plus size={16}/>Cadastrar conta a receber</button><FinanceRecords key={`receber:${range.from}:${range.to}`} view="receber" range={range} version={version} refresh={refresh}/></section><section className="glass p-4"><h2 className="font-semibold">Contas a pagar</h2><FinanceRecords key={`despesas:${range.from}:${range.to}`} view="despesas" range={range} version={version} refresh={refresh}/></section></>:summary?<Payments tenant={summary.tenant} onSaved={tenant=>setSummary((previous:any)=>({...previous,tenant}))}/>:null}
+  {tab==='cashflow'?<MerchantDisclosure title="Movimentações" initiallyOpen><FinanceRecords key={`fluxo:${range.from}:${range.to}`} view="fluxo" range={range} version={version} refresh={refresh}/></MerchantDisclosure>:tab==='accounts'?<><section className="glass p-4 space-y-3"><h2 className="font-semibold">Contas a receber</h2><p className="text-sm text-gray-500">Somente contas cadastradas manualmente. Período por vencimento.</p><button className="btn-primary" onClick={()=>setAccount(true)}><Plus size={16}/>Cadastrar conta a receber</button><FinanceRecords key={`receber:${range.from}:${range.to}`} view="receber" range={range} version={version} refresh={refresh}/></section><section className="glass p-4"><h2 className="font-semibold">Contas a pagar</h2><FaturasAssinatura/><FinanceRecords key={`despesas:${range.from}:${range.to}`} view="despesas" range={range} version={version} refresh={refresh}/></section></>:summary?<Payments tenant={summary.tenant} onSaved={tenant=>setSummary((previous:any)=>({...previous,tenant}))}/>:null}
   {transaction?<LancarModal onClose={()=>setTransaction(false)} onSave={()=>{setTransaction(false);refresh()}}/>:null}
   {account?<ReceivableModal onClose={()=>setAccount(false)} onSave={()=>{setAccount(false);refresh()}}/>:null}
  </div>

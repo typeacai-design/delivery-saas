@@ -1,3 +1,5 @@
+import { assinaturaVencida } from '@/lib/assinaturas-server'
+import { PEDIDOS_BLOQUEADOS } from '@/lib/assinaturas'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { FlavorValidationError, normalizeManualFlavorItems, manualFlavorTotals } from '@/lib/flavor-order-server'
 import { removeReferenceCharges } from '@/lib/product-pricing'
@@ -11,6 +13,7 @@ export async function GET() {
     const { supabase, tenantId } = auth
     const authStatus = tenantAuthStatus(auth)
     if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão para esta loja' }, { status: authStatus })
+    if (tenantId && await assinaturaVencida(tenantId)) return NextResponse.json({ error: PEDIDOS_BLOQUEADOS }, { status: 402 })
 
     const { data: pedidos, error } = await supabase
       .from('pedidos')
@@ -59,6 +62,7 @@ export async function POST(request: Request) {
     const { supabase, tenantId } = auth
     const authStatus = tenantAuthStatus(auth)
     if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão para esta loja' }, { status: authStatus })
+    if (tenantId && await assinaturaVencida(tenantId)) return NextResponse.json({ error: PEDIDOS_BLOQUEADOS }, { status: 402 })
 
     const body = await request.json()
 
@@ -254,6 +258,7 @@ export async function PUT(request: Request) {
     const { supabase, tenantId } = auth
     const authStatus = tenantAuthStatus(auth)
     if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão para esta loja' }, { status: authStatus })
+    if (tenantId && await assinaturaVencida(tenantId)) return NextResponse.json({ error: PEDIDOS_BLOQUEADOS }, { status: 402 })
 
     const body = await request.json()
     const { id, status, observacoes } = body

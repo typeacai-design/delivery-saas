@@ -1,3 +1,5 @@
+import { assinaturaVencida } from '@/lib/assinaturas-server'
+import { PEDIDOS_BLOQUEADOS } from '@/lib/assinaturas'
 import { chargedProductBase, savedItemTotal } from '@/lib/product-pricing'
 import { FlavorValidationError, unchangedSavedComposition, validateFlavorItem } from '@/lib/flavor-order-server'
 import { flavorCount, parseComplements } from '@/lib/flavor-pricing'
@@ -11,6 +13,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const auth = await authenticatedTenant(SALES_ROLES)
     const authStatus = tenantAuthStatus(auth)
     if (authStatus) return NextResponse.json({ error: 'Sem permissao' }, { status: authStatus })
+    if (auth.tenantId && await assinaturaVencida(auth.tenantId)) return NextResponse.json({ error: PEDIDOS_BLOQUEADOS }, { status: 402 })
     const { id } = await params
     const body = await request.json()
     const admin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { autoRefreshToken: false, persistSession: false } })

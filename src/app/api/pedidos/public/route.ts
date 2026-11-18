@@ -1,3 +1,5 @@
+import { CARDAPIO_BLOQUEADO } from '@/lib/assinaturas'
+import { assinaturaVencida } from '@/lib/assinaturas-server'
 import { FlavorValidationError, validateFlavorItem } from '@/lib/flavor-order-server'
 import { savedItemTotal } from '@/lib/product-pricing'
 import { chargedProductBase } from '@/lib/product-pricing'
@@ -133,6 +135,8 @@ export async function POST(request: Request) {
     //   - cfg.loja_aberta === false → forca fechada (mesmo dentro do horario)
     //   - cfg.loja_aberta === true  → forca aberta (mesmo fora do horario)
     //   - undefined/null            → segue a tabela de horarios
+    if (await assinaturaVencida(tenant.id)) return NextResponse.json({ error: CARDAPIO_BLOQUEADO }, { status: 402 })
+
     const cfg = (tenant.config || {}) as any
     if (cfg.loja_aberta === false) {
       return NextResponse.json({ error: 'Loja está fechada no momento' }, { status: 403 })
@@ -368,6 +372,7 @@ export async function POST(request: Request) {
     })
     if (estoqueError || !pedido) {
       const erroMsg = estoqueError?.message || ''
+      if (erroMsg.includes('assinatura_vencida')) return NextResponse.json({ error: CARDAPIO_BLOQUEADO }, { status: 402 })
       console.error('Erro criar_pedido_atomico:', estoqueError)
       if (erroMsg.includes('estoque_produto')) {
         return NextResponse.json({ error: 'Um dos itens selectedo nao tem estoque suficiente' }, { status: 409 })

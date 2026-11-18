@@ -68,6 +68,8 @@ function publicRoute(product, complementPrice = 22) {
   const imports = {
     'next/server': { NextResponse: { json: (body, init) => Response.json(body, init) } },
     '@supabase/supabase-js': { createClient: () => admin },
+    '@/lib/assinaturas': {},
+    '@/lib/assinaturas-server': { assinaturaVencida: async () => false },
     '@/lib/product-pricing': pricing,
     '@/lib/flavor-order-server': flavorServer,
     '@/lib/customer-identity': { rateLimited: async () => false, isValidCpf: () => true, hashAccessToken: value => value, normalizeCpf: value => value, tokenMatches: () => true },

@@ -80,7 +80,7 @@ export default function LojistasPage() {
 
     if (filtro === 'ativos') return matchSearch && t.status === 'active'
     if (filtro === 'pendentes') return matchSearch && t.status === 'pending_approval'
-    if (filtro === 'inadimplentes') return matchSearch && t.status_pagamento !== 'pago'
+    if (filtro === 'inadimplentes') return matchSearch && t.fatura_vencida
     return matchSearch
   })
 
@@ -160,7 +160,7 @@ export default function LojistasPage() {
           </button>
           <button onClick={() => setFiltro('inadimplentes')} className={`btn-ghost ${filtro === 'inadimplentes' ? '' : 'opacity-60'}`}>
             <AlertTriangle size={14} />
-            Inadimplentes ({tenants.filter(t => t.status_pagamento !== 'pago').length})
+            Inadimplentes ({tenants.filter(t => t.fatura_vencida).length})
           </button>
         </div>
       </div>
@@ -273,9 +273,10 @@ function ClockIcon() {
 function getStatusBadge(t: any) {
   if (t.status === 'pending_approval') return { label: 'Aguardando aprovação', className: 'chip--warn' }
   if (t.status === 'suspended') return { label: 'Suspenso', className: 'chip--negative' }
-  // active
-  if (t.status_pagamento === 'pago') return { label: 'Ativo · Em dia', className: 'chip--positive' }
-  return { label: 'Ativo · Pendente', className: 'chip--negative' }
+  if (t.status !== 'active') return { label: 'Inativo', className: 'chip--warn' }
+  if (t.fatura_vencida) return { label: 'Ativo · Fatura vencida', className: 'chip--negative' }
+  if (t.fatura_em_aberto) return { label: 'Ativo · Fatura a vencer', className: 'chip--warn' }
+  return { label: 'Ativo', className: 'chip--positive' }
 }
 
 /* ================================================
@@ -299,9 +300,7 @@ function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReat
     complemento: tenant.complemento || '',
     nome_responsavel: tenant.nome_responsavel || '',
     cpf: tenant.cpf || '',
-    valor_mensalidade: tenant.valor_mensalidade?.toString() || '99.90',
     status: tenant.status || 'pending_approval',
-    status_pagamento: tenant.status_pagamento || 'pendente',
   })
 
   // Carregar cidades do estado quando editar
@@ -334,9 +333,7 @@ function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReat
       complemento: form.complemento,
       nome_responsavel: form.nome_responsavel,
       cpf: form.cpf,
-      valor_mensalidade: Number(form.valor_mensalidade) || 99.90,
       status: form.status,
-      status_pagamento: form.status_pagamento,
     }
     if (form.senha) updates.password = form.senha
 
@@ -427,7 +424,6 @@ function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReat
               <InfoRow label="Endereço" value={tenant.endereco || '—'} />
               <InfoRow label="Responsável" value={tenant.nome_responsavel || '—'} />
               <InfoRow label="CPF" value={tenant.cpf || '—'} />
-              <InfoRow label="Mensalidade" value={`R$ ${(Number(tenant.valor_mensalidade) || 99.90).toFixed(2)}`} />
               <InfoRow label="Criado em" value={new Date(tenant.created_at).toLocaleString('pt-BR')} />
             </div>
 
@@ -569,32 +565,15 @@ function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReat
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <InputField
-                label="Mensalidade (R$)"
-                type="number"
-                step="0.01"
-                value={form.valor_mensalidade}
-                onChange={(e) => setForm({ ...form, valor_mensalidade: e.target.value })}
-              />
-              <SelectField
-                label="Status"
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-              >
-                <option value="pending_approval">Aguardando aprovação</option>
-                <option value="active">Ativo</option>
-                <option value="suspended">Suspenso</option>
-              </SelectField>
-              <SelectField
-                label="Pagamento"
-                value={form.status_pagamento}
-                onChange={(e) => setForm({ ...form, status_pagamento: e.target.value })}
-              >
-                <option value="pago">Em dia</option>
-                <option value="pendente">Pendente</option>
-              </SelectField>
-            </div>
+            <SelectField
+              label="Status do cadastro"
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+            >
+              <option value="pending_approval">Aguardando aprovação</option>
+              <option value="active">Ativo</option>
+              <option value="suspended">Suspenso</option>
+            </SelectField>
 
             <div className="flex gap-2 pt-3 border-t" style={{ borderColor: 'var(--line)' }}>
               <button onClick={() => setEditing(false)} className="btn-ghost flex-1">
@@ -632,7 +611,6 @@ function ModalNovoLojista({ onClose, onSuccess }: any) {
     numero: '',
     nome_responsavel: '',
     cpf: '',
-    valor_mensalidade: '99.90',
   })
 
   useEffect(() => {
@@ -802,13 +780,6 @@ function ModalNovoLojista({ onClose, onSuccess }: any) {
             />
           </div>
 
-          <InputField
-            label="Mensalidade (R$)"
-            type="number"
-            step="0.01"
-            value={form.valor_mensalidade}
-            onChange={(e) => setForm({ ...form, valor_mensalidade: e.target.value })}
-          />
 
           <div className="flex gap-2 pt-3 border-t" style={{ borderColor: 'var(--line)' }}>
             <button onClick={onClose} className="btn-ghost flex-1">

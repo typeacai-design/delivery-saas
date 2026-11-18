@@ -1,3 +1,5 @@
+import { assinaturaVencida } from '@/lib/assinaturas-server'
+import { PEDIDOS_BLOQUEADOS } from '@/lib/assinaturas'
 import { NextResponse } from 'next/server'
 import { authenticatedTenant } from '@/lib/tenant-auth'
 import { createClient } from '@supabase/supabase-js'
@@ -8,6 +10,7 @@ export async function PATCH(request: Request) {
     if (!tenantId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
+    if (tenantId && await assinaturaVencida(tenantId)) return NextResponse.json({ error: PEDIDOS_BLOQUEADOS }, { status: 402 })
 
     const { pedido_id, pago } = await request.json()
 

@@ -1,3 +1,5 @@
+import { CARDAPIO_BLOQUEADO } from '@/lib/assinaturas'
+import { assinaturaVencida } from '@/lib/assinaturas-server'
 import { notFound } from 'next/navigation'
 import { MapPin, Clock, Phone, Store } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
@@ -41,6 +43,25 @@ export default async function CardapioPublicoPage({
       message: tenantError?.message,
     })
     notFound()
+  }
+
+  if (await assinaturaVencida(tenant.id)) {
+    const telefone = [tenant.config?.cardapio_whatsapp_numero, tenant.telefone]
+      .map(valor => String(valor || '').replace(/\D/g, ''))
+      .find(valor => /^\d{10,11}$/.test(valor) || /^55\d{10,11}$/.test(valor))
+    const numero = telefone && (telefone.length <= 11 ? `55${telefone}` : telefone)
+    const mensagem = encodeURIComponent('Olá! Tentei fazer um pedido pelo cardápio, mas ele não está aceitando pedidos no momento. Posso pedir por aqui?')
+    return (
+      <main className="grid min-h-screen place-items-center bg-gray-50 p-5">
+        <section className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-sm">
+          <h1 className="mb-3 text-xl font-semibold text-gray-900">{tenant.nome}</h1>
+          <p className="text-gray-700">{CARDAPIO_BLOQUEADO}</p>
+          {numero && <a href={`https://wa.me/${numero}?text=${mensagem}`} className="btn-primary mt-4 inline-flex">
+            Chamar no WhatsApp
+          </a>}
+        </section>
+      </main>
+    )
   }
 
   const { data: categorias } = await supabase

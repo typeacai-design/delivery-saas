@@ -1,3 +1,5 @@
+import { assinaturaVencida } from '@/lib/assinaturas-server'
+import { PEDIDOS_BLOQUEADOS } from '@/lib/assinaturas'
 import { randomBytes } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { MANAGEMENT_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
@@ -10,6 +12,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const auth = await authenticatedTenant(MANAGEMENT_ROLES)
   const status = tenantAuthStatus(auth)
   if (status) return out({ error: status === 401 ? 'Não autenticado' : 'Sem permissão' }, status)
+  if (auth.tenantId && await assinaturaVencida(auth.tenantId)) return NextResponse.json({ error: PEDIDOS_BLOQUEADOS }, { status: 402 })
 
   const { id } = await params
   const token = randomBytes(32).toString('base64url')

@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { getAdminSession } from '@/lib/admin-auth'
+import { situacaoDasLojas } from '@/lib/assinaturas-server'
 import { formatCurrency } from '@/lib/utils'
-import { Store, TrendingUp, DollarSign, ShoppingBag, AlertTriangle, Check, Plus, ArrowUpRight } from 'lucide-react'
+import { Store, DollarSign, ShoppingBag, AlertTriangle, Plus, ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
 
 // Server Component do dashboard admin.
@@ -22,7 +23,7 @@ export default async function AdminDashboard() {
 
   const { data: tenants } = await supabase
     .from('tenants')
-    .select('id, nome, slug, created_at, valor_mensalidade, status_pagamento, cidade')
+    .select('id, nome, slug, created_at, status, cidade')
     .order('created_at', { ascending: false })
 
   const trintaDiasAtras = new Date()
@@ -43,12 +44,10 @@ export default async function AdminDashboard() {
     .gte('data_criacao', inicioMes.toISOString())
 
   const totalLojistas = tenants?.length || 0
-  const lojistasComVendas = new Set(pedidosRecentes?.map(p => p.tenant_id) || [])
-  const lojistasAtivos = lojistasComVendas.size
   const faturamentoMes = pedidosMes?.reduce((acc, p) => acc + Number(p.valor_total), 0) || 0
   const vendas30dias = pedidosRecentes?.reduce((acc, p) => acc + Number(p.valor_total), 0) || 0
-  const inadimplentes = tenants?.filter(t => t.status_pagamento !== 'pago').length || 0
-  const emDias = totalLojistas - inadimplentes
+  const { aberto, vencido } = await situacaoDasLojas()
+  const inadimplentes = vencido.size
 
   const lojistasComMetricas = (tenants || []).map(tenant => {
     const vendasDoLojistaMes = pedidosMes?.filter(p => p.tenant_id === tenant.id) || []
@@ -57,7 +56,11 @@ export default async function AdminDashboard() {
       ...tenant,
       vendasMes: totalVendido,
       pedidosMes: vendasDoLojistaMes.length,
-      statusPagamento: tenant.status_pagamento || 'pendente',
+      inadimplente: vencido.has(tenant.id),
+      situacao: tenant.status === 'pending_approval' ? 'Aguardando aprovação'
+        : tenant.status !== 'active' ? 'Loja inativa'
+        : vencido.has(tenant.id) ? 'Inadimplente'
+        : aberto.has(tenant.id) ? 'Fatura a vencer' : 'Sem fatura em aberto',
     }
   })
 
@@ -84,10 +87,8 @@ export default async function AdminDashboard() {
       {/* Stats Grid */}
       <div className="wd-admin-stats">
         <StatCard icon={Store} label="Lojistas" value={totalLojistas} color="green" />
-        <StatCard icon={TrendingUp} label="Ativos (30d)" value={lojistasAtivos} color="white" />
         <StatCard icon={DollarSign} label="Faturamento mês" value={formatCurrency(faturamentoMes)} color="green" isCurrency />
         <StatCard icon={ShoppingBag} label="Vendas 30d" value={formatCurrency(vendas30dias)} color="green" isCurrency />
-        <StatCard icon={Check} label="Em dia" value={emDias} color="white" />
         <StatCard icon={AlertTriangle} label="Inadimplentes" value={inadimplentes} color="red" />
       </div>
 
@@ -117,8 +118,8 @@ export default async function AdminDashboard() {
               <Link key={tenant.id} href={'/painel-admin/lojistas?loja=' + encodeURIComponent(tenant.id)} className="wd-admin-shop-card">
                 <div className="wd-admin-shop-card-header">
                   <div><strong>{tenant.nome}</strong><small>@{tenant.slug} · {tenant.cidade || 'Sem cidade'}</small></div>
-                  <span className={`chip ${tenant.statusPagamento === 'pago' ? 'chip--positive' : 'chip--negative'}`}>
-                    {tenant.statusPagamento === 'pago' ? 'Em dia' : 'Pendente'}
+                  <span className={`chip ${tenant.inadimplente ? 'chip--negative' : 'chip--positive'}`}>
+                    {tenant.situacao}
                   </span>
                 </div>
                 <dl><div><dt>Vendas no mês</dt><dd>{formatCurrency(tenant.vendasMes)}</dd></div><div><dt>Pedidos no mês</dt><dd>{tenant.pedidosMes}</dd></div></dl>
@@ -133,7 +134,6 @@ export default async function AdminDashboard() {
                   <th className="text-left py-3 px-4 text-xs font-medium hint">Cidade</th>
                   <th className="text-right py-3 px-4 text-xs font-medium hint">Vendas mês</th>
                   <th className="text-right py-3 px-4 text-xs font-medium hint">Pedidos</th>
-                  <th className="text-right py-3 px-4 text-xs font-medium hint">Mensalidade</th>
                   <th className="text-center py-3 px-4 text-xs font-medium hint">Status</th>
                 </tr>
               </thead>
@@ -156,12 +156,9 @@ export default async function AdminDashboard() {
                       {formatCurrency(tenant.vendasMes)}
                     </td>
                     <td className="py-3 px-4 text-right hint text-sm">{tenant.pedidosMes}</td>
-                    <td className="py-3 px-4 text-right hint text-sm">
-                      {formatCurrency(Number(tenant.valor_mensalidade) || 99.90)}
-                    </td>
                     <td className="py-3 px-4 text-center">
-                      <span className={`chip ${tenant.statusPagamento === 'pago' ? 'chip--positive' : 'chip--negative'}`}>
-                        {tenant.statusPagamento === 'pago' ? 'Em dia' : 'Pendente'}
+                      <span className={`chip ${tenant.inadimplente ? 'chip--negative' : 'chip--positive'}`}>
+                        {tenant.situacao}
                       </span>
                     </td>
                   </tr>

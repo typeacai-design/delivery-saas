@@ -70,7 +70,7 @@ export default function RelatoriosPage() {
   const novosLojistas = data.tenants.filter((t: any) => new Date(t.created_at) >= dateLimit)
 
   // Inadimplência
-  const inadimplentes = data.tenants.filter((t: any) => t.status_pagamento !== 'pago').length
+  const inadimplentes = data.tenants.filter((t: any) => t.fatura_vencida).length
   const taxaInadimplencia = data.tenants.length > 0 ? (inadimplentes / data.tenants.length) * 100 : 0
 
   // Dados para gráfico de vendas por dia

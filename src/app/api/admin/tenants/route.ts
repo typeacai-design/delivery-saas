@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { situacaoDasLojas } from '@/lib/assinaturas-server'
 import { adminUnauthorizedResponse, getAdminSession } from '@/lib/admin-auth'
 
 // Cliente admin com service_role que ignora RLS
@@ -25,7 +26,12 @@ export async function GET() {
 
     if (error) throw error
 
-    return NextResponse.json({ tenants })
+    const { aberto, vencido } = await situacaoDasLojas()
+    return NextResponse.json({
+      tenants: tenants.map(tenant => ({
+        ...tenant, fatura_vencida: vencido.has(tenant.id), fatura_em_aberto: aberto.has(tenant.id),
+      })),
+    })
   } catch (error: any) {
     console.error('Erro ao buscar tenants:', error)
     return NextResponse.json({ error: error.message || 'Erro ao buscar lojistas' }, { status: 500 })

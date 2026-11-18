@@ -60,8 +60,9 @@ test('unchanged edit trusts saved snapshots, accepts quantity-only changes and d
  assert.equal(server.unchangedSavedComposition(saved,{...saved,quantidade:3,complementos:saved.complementos.map(c=>({...c,valor:0}))}),true)
  assert.equal(server.unchangedSavedComposition(saved,item(2,['a','c'])),false)
 })
-function publicApi(db) {
+function publicApi(db, overdue = false) {
  return compile('src/app/api/pedidos/public/route.ts', {
+  '@/lib/assinaturas': compile('src/lib/assinaturas.ts', {}), '@/lib/assinaturas-server': { assinaturaVencida: async () => overdue },
   'next/server':{NextResponse:{json:(body,init)=>Response.json(body,init)}},
   '@supabase/supabase-js':{createClient:()=>db}, '@/lib/product-pricing':pricing,'@/lib/flavor-order-server':server,
   '@/lib/customer-identity':{rateLimited:async()=>false,isValidCpf:()=>true,hashAccessToken:v=>v,normalizeCpf:v=>v,tokenMatches:()=>true},
@@ -75,9 +76,24 @@ for (const [n,ids,total] of [[1,['a'],30],[2,['a','b','edge'],41],[3,['a','b','c
  assert.equal(flavor.flavorCount(db.writes[0].args.p_itens[0].complementos),n)
 })
 
+test('expired subscription rejects an incoming public order before writing', async () => {
+ const db = database()
+ db.rows.tenants[0].slug = 'shop'
+ const response = await publicApi(db, true).POST(new Request('https://test.invalid/api/pedidos/public', {
+  method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'k'.repeat(32) },
+  body: JSON.stringify({ tenant_slug: 'shop', cliente_nome: 'Test', cliente_whatsapp: '85999999999',
+   cliente_access_token: 't'.repeat(32), tipo_entrega: 'retirada', itens: [item(1, ['a'])],
+   formas_pagamento: [{ forma: 'dinheiro', valor: 30 }],
+  }),
+ }))
+ assert.equal(response.status, 402)
+ assert.equal(db.writes.length, 0)
+})
+
 function staffApi(db, path, tenantId='shop') {
  return compile(path, {
   '@/lib/funcionario-auth':{authenticateFuncionario:async()=>null},
+  '@/lib/assinaturas': compile('src/lib/assinaturas.ts', {}), '@/lib/assinaturas-server': { assinaturaVencida: async () => false },
   'next/server':{NextResponse:{json:(body,init)=>Response.json(body,init)}},
   '@supabase/supabase-js':{createClient:()=>db}, '@/lib/product-pricing':pricing,'@/lib/flavor-order-server':server,'@/lib/flavor-pricing':flavor,
   '@/lib/tenant-auth':{authenticatedTenant:async()=>({tenantId,supabase:db,user:{id:'owner'}}),tenantAuthStatus:auth=>auth.tenantId?null:403,SALES_ROLES:['owner','manager','attendant'],MANAGEMENT_ROLES:['owner','manager']},
