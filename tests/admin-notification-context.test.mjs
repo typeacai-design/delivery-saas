@@ -43,6 +43,7 @@ function load(file) {
     if (name === './admin.css') return {}
     if (name === '@/lib/cidades-brasil') return { ESTADOS: [] }
     if (name === '@/lib/utils') return { formatCurrency: value => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
+    if (name === '@/components/admin/faturas-lojista') return load('src/components/admin/faturas-lojista.tsx')
     if (name === '@/lib/assinaturas') return load('src/lib/assinaturas.ts')
     if (name === '@/lib/admin-fetch') return { adminFetch() { throw new Error('Network access is prohibited in this test') } }
     if (name === '@/components/form-field') return {}

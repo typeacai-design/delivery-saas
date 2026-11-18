@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Store, Search, Plus, AlertTriangle, Mail, Key, Eye, Ban, CheckCircle, Trash2, Save, X } from 'lucide-react'
 import { InputField, SelectField, SearchableSelect } from '@/components/form-field'
 import { ESTADOS } from '@/lib/cidades-brasil'
+import FaturasLojista from '@/components/admin/faturas-lojista'
 import { adminFetch } from '@/lib/admin-fetch'
 import { useToast } from '@/components/toast'
 
@@ -56,6 +57,9 @@ export default function LojistasPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Não foi possível carregar os lojistas')
       setTenants(data.tenants || [])
+      setSelectedTenant((atual: any) => atual
+        ? (data.tenants || []).find((tenant: any) => tenant.id === atual.id) ?? atual
+        : null)
       const id = new URLSearchParams(window.location.search).get('loja')
       const selected = id && (data.tenants || []).find((tenant: any) => tenant.id === id)
       if (selected) {
@@ -229,6 +233,7 @@ export default function LojistasPage() {
             setSelectedTenant(null)
             return true
           }}
+          onBaixa={() => { void fetchTenants() }}
           onAprovar={() => handleAprovar(selectedTenant)}
           onSuspender={() => handleSuspender(selectedTenant)}
           onReativar={() => handleReativar(selectedTenant)}
@@ -282,7 +287,7 @@ function getStatusBadge(t: any) {
 /* ================================================
    MODAL: DETALHES + EDIÇÃO DO LOJISTA
    ================================================ */
-function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReativar, onDeletar }: any) {
+function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReativar, onDeletar, onBaixa }: any) {
   const [editing, setEditing] = useState(tenant.status === 'pending_approval') // entra editável se pendente
   const [saving, setSaving] = useState(false)
   const [cidades, setCidades] = useState<string[]>([])
@@ -426,6 +431,8 @@ function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReat
               <InfoRow label="CPF" value={tenant.cpf || '—'} />
               <InfoRow label="Criado em" value={new Date(tenant.created_at).toLocaleString('pt-BR')} />
             </div>
+
+            <FaturasLojista key={tenant.id} loja={tenant.id} onBaixa={onBaixa} />
 
             <div className="border-t pt-4 mt-4 flex flex-wrap gap-2" style={{ borderColor: 'var(--line)' }}>
               <button onClick={() => setEditing(true)} className="btn-primary flex-1">
