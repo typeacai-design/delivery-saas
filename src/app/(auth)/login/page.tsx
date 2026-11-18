@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import GoogleSignInButton from '@/components/google-sign-in-button'
-import { Sparkles, Eye, EyeOff, ArrowRight } from 'lucide-react'
+import { Eye, EyeOff, ArrowRight } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -123,6 +123,12 @@ export default function LoginPage() {
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
+                </div>
+
+                <div className="text-right">
+                  <Link href="/recuperar-senha" className="link text-sm">
+                    Esqueci minha senha
+                  </Link>
                 </div>
 
                 <button

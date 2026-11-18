@@ -27,8 +27,14 @@ export function bearerToken(request: Request) {
 type RpcClient = { rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string } | null }> }
 export async function rateLimited(admin: RpcClient, request: Request, scope: string, limit = 30) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  const keyHash = createHash('sha256').update(`${scope}:${ip}`).digest('hex')
-  const { data, error } = await admin.rpc('consume_api_rate_limit', { p_key_hash: keyHash, p_limit: limit, p_window_seconds: 60 })
+  return rateLimitedByKey(admin, `${scope}:${ip}`, limit)
+}
+
+export async function rateLimitedByKey(admin: RpcClient, key: string, limit: number, windowSeconds = 60) {
+  const keyHash = createHash('sha256').update(key).digest('hex')
+  const { data, error } = await admin.rpc('consume_api_rate_limit', {
+    p_key_hash: keyHash, p_limit: limit, p_window_seconds: windowSeconds,
+  })
   if (error) {
     console.error('rate_limit_rpc_required', error.code || 'unknown')
     return true
