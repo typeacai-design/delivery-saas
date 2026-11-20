@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { ScrollText, Filter } from 'lucide-react'
 
@@ -63,7 +64,7 @@ export default function AuditoriaPage() {
             <tbody>
               {logsFiltrados.map(log => (
                 <tr key={log.id} className="border-t text-sm">
-                  <td className="p-3 text-gray-600">{new Date(log.criado_em).toLocaleString('pt-BR')}</td>
+                  <td className="p-3 text-gray-600">{formatBrasilia(log.criado_em,'datetime')}</td>
                   <td className="p-3 font-medium">{log.acao}</td>
                   <td className="p-3">{log.tabela}</td>
                   <td className="p-3 text-gray-500 text-xs">

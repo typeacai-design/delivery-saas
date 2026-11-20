@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -322,7 +323,7 @@ export default function MotoboyPage() {
               {/* Horário */}
               <div className="px-4 py-2 bg-gray-100 text-xs text-gray-500 flex items-center gap-1">
                 <Clock size={12} />
-                Pedido às {new Date(pedido.data_criacao).toLocaleTimeString('pt-BR')}
+                Pedido às {formatBrasilia(pedido.data_criacao,'time')}
               </div>
             </div>
           ))

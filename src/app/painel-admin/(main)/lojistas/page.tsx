@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { Store, Search, Plus, AlertTriangle, Mail, Key, Eye, Ban, CheckCircle, Trash2, Save, X } from 'lucide-react'
 import { InputField, SelectField, SearchableSelect } from '@/components/form-field'
@@ -429,7 +430,7 @@ function ModalDetalhes({ tenant, onClose, onSave, onAprovar, onSuspender, onReat
               <InfoRow label="Endereço" value={tenant.endereco || '—'} />
               <InfoRow label="Responsável" value={tenant.nome_responsavel || '—'} />
               <InfoRow label="CPF" value={tenant.cpf || '—'} />
-              <InfoRow label="Criado em" value={new Date(tenant.created_at).toLocaleString('pt-BR')} />
+              <InfoRow label="Criado em" value={formatBrasilia(tenant.created_at,'datetime')} />
             </div>
 
             <FaturasLojista key={tenant.id} loja={tenant.id} onBaixa={onBaixa} />

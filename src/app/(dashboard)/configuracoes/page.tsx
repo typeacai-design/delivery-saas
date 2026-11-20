@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -383,7 +384,7 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
           {excecoes.map((ex, idx) => (
             <div key={idx} className="glass-soft p-3 flex items-center gap-3">
               <Calendar size={16} style={{ color: 'var(--green)' }} />
-              <div className="font-mono text-sm font-semibold">{new Date(ex.data).toLocaleDateString('pt-BR')}</div>
+              <div className="font-mono text-sm font-semibold">{formatBrasilia(ex.data,'date')}</div>
               <div className="hint">{ex.abre} - {ex.fecha}</div>
               {ex.motivo && <div className="hint text-xs flex-1 truncate">• {ex.motivo}</div>}
               <button onClick={() => removeExcecao(idx)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg">
@@ -847,7 +848,7 @@ function TempoPicoSection() {
               <div key={d.id} className="glass-soft p-3 flex items-center gap-3">
                 <Calendar size={14} style={{ color: '#697386' }} />
                 <b className="flex-1">
-                  {new Date(d.data + 'T00:00:00').toLocaleDateString('pt-BR')}
+                  {formatBrasilia(d.data,'date')}
                   {d.motivo ? <span className="hint text-xs ml-2">· {d.motivo}</span> : null}
                 </b>
                 <span className="text-sm font-medium" style={{ color: '#B55C00' }}>+{d.tempo_extra_minutos} min</span>

@@ -1,3 +1,4 @@
+import * as brasilia from '../src/lib/brasilia.ts'
 import { server as flavorServer } from './flavor-fixtures.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -76,7 +77,7 @@ function publicRoute(product, complementPrice = 22) {
   }
   const source = readFileSync(new URL('../src/app/api/pedidos/public/route.ts', import.meta.url), 'utf8')
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
-  const context = { exports: {}, require: name => { assert.ok(name in imports, `Unexpected import ${name}`); return imports[name] }, process: { env: {} }, console, Headers, Response, URL }
+  const context = { exports: {}, require: name => { if(name==='@/lib/brasilia')return brasilia; assert.ok(name in imports, `Unexpected import ${name}`); return imports[name] }, process: { env: {} }, console, Headers, Response, URL }
   vm.runInNewContext(compiled, context)
   return { POST: context.exports.POST, written: () => written }
 }

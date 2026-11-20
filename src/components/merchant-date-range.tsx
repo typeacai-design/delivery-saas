@@ -1,5 +1,6 @@
 'use client'
 
+import { brasiliaDay } from '@/lib/brasilia'
 import { useId, useRef, useState } from 'react'
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -23,7 +24,7 @@ export default function MerchantDateRange({ from, to, onApply }: OrderDateRange 
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<OrderDateRange>({ from: '', to: '' })
   const [month, setMonth] = useState(() => {
-    const date = from || to ? parseDay(from || to) : new Date()
+    const date = from || to ? parseDay(from || to) : parseDay(brasiliaDay())
     return new Date(date.getFullYear(), date.getMonth(), 1, 12)
   })
   const trigger = useRef<HTMLButtonElement>(null)
@@ -31,7 +32,7 @@ export default function MerchantDateRange({ from, to, onApply }: OrderDateRange 
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }) }
   const toggle = () => {
     if (open) { close(); return }
-    const date = from || to ? parseDay(from || to) : new Date()
+    const date = from || to ? parseDay(from || to) : parseDay(brasiliaDay())
     setMonth(new Date(date.getFullYear(), date.getMonth(), 1, 12))
     setDraft({ from: '', to: '' }); setOpen(true)
   }

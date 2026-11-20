@@ -1,3 +1,4 @@
+import { formatBrasilia } from '@/lib/brasilia'
 import { formatCurrency } from '@/lib/utils'
 import { flavorLabel } from '@/lib/flavor-pricing'
 
@@ -134,7 +135,7 @@ export function gerarMensagemWhatsApp(d: DadosPedido): string {
   texto += `\n`
 
   if (d.agendamentoPara) {
-    texto += `⏰ *Agendado para:* ${new Date(d.agendamentoPara).toLocaleString('pt-BR')}\n\n`
+    texto += `⏰ *Agendado para:* ${formatBrasilia(d.agendamentoPara,'datetime')}\n\n`
   }
 
   if (d.observacoes) {

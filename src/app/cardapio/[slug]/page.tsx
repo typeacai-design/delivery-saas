@@ -1,3 +1,4 @@
+import { brasiliaWall } from '@/lib/brasilia'
 import { CARDAPIO_BLOQUEADO } from '@/lib/assinaturas'
 import { assinaturaVencida } from '@/lib/assinaturas-server'
 import { notFound } from 'next/navigation'
@@ -126,9 +127,9 @@ export default async function CardapioPublicoPage({
   // Logica melhorada de horario - usar timezone do Brasilia
   const agora = new Date()
   // Ajustar para timezone de Brasilia (UTC-3)
-  const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
-  const diaAtual = brasilia.getDay()
-  const minutosAgora = brasilia.getHours() * 60 + brasilia.getMinutes()
+  const brasilia = brasiliaWall(agora)
+  const diaAtual = brasilia.getUTCDay()
+  const minutosAgora = brasilia.getUTCHours() * 60 + brasilia.getUTCMinutes()
 
   // Mapear dia da semana (0-6) para chave
   const DIAS_CHAVES = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']

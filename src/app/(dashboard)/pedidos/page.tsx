@@ -1,4 +1,6 @@
 'use client'
+import { brasiliaDay } from '@/lib/brasilia'
+import { formatBrasilia } from '@/lib/brasilia'
 import { chargedProductBase, savedItemTotal } from '@/lib/product-pricing'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -412,7 +414,7 @@ export default function PedidosPage() {
   const [filtroPeriodo, setFiltroPeriodo] = useState<'hoje' | 'ontem' | 'todos'>('hoje')
   const getDataLocal = () => {
     const agora = new Date()
-    return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`
+    return brasiliaDay(agora)
   }
   const [filtroDataDe, setFiltroDataDe] = useState<string>(getDataLocal()) // Hoje LOCAL
   const [filtroDataAte, setFiltroDataAte] = useState<string>(getDataLocal()) // Hoje LOCAL
@@ -1159,7 +1161,7 @@ export default function PedidosPage() {
   }
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleString('pt-BR', {
+    return formatBrasilia(date,'datetime',{
       day: '2-digit',
       month: '2-digit',
       hour: '2-digit',
@@ -1168,7 +1170,7 @@ export default function PedidosPage() {
   }
 
   const formatDateFull = (date: string) => {
-    return new Date(date).toLocaleString('pt-BR', {
+    return formatBrasilia(date,'datetime',{
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -1370,7 +1372,7 @@ export default function PedidosPage() {
           if (pedidosTab === 'historico' && !stage.id && p.status === 'cancelado') return false
           const date = new Date(p.data_criacao)
           if (Number.isNaN(date.getTime())) return true
-          const local = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+          const local = brasiliaDay(date)
           return (!filtroDataDe || local >= filtroDataDe) && (!filtroDataAte || local <= filtroDataAte)
         }).length }))}
       />}
@@ -1383,7 +1385,7 @@ export default function PedidosPage() {
           const dataLocalISO = (dateStr: string) => {
             const d = new Date(dateStr)
             if (Number.isNaN(d.getTime())) return ''
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+            return brasiliaDay(d)
           }
           // Pedidos válidos para o Fluxo (exclui mesas/consolidados), respeitando o período
           const fluxoBase = pedidos.filter(
@@ -1555,7 +1557,7 @@ export default function PedidosPage() {
         const dataLocalISO = (dateStr: string) => {
           const d = new Date(dateStr)
           if (Number.isNaN(d.getTime())) return ''
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          return brasiliaDay(d)
         }
         const pedidosPorData = (filtroDataDe || filtroDataAte)
           ? pedidosFiltrados.filter(p => {
@@ -1582,7 +1584,7 @@ export default function PedidosPage() {
 
             {(filtroDataDe || filtroDataAte) && (
               <div className="mb-4 text-sm text-gray-500">
-                📅 Período: <strong>{filtroDataDe ? new Date(filtroDataDe + 'T00:00:00').toLocaleDateString('pt-BR') : '...'} até {filtroDataAte ? new Date(filtroDataAte + 'T00:00:00').toLocaleDateString('pt-BR') : '...'}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
+                📅 Período: <strong>{filtroDataDe ? formatBrasilia(filtroDataDe,'date') : '...'} até {filtroDataAte ? formatBrasilia(filtroDataAte,'date') : '...'}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
               </div>
             )}
 

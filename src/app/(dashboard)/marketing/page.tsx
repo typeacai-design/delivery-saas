@@ -1,5 +1,7 @@
 'use client'
 
+import { brasiliaDay,civilDayShift } from '@/lib/brasilia'
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -223,8 +225,8 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
 
   const abrirNovo = () => {
     setEditing(null)
-    const amanha = new Date(); amanha.setDate(amanha.getDate() + 30)
-    setForm({ codigo: '', tipo: 'percentual', valor: '', valor_minimo_pedido: '0', validade: amanha.toISOString().split('T')[0], max_usos: '' })
+    const amanha = civilDayShift(brasiliaDay(),30)
+    setForm({ codigo: '', tipo: 'percentual', valor: '', valor_minimo_pedido: '0', validade: amanha, max_usos: '' })
     setShowModal(true)
   }
 
@@ -329,7 +331,7 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
                   <span className="chip chip--positive">{c.tipo === 'percentual' ? `${c.valor}%` : `R$ ${Number(c.valor).toFixed(2)}`}</span>
                   {!c.ativo && <span className="chip chip--negative">Inativo</span>}
                 </div>
-                <div className="hint text-xs">Válido até {new Date(c.validade).toLocaleDateString('pt-BR')} • mín. {formatCurrency(Number(c.valor_minimo_pedido) || 0)}</div>
+                <div className="hint text-xs">Válido até {formatBrasilia(c.validade,'date')} • mín. {formatCurrency(Number(c.valor_minimo_pedido) || 0)}</div>
               </div>
               <div className="text-right mr-2">
                 <div className="text-sm font-semibold">{c.usos_atuais || 0}{c.max_usos ? `/${c.max_usos}` : ''}</div>
@@ -516,7 +518,7 @@ function RecuperacaoTab({ clientes }: { clientes: any[] }) {
               <div className="text-base font-semibold" style={{ color: '#15803D' }}>
                 {c.ultimo ? `${c.diasSemPedido} dias` : 'Nunca pediu'}
               </div>
-              <div className="hint text-xs">{c.ultimo ? `último: ${new Date(c.ultimo).toLocaleDateString('pt-BR')}` : 'novo cliente'}</div>
+              <div className="hint text-xs">{c.ultimo ? `último: ${formatBrasilia(c.ultimo,'date')}` : 'novo cliente'}</div>
             </div>
             <button className="btn-ghost text-xs" style={{ padding: '0.4rem 0.7rem', fontSize: '0.75rem' }}>
               Mandar cupom

@@ -1,3 +1,4 @@
+import { brasiliaDay } from '@/lib/brasilia'
 import { assinaturaVencida } from '@/lib/assinaturas-server'
 import { PEDIDOS_BLOQUEADOS } from '@/lib/assinaturas'
 import { NextResponse } from 'next/server'
@@ -99,7 +100,7 @@ export async function PATCH(request: Request) {
           tipo: 'entrada',
           descricao: `Pedido #${pedido.codigo || pedido_id.slice(0, 8)}`,
           valor: pedido.valor_total,
-          data: new Date().toISOString().split('T')[0], // campo date: YYYY-MM-DD
+          data: brasiliaDay(), // campo date: YYYY-MM-DD
           categoria: 'venda',
           referencia_id: pedido_id,
           forma_pagamento: formaPagamento,

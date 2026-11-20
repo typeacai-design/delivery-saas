@@ -1,3 +1,4 @@
+import { brasiliaWall,brasiliaDay } from '@/lib/brasilia'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -8,10 +9,10 @@ const DIAS_CHAVES = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
 function verificarHorarioFuncionamento(horariosDias: any, excecoes: any[]): boolean {
   const agora = new Date()
   // Usar timezone de Brasília
-  const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
-  const diaAtual = brasilia.getDay() // 0 = Domingo, 1 = Segunda, etc.
-  const horaAtual = brasilia.getHours() * 60 + brasilia.getMinutes()
-  const dataAtual = brasilia.toISOString().split('T')[0]
+  const brasilia = brasiliaWall(agora)
+  const diaAtual = brasilia.getUTCDay() // 0 = Domingo, 1 = Segunda, etc.
+  const horaAtual = brasilia.getUTCHours() * 60 + brasilia.getUTCMinutes()
+  const dataAtual = brasiliaDay(agora)
 
   // Verificar se é uma data com exceção (feriado, evento especial)
   if (excecoes && excecoes.length > 0) {

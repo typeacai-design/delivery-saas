@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Star, Check, X, MessageCircle, Trash2, Send, ThumbsUp, ThumbsDown, Filter, ChevronDown, Copy, Link as LinkIcon } from 'lucide-react'
@@ -343,7 +344,7 @@ export default function AvaliacoesPage() {
                           ))}
                         </div>
                         <span className="text-xs text-gray-500">
-                          {new Date(a.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {formatBrasilia(a.created_at,'date',{ day: '2-digit', month: 'short', year: 'numeric' })}
                         </span>
                         {!a.aprovado && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">

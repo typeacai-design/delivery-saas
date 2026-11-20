@@ -1,5 +1,6 @@
 'use client'
 
+import { brasiliaDay,brasiliaInstant } from '@/lib/brasilia'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -115,8 +116,7 @@ export default function AtendimentoPage() {
 
   const carregarDashboard = async (t: string) => {
     const sb = createClient()
-    const hoje = new Date()
-    hoje.setHours(0, 0, 0, 0)
+    const hoje = brasiliaInstant(brasiliaDay())
     const { data } = await sb
       .from('pedidos')
       .select('status')

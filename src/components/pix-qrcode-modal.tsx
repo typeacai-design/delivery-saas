@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState } from 'react'
 import { X, Copy, Check, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
@@ -71,7 +72,7 @@ export function PixQrCodeModal({ onClose, valor, brCode, qrCodeBase64, txid, exp
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Expira em:</span>
-              <span>{new Date(expiracao).toLocaleString('pt-BR')}</span>
+              <span>{formatBrasilia(expiracao,'datetime')}</span>
             </div>
           </div>
 

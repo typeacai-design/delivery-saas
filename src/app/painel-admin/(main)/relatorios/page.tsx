@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia,brasiliaDay,brasiliaInstant,civilDayShift } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { BarChart3, TrendingUp, Download, Calendar, DollarSign, Users, ShoppingBag, AlertTriangle, ArrowUpRight } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
@@ -48,14 +49,9 @@ export default function RelatoriosPage() {
   }
 
   const getDateLimit = () => {
-    const now = new Date()
-    switch (periodo) {
-      case '7d': return new Date(now.setDate(now.getDate() - 7))
-      case '30d': return new Date(now.setDate(now.getDate() - 30))
-      case '90d': return new Date(now.setDate(now.getDate() - 90))
-      case 'ano': return new Date(now.setFullYear(now.getFullYear() - 1))
-      default: return new Date(now.setDate(now.getDate() - 30))
-    }
+    const now=brasiliaDay()
+    if(periodo==='ano'){const p=new Date(now+'T12:00:00Z');p.setUTCFullYear(p.getUTCFullYear()-1);return brasiliaInstant(p.toISOString().slice(0,10))}
+    return brasiliaInstant(civilDayShift(now,periodo==='7d'?-7:periodo==='90d'?-90:-30))
   }
 
   const dateLimit = getDateLimit()
@@ -292,7 +288,7 @@ function getVendasPorDia(pedidos: any[]) {
   const dias: Record<string, number> = {}
 
   pedidos.forEach(p => {
-    const dia = new Date(p.data_criacao).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' })
+    const dia = formatBrasilia(p.data_criacao,'date',{ weekday: 'short', day: 'numeric' })
     dias[dia] = (dias[dia] || 0) + Number(p.valor_total || 0)
   })
 

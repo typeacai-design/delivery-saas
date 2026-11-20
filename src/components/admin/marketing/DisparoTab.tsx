@@ -1,5 +1,6 @@
 'use client'
 
+import { brasiliaDay } from '@/lib/brasilia'
 import { useState, useMemo } from 'react'
 import { Send, MessageCircle, AlertCircle } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
@@ -38,7 +39,7 @@ export default function DisparoTab({ clientes }: Props) {
       return ativos.filter((c) => {
         if (!c.data_nascimento) return false
         const dn = new Date(c.data_nascimento)
-        return dn.getUTCDate() === hoje.getDate() && dn.getUTCMonth() === hoje.getMonth()
+        return dn.toISOString().slice(5,10) === brasiliaDay(hoje).slice(5,10)
       })
     }
     return ativos

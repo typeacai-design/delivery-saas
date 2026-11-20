@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { Check, Clock, Home, MapPin, MessageCircle, MessageSquareText, Pencil, Percent, Printer, Star, Trash2, Truck, Wallet, X } from 'lucide-react'
 import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
 import { flavorLabel, parseComplements } from '@/lib/flavor-pricing'
@@ -21,7 +22,7 @@ export default function MerchantOrderCard({ pedido, items, statusLabel, nextLabe
   const ModalityIcon = pickup || isTable ? Home : Truck
   return <article className="wd-mobile-order" aria-label={`Pedido ${order.codigo || order.id}`}>
     <header className="wd-mo-header"><strong>{formatarCodigoPedido(order.id, order.data_criacao, order.codigo)}</strong><span className="wd-mo-status" data-status={order.status}>{statusLabel}</span></header>
-    <div className="wd-mo-tags"><span className="wd-mo-modality"><ModalityIcon size={14} aria-hidden="true" />{modality}</span><span><Clock size={14} aria-hidden="true" /><time dateTime={order.data_criacao}>{new Date(order.data_criacao).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</time></span></div>
+    <div className="wd-mo-tags"><span className="wd-mo-modality"><ModalityIcon size={14} aria-hidden="true" />{modality}</span><span><Clock size={14} aria-hidden="true" /><time dateTime={order.data_criacao}>{formatBrasilia(order.data_criacao,'time',{ hour: '2-digit', minute: '2-digit' })}</time></span></div>
     <p className="wd-mo-customer">{order.cliente_nome || 'Cliente'}</p>
     {order.cliente_whatsapp && <p className="wd-mo-phone">{order.cliente_whatsapp}</p>}
     <section className="wd-mo-products" aria-label="Produtos e complementos"><div className="wd-mo-section-title">ITENS DO PEDIDO<span>{items?.reduce((sum, item) => sum + (Number(item.quantidade) || 1), 0) ?? '…'} unidades</span></div>

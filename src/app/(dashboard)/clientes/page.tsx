@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { brasiliaDay } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -724,7 +725,7 @@ function exportarCSV(clientes: Cliente[]) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `clientes-${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = `clientes-${brasiliaDay()}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }

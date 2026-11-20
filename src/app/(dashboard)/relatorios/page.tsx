@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { activeTenantId } from '@/lib/active-tenant-client'
+import { reportDefault, civilLabel } from '@/lib/brasilia'
+import type { ReportResult } from '@/lib/merchant-reports'
 import {
   FileText, BarChart3, Calendar, Package, Sparkles, Download, TrendingUp, DollarSign, Eye
 } from 'lucide-react'
@@ -12,8 +12,8 @@ type Relatorio = 'periodo' | 'item' | 'complemento' | 'pagamento' | 'dias' | 'ho
 
 export default function RelatoriosPage() {
   const [tab, setTab] = useState<Relatorio>('periodo')
-  const [dataInicio, setDataInicio] = useState('')
-  const [dataFim, setDataFim] = useState('')
+  const [dataInicio, setDataInicio] = useState(() => reportDefault().from)
+  const [dataFim, setDataFim] = useState(() => reportDefault().to)
   const [formaPagamento, setFormaPagamento] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -29,96 +29,27 @@ export default function RelatoriosPage() {
   const [totalSaidas, setTotalSaidas] = useState(0)
   const [ticketMedio, setTicketMedio] = useState(0)
   const [numeroPedidosPagos, setNumeroPedidosPagos] = useState(0)
-  const supabase = createClient()
-
+  const [snapshot,setSnapshot] = useState<(ReportResult & {workbookBase64:string})|null>(null)
+  const [visits,setVisits] = useState('7d')
+  const snapshotMatches=!!snapshot&&snapshot.filters.from===dataInicio&&snapshot.filters.to===dataFim&&snapshot.filters.payment===formaPagamento&&snapshot.filters.status===statusFilter&&snapshot.filters.visits===visits
   useEffect(() => {
-    // Defaults: últimos 30 dias
-    const fim = new Date()
-    const inicio = new Date()
-    inicio.setDate(inicio.getDate() - 30)
-    setDataFim(fim.toISOString().split('T')[0])
-    setDataInicio(inicio.toISOString().split('T')[0])
-    loadData()
-  }, [])
-
-  useEffect(() => {
-    if (dataInicio && dataFim) loadData()
-  }, [dataInicio, dataFim, formaPagamento, statusFilter])
-
-  const loadData = async () => {
-    if (!dataInicio || !dataFim) return
-    setLoading(true)
-    setErroRelatorio('')
-    try {
-      const tenantId = await activeTenantId()
-      if (!tenantId) throw new Error('Loja não identificada')
-      if (dataInicio > dataFim) throw new Error('A data inicial deve ser anterior à data final')
-      // Os limites são calculados no horário de Brasília, não em UTC.
-      const inicio = new Date(dataInicio + 'T00:00:00-03:00').toISOString()
-      const fim = new Date(dataFim + 'T23:59:59.999-03:00').toISOString()
-      const [{data: pedidos, error: erroPedidos}, {data: movimentos, error: erroMovimentos}, {data: sessoes, error: erroMesas}] = await Promise.all([
-        supabase.from('pedidos').select('id,valor_total,data_criacao,status,forma_pagamento,valor_pago,pago,tipo_pedido,tipo_entrega,sessao_mesa_id,motivo_cancelamento,deleted_at').eq('tenant_id',tenantId).gte('data_criacao',inicio).lte('data_criacao',fim).is('deleted_at',null).limit(10000),
-        supabase.from('movimentacoes_financeiras').select('id,tipo,valor,data,referencia_id,categoria').eq('tenant_id',tenantId).gte('data',dataInicio).lte('data',dataFim).limit(10000),
-        supabase.from('sessoes_mesa').select('id,valor_total,forma_pagamento,data_fechamento,status').eq('tenant_id',tenantId).eq('status','fechada').gte('data_fechamento',inicio).lte('data_fechamento',fim).limit(10000),
-      ])
-      if(erroPedidos||erroMovimentos||erroMesas) throw new Error(erroPedidos?.message||erroMovimentos?.message||erroMesas?.message)
-      const todos = pedidos||[]
-      const validos = todos.filter(p=>p.status!=='cancelado' && p.pago===true && !p.sessao_mesa_id && (!statusFilter || p.status===statusFilter))
-      const pagamentos=(formas:any, valores:any, total:number) => {
-        const fs=Array.isArray(formas)?formas.filter(Boolean):formas?[formas]:[]
-        if(!fs.length)return [{nome:'Não informado',valor:total}]
-        if(fs.length===1)return [{nome:fs[0],valor:total}]
-        const vs=Array.isArray(valores)?valores.map(Number):[]
-        if(vs.length===fs.length && vs.every(v=>Number.isFinite(v)&&v>=0) && vs.reduce((s,v)=>s+v,0)>0){
-          const soma=vs.reduce((s,v)=>s+v,0)
-          return fs.map((nome,i)=>({nome,valor:total*vs[i]/soma}))
-        }
-        return [{nome:'Pagamento misto',valor:total}]
-      }
-      const vendas = [
-        ...validos.map(p=>({id:p.id,data:p.data_criacao,valor:Number(p.valor_total)||0,formas:pagamentos(p.forma_pagamento,p.valor_pago,Number(p.valor_total)||0),tipo:p.tipo_pedido||p.tipo_entrega||'Não informado'})),
-        ...(!statusFilter||statusFilter==='entregue'?(sessoes||[]):[]).map(s=>({id:s.id,data:s.data_fechamento!,valor:Number(s.valor_total)||0,formas:pagamentos(s.forma_pagamento,null,Number(s.valor_total)||0),tipo:'mesa'})),
-      ].filter(v=>!formaPagamento||v.formas.some(f=>f.nome===formaPagamento))
-      const gruposDia:Record<string,{total:number;count:number}>={}
-      const gruposForma:Record<string,number>={}
-      const extras:Record<string,Record<string,{nome:string;qtd:number;total:number}>>={horarios:{},semana:{},modalidade:{},cancelamentos:{}}
-      const add=(categoria:string,nome:string,valor:number)=>{const g=extras[categoria];if(!g[nome])g[nome]={nome,qtd:0,total:0};g[nome].qtd++;g[nome].total+=valor}
-      let total=0
-      for(const v of vendas){
-        const data=new Date(v.data)
-        const dia=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(data)
-        const hora=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false}).format(data)+'h'
-        const semana=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'long'}).format(data)
-        if(!gruposDia[dia])gruposDia[dia]={total:0,count:0}
-        gruposDia[dia].total+=v.valor;gruposDia[dia].count++;total+=v.valor
-        for(const f of v.formas)gruposForma[f.nome]=(gruposForma[f.nome]||0)+f.valor
-        add('horarios',hora,v.valor);add('semana',semana,v.valor);add('modalidade',v.tipo,v.valor)
-      }
-      for(const p of todos.filter(p=>p.status==='cancelado'&&(!formaPagamento||(Array.isArray(p.forma_pagamento)&&p.forma_pagamento.includes(formaPagamento)))))add('cancelamentos',p.motivo_cancelamento||'Não informado',Number(p.valor_total)||0)
-      setRelatorioExtra(Object.fromEntries(Object.entries(extras).map(([k,v])=>[k,Object.values(v).sort((a,b)=>b.total-a.total)])))
-      setTotalGeral(total);setTotalEntradas(total);setNumeroPedidosPagos(vendas.length);setTicketMedio(vendas.length?total/vendas.length:0)
-      setVendasPorDia(Object.entries(gruposDia).map(([dia,d])=>({dia,...d})).sort((a,b)=>a.dia.localeCompare(b.dia)))
-      setVendasPorFormaPagamento(gruposForma)
-      setDiasMaisVendas(Object.entries(gruposDia).map(([dia,d])=>({dia,...d})).sort((a,b)=>b.total-a.total).slice(0,5))
-      // Saídas registradas no fluxo financeiro, respeitando o período.
-      setTotalSaidas((movimentos||[]).filter(m=>m.tipo==='saida').reduce((s,m)=>s+Number(m.valor||0),0))
-      // Rankings limitados a pedidos efetivamente pagos; sessões de mesa são consolidadas apenas no financeiro.
-      const ids=todos.filter(p=>p.status!=='cancelado'&&p.pago===true&&(!statusFilter||p.status===statusFilter)&&(!formaPagamento||(Array.isArray(p.forma_pagamento)&&p.forma_pagamento.includes(formaPagamento)))).map(p=>p.id)
-      const itens: any[]=[]
-      for(let i=0;i<ids.length;i+=200){const {data,error}=await supabase.from('pedido_itens').select('id,nome,quantidade,valor_unitario,complementos').in('pedido_id',ids.slice(i,i+200));if(error)throw error;itens.push(...(data||[]))}
-      const porItem:Record<string,{qtd:number;total:number}>={}
-      const porComp:Record<string,{qtd:number;total:number}>={}
-      for(const item of itens){
-        const nome=item.nome||'Sem nome';if(!porItem[nome])porItem[nome]={qtd:0,total:0}
-        porItem[nome].qtd+=Number(item.quantidade)||0;porItem[nome].total+=(Number(item.quantidade)||0)*(Number(item.valor_unitario)||0)
-        const cs=Array.isArray(item.complementos)?item.complementos:[]
-        for(const comp of cs){const cn=comp.nome||comp.name;if(!cn)continue;if(!porComp[cn])porComp[cn]={qtd:0,total:0};const qtd=(Number(comp.quantidade)||1)*(Number(item.quantidade)||1);porComp[cn].qtd+=qtd;porComp[cn].total+=qtd*Number(comp.valor??comp.preco??0)}
-      }
-      setVendasPorItem(Object.entries(porItem).map(([nome,d])=>({nome,...d})).sort((a,b)=>b.total-a.total))
-      setVendasPorComplemento(Object.entries(porComp).map(([nome,d])=>({nome,...d})).sort((a,b)=>b.total-a.total))
-    }catch(e:any){setErroRelatorio(e?.message||'Não foi possível carregar os relatórios')}
-    finally{setLoading(false)}
-  }
+    const controller=new AbortController()
+    setLoading(true);setErroRelatorio('');setSnapshot(null)
+    setTotalEntradas(0);setTotalSaidas(0);setTotalGeral(0);setTicketMedio(0);setNumeroPedidosPagos(0);setVendasPorDia([]);setVendasPorItem([]);setVendasPorComplemento([]);setVendasPorFormaPagamento({});setDiasMaisVendas([]);setRelatorioExtra({})
+    if(!dataInicio||!dataFim||dataInicio>dataFim){setErroRelatorio('Selecione um período válido.');setLoading(false);return}
+    const query=new URLSearchParams({from:dataInicio,to:dataFim,payment:formaPagamento,status:statusFilter,visits})
+    fetch('/api/relatorios?'+query,{cache:'no-store',signal:controller.signal}).then(async r=>{
+      const d=await r.json() as ReportResult & {workbookBase64:string;error?:string}
+      if(!r.ok)throw Error(d.error||'Não foi possível carregar os relatórios')
+      if(controller.signal.aborted)return
+      const dayRows=(rows:typeof d.rows.periodo)=>rows.map(x=>({dia:x.nome,count:x.qtd,total:x.total}))
+      setSnapshot(d);setTotalGeral(d.summary.vendas);setTotalEntradas(d.summary.entradas);setTotalSaidas(d.summary.saidas);setTicketMedio(d.summary.ticket);setNumeroPedidosPagos(d.summary.pedidos)
+      setVendasPorDia(dayRows(d.rows.periodo));setDiasMaisVendas(dayRows(d.rows.dias))
+      setVendasPorItem(d.rows.item);setVendasPorComplemento(d.rows.complemento);setVendasPorFormaPagamento(Object.fromEntries(d.rows.pagamento.map(x=>[x.nome,x.total])))
+      setRelatorioExtra({horarios:d.rows.horarios,semana:d.rows.semana,modalidade:d.rows.modalidade,cancelamentos:d.rows.cancelamentos})
+    }).catch(e=>{if(!controller.signal.aborted)setErroRelatorio(e.message)}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
+    return ()=>controller.abort()
+  },[dataInicio,dataFim,formaPagamento,statusFilter,visits])
 
   const tabs = [
     { id: 'periodo', label: 'Por período', icon: Calendar },
@@ -148,18 +79,16 @@ export default function RelatoriosPage() {
             </h1>
             <p className="hint mt-2">Vendas por período, item e complemento</p>
           </div>
-          <button className="btn-primary" onClick={() => {
-            const rows = [['Relatório','Nome','Quantidade','Valor'], ...Object.entries(relatorioExtra).flatMap(([tipo, dados])=>dados.map(d=>[tipo,d.nome,String(d.qtd),String(d.total)])), ...vendasPorDia.map(d=>['Vendas por dia',d.dia,String(d.count),String(d.total)]), ...vendasPorItem.map(d=>['Produtos',d.nome,String(d.qtd),String(d.total)]), ...vendasPorComplemento.map(d=>['Complementos',d.nome,String(d.qtd),String(d.total)])]
-            const csv='\\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\\r\\n')
-            const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const link=document.createElement('a');link.href=url;link.download='relatorios-'+dataInicio+'-'+dataFim+'.csv';link.click();URL.revokeObjectURL(url)
-          }}>
-            <Download size={14} />
-            Exportar CSV
-          </button>
+          <button className="btn-primary" disabled={!snapshotMatches||loading||!!erroRelatorio} onClick={() => {
+            if(!snapshot||!snapshotMatches)return
+            const bytes=Uint8Array.from(atob(snapshot.workbookBase64),c=>c.charCodeAt(0))
+            const url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}))
+            const link=document.createElement('a');link.href=url;link.download='relatorios-'+snapshot.filters.from+'-'+snapshot.filters.to+'.xlsx';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+          }}><Download size={14}/> Exportar planilha Excel</button>
         </div>
       </div>
 
-      <VisitantesCard />
+      <VisitantesCard periodo={visits} setPeriodo={setVisits} dados={snapshot?.visits||null} loading={loading} />
 
       {/* Filtro de período + tabs */}
       <div className="glass p-4 mb-5">
@@ -175,6 +104,7 @@ export default function RelatoriosPage() {
               <option value="pix">PIX</option>
               <option value="cartao_credito">Cartão Crédito</option>
               <option value="cartao_debito">Cartão Débito</option>
+              <option value="nao_informado">Não informado</option><option value="misto">Pagamento misto</option>
             </select>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', borderRadius: 8 }} className="form-input">
               <option value="">Todos status</option>
@@ -182,7 +112,7 @@ export default function RelatoriosPage() {
               <option value="saiu">Saiu</option>
               <option value="pronto">Pronto</option>
               <option value="preparando">Preparando</option>
-              <option value="novo">Novos</option>
+              <option value="novo">Novos</option><option value="cancelado">Cancelados</option>
             </select>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -209,6 +139,7 @@ export default function RelatoriosPage() {
         </div>
       </div>
 
+      <p className="hint text-xs mb-3">Horário de Brasília. Saídas consideram todo o período; filtros de pagamento e situação se aplicam às vendas.</p>
       {/* Resumo */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-5">
         <div className="glass p-5">
@@ -262,14 +193,14 @@ export default function RelatoriosPage() {
                   {vendasPorDia.map((v) => (
                     <div key={v.dia} className="flex items-center gap-3">
                       <div className="w-24 text-xs font-mono" style={{ color: 'var(--ink-2)' }}>
-                        {new Date(v.dia).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                        {civilLabel(v.dia)}
                       </div>
                       <div className="flex-1 h-8 rounded-xl relative overflow-hidden" style={{ background: 'rgba(255,255,255,.4)' }}>
                         <div
                           className="absolute inset-y-0 left-0 rounded-xl transition-all"
                           style={{
                             background: 'var(--grad-violet)',
-                            width: `${(v.total / max) * 100}%`,
+                            width: `${(v.total / Math.max(1,max)) * 100}%`,
                             minWidth: '8px',
                           }}
                         />
@@ -362,7 +293,7 @@ export default function RelatoriosPage() {
                         <div key={forma} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                           <div className="w-32 font-medium">{labels[forma] || forma}</div>
                           <div className="flex-1 h-6 rounded-lg bg-white relative overflow-hidden">
-                            <div className="absolute inset-y-0 left-0 rounded-lg bg-green-500" style={{ width: `${(valor / totalGeral) * 100}%` }} />
+                            <div className="absolute inset-y-0 left-0 rounded-lg bg-green-500" style={{ width: `${(valor / Math.max(1,totalGeral)) * 100}%` }} />
                           </div>
                           <div className="w-32 text-right font-semibold text-green-600">{formatCurrency(valor)}</div>
                         </div>
@@ -388,7 +319,7 @@ export default function RelatoriosPage() {
                         color: idx < 3 ? 'white' : 'var(--ink)',
                       }}>{idx + 1}</div>
                       <div className="flex-1">
-                        <div className="font-semibold" style={{ color: 'var(--ink)' }}>{new Date(d.dia).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+                        <div className="font-semibold" style={{ color: 'var(--ink)' }}>{civilLabel(d.dia)}</div>
                         <div className="hint text-xs">{d.count} pedidos</div>
                       </div>
                       <div className="text-xl font-semibold gradient-text">{formatCurrency(d.total)}</div>
@@ -409,26 +340,7 @@ export default function RelatoriosPage() {
    COMPONENTE: VisitantesCard
    Mostra contagem de page-views do cardápio público
    =========================================================== */
-function VisitantesCard() {
-  const [periodo, setPeriodo] = useState<'24h' | '7d' | '30d' | 'all'>('7d')
-  const [dados, setDados] = useState<{ total: number; porDia: { data: string; views: number }[] } | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let mounted = true
-    setLoading(true)
-    fetch(`/api/analytics?periodo=${periodo}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (mounted) {
-          setDados(d)
-          setLoading(false)
-        }
-      })
-      .catch(() => { if (mounted) setLoading(false) })
-    return () => { mounted = false }
-  }, [periodo])
-
+function VisitantesCard({periodo,setPeriodo,dados,loading}:{periodo:string;setPeriodo:(p:string)=>void;dados:ReportResult['visits']|null;loading:boolean}) {
   const max = Math.max(1, ...(dados?.porDia || []).map((d) => d.views))
 
   return (
@@ -441,7 +353,7 @@ function VisitantesCard() {
           <div>
             <div className="text-xs text-gray-500">Visualizações do cardápio</div>
             <div className="text-2xl font-bold text-gray-900">
-              {loading ? '...' : dados?.total ?? 0}
+              {loading ? '...' : dados?.total ?? '—'}
             </div>
           </div>
         </div>
@@ -454,7 +366,7 @@ function VisitantesCard() {
           ].map((p) => (
             <button
               key={p.id}
-              onClick={() => setPeriodo(p.id as any)}
+              onClick={() => setPeriodo(p.id)}
               className="px-3 py-1 rounded-lg text-xs font-medium"
               style={
                 periodo === p.id

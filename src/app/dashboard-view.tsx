@@ -1,5 +1,6 @@
 'use client'
 
+import { brasiliaWall,brasiliaDay,brasiliaInstant,civilDayShift } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -20,9 +21,9 @@ function verificarLojaAbertaPorHorario(config: any): { aberto: boolean; horarioM
 
   // Usar timezone do Brasil
   const agora = new Date()
-  const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
-  const diaAtual = brasilia.getDay()
-  const minutosAgora = brasilia.getHours() * 60 + brasilia.getMinutes()
+  const brasilia = brasiliaWall(agora)
+  const diaAtual = brasilia.getUTCDay()
+  const minutosAgora = brasilia.getUTCHours() * 60 + brasilia.getUTCMinutes()
 
   // Mapear dia da semana (0-6) para chave
   const DIAS_CHAVES = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
@@ -78,9 +79,9 @@ function calcularExpiracaoOverride(
 
   const agora = new Date()
   // Minutos de hoje no fuso de Brasilia (mesmo criterio do verificarLojaAbertaPorHorario)
-  const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
-  const diaAtualIdx = brasilia.getDay()
-  const minutosHoje = brasilia.getHours() * 60 + brasilia.getMinutes()
+  const brasilia = brasiliaWall(agora)
+  const diaAtualIdx = brasilia.getUTCDay()
+  const minutosHoje = brasilia.getUTCHours() * 60 + brasilia.getUTCMinutes()
 
   const parseTime = (s: any): number | null => {
     if (!s) return null
@@ -109,16 +110,8 @@ function calcularExpiracaoOverride(
 
   // Constrói um Date em Brasilia (UTC-3) para dia+hora especificados
   const diaParaTimestamp = (diaIdx: number, minutos: number): Date => {
-    // Pega o inicio do dia de hoje em Brasilia
-    const inicioHojeBrasilia = new Date(brasilia)
-    inicioHojeBrasilia.setHours(0, 0, 0, 0)
-    // Soma os dias (em horario local do servidor; servidor roda em UTC, mas
-    // brasilia ja tem offset -3 embutido no .toLocaleString -- entao a hora
-    // do servidor reflete a hora local de Brasilia).
-    const target = new Date(inicioHojeBrasilia)
-    target.setDate(target.getDate() + diffDias(diaIdx))
-    target.setHours(Math.floor(minutos / 60), minutos % 60, 0, 0)
-    return target
+    const delta=diffDias(diaIdx)|| (minutos<=minutosHoje?7:0)
+    return brasiliaInstant(civilDayShift(brasiliaDay(agora),delta),minutos)
   }
 
   if (tipo === 'abrir') {
@@ -164,7 +157,7 @@ function calcularExpiracaoOverride(
 }
 
 export default function VisaoGeralPage() {
-  const hora = new Date().getHours()
+  const hora = brasiliaWall().getUTCHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
   const [loading, setLoading] = useState(true)
   const [totalHoje, setTotalHoje] = useState(0)
@@ -239,14 +232,14 @@ export default function VisaoGeralPage() {
 
       // Usar data local (Brasília) para evitar problemas de timezone
       const agora = new Date()
-      const brasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+      const brasilia = brasiliaWall(agora)
 
       // Calcular início e fim do dia em São Paulo, em UTC
       // Brasília = UTC-3
       // Pegar YYYY-MM-DD do dia de hoje em Brasília
-      const ano = brasilia.getFullYear()
-      const mes = brasilia.getMonth()
-      const dia = brasilia.getDate()
+      const ano = brasilia.getUTCFullYear()
+      const mes = brasilia.getUTCMonth()
+      const dia = brasilia.getUTCDate()
 
       // Início: 08/09 00:00:00 BRT → 08/09 03:00:00 UTC
       const inicioHojeUTC = new Date(Date.UTC(ano, mes, dia, 3, 0, 0, 0))

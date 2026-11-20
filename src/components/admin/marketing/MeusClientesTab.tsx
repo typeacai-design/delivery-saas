@@ -1,5 +1,7 @@
 'use client'
 
+import { brasiliaDay } from '@/lib/brasilia'
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Users, Search, Phone, MapPin, ShoppingBag, Calendar, Eye, ChevronDown, ChevronUp, Trophy, Cake, Filter } from 'lucide-react'
@@ -66,7 +68,7 @@ export default function MeusClientesTab() {
   }
 
   // Calcular mes atual para filtro de aniversariantes
-  const mesAtual = new Date().getMonth() + 1
+  const mesAtual = Number(brasiliaDay().slice(5,7))
 
   // Aplicar filtros
   const clientesFiltrados = useMemo(() => {
@@ -93,7 +95,7 @@ export default function MeusClientesTab() {
     } else if (filtro === 'aniversariantes') {
       resultado = resultado.filter((c) => {
         if (!c.data_nascimento) return false
-        const mes = new Date(c.data_nascimento).getMonth() + 1
+        const mes = Number(c.data_nascimento.slice(5,7))
         return mes === mesAtual
       })
     }
@@ -107,7 +109,7 @@ export default function MeusClientesTab() {
   // Contadores para badges
   const countAniversariantes = clientes.filter((c) => {
     if (!c.data_nascimento) return false
-    const mes = new Date(c.data_nascimento).getMonth() + 1
+    const mes = Number(c.data_nascimento.slice(5,7))
     return mes === mesAtual
   }).length
 
@@ -190,7 +192,7 @@ export default function MeusClientesTab() {
         {clientesFiltrados.map((c) => {
           const pts = { cashback: Number(saldos[c.id]||0) }
           const expandidoAt = expandido === c.id
-          const isAniversariante = c.data_nascimento && new Date(c.data_nascimento).getMonth() + 1 === mesAtual
+          const isAniversariante = c.data_nascimento && Number(c.data_nascimento.slice(5,7)) === mesAtual
           return (
             <div key={c.id} className={`bg-white rounded-2xl border overflow-hidden ${isAniversariante ? 'border-pink-300 ring-2 ring-pink-100' : ''}`} style={{ borderColor: isAniversariante ? undefined : '#E5E7EB' }}>
               <div
@@ -212,7 +214,7 @@ export default function MeusClientesTab() {
                     {c.telefone && <span><Phone className="w-3 h-3 inline" /> {c.telefone}</span>}
                     {c.bairro && <span><MapPin className="w-3 h-3 inline" /> {c.bairro}</span>}
                     <span><ShoppingBag className="w-3 h-3 inline" /> {c.total_pedidos || 0} pedido(s)</span>
-                    {c.data_nascimento && <span><Calendar className="w-3 h-3 inline" /> {new Date(c.data_nascimento).toLocaleDateString('pt-BR')}</span>}
+                    {c.data_nascimento && <span><Calendar className="w-3 h-3 inline" /> {formatBrasilia(c.data_nascimento,'date')}</span>}
                   </div>
                 </div>
                 <div className="text-right">
@@ -221,7 +223,7 @@ export default function MeusClientesTab() {
                     {pts.cashback > 0 && <span className="ml-2 font-bold text-green-600">{formatCurrency(pts.cashback)}</span>}
                   </div>
                   <div className="text-xs text-gray-500">
-                    Cadastrado {new Date(c.created_at).toLocaleDateString('pt-BR')}
+                    Cadastrado {formatBrasilia(c.created_at,'date')}
                   </div>
                 </div>
                 <button className="p-2 hover:bg-gray-100 rounded-lg">
@@ -235,7 +237,7 @@ export default function MeusClientesTab() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     {c.email && <div><span className="font-medium">Email:</span> {c.email}</div>}
                     {c.cpf && <div><span className="font-medium">CPF:</span> {c.cpf}</div>}
-                    {c.data_nascimento && <div><span className="font-medium">Nascimento:</span> {new Date(c.data_nascimento).toLocaleDateString('pt-BR')}</div>}
+                    {c.data_nascimento && <div><span className="font-medium">Nascimento:</span> {formatBrasilia(c.data_nascimento,'date')}</div>}
                     {c.endereco && <div className="md:col-span-2"><span className="font-medium">Endereço:</span> {c.endereco}</div>}
                     {c.ltv && <div><span className="font-medium">LTV (valor total):</span> {formatCurrency(Number(c.ltv))}</div>}
                   </div>
@@ -250,7 +252,7 @@ export default function MeusClientesTab() {
                         pedidosCliente.map((p: any) => (
                           <div key={p.id} className="flex items-center justify-between p-2 bg-white rounded-lg text-xs">
                             <span className="font-mono font-bold">{p.codigo || `#${p.id.slice(0, 8)}`}</span>
-                            <span className="text-gray-500">{new Date(p.data_criacao).toLocaleDateString('pt-BR')}</span>
+                            <span className="text-gray-500">{formatBrasilia(p.data_criacao,'date')}</span>
                             <span className={`px-2 py-0.5 rounded-full text-xs ${p.status === 'entregue' ? 'bg-gray-100 text-gray-700' :
                               p.status === 'cancelado' ? 'bg-red-100 text-red-700' :
                                 p.status === 'novo' ? 'bg-orange-100 text-orange-700' :
@@ -275,7 +277,7 @@ export default function MeusClientesTab() {
             <Filter className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="hint">
               {filtro === 'aniversariantes'
-                ? `Nenhum cliente aniversariante neste mês (${new Date().toLocaleDateString('pt-BR', { month: 'long' })})`
+                ? `Nenhum cliente aniversariante neste mês (${formatBrasilia(new Date(),'date',{ month: 'long' })})`
                 : filtro === 'top10'
                   ? 'Nenhum cliente com pedidos ainda'
                   : busca ? `Nenhum cliente encontrado para "${busca}"` : 'Nenhum cliente cadastrado ainda'

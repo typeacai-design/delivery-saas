@@ -1,6 +1,7 @@
-/** Calendar dates in the merchant device's local timezone, without subtracting fixed hours. */
+import { brasiliaDay,civilDayShift } from '@/lib/brasilia'
+/** Calendar dates in Brasília, independent of the merchant device. */
 export function orderPeriodRange(period: 'hoje' | 'ontem', now = new Date()) {
-  const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (period === 'ontem' ? 1 : 0))
-  const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const day = civilDayShift(brasiliaDay(now),period==='ontem'?-1:0)
+
   return { from: day, to: day }
 }

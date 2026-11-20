@@ -105,10 +105,10 @@ test('alarm ignores initial/old/duplicate orders and waits for every new arrival
 
 test('Hoje/Ontem use exact calendar days, including month and year boundaries', () => {
   const { orderPeriodRange } = load('src/lib/order-period.ts')
-  assert.deepEqual(orderPeriodRange('hoje', new Date(2026, 9, 30, 23, 59)), { from: '2026-10-30', to: '2026-10-30' })
-  assert.deepEqual(orderPeriodRange('ontem', new Date(2026, 9, 30, 0, 1)), { from: '2026-10-29', to: '2026-10-29' })
-  assert.deepEqual(orderPeriodRange('ontem', new Date(2027, 0, 1)), { from: '2026-12-31', to: '2026-12-31' })
-  assert.deepEqual(orderPeriodRange('ontem', new Date(2026, 2, 1)), { from: '2026-02-28', to: '2026-02-28' })
+  assert.deepEqual(orderPeriodRange('hoje', new Date('2026-10-31T02:59:00Z')), { from: '2026-10-30', to: '2026-10-30' })
+  assert.deepEqual(orderPeriodRange('ontem', new Date('2026-10-30T03:01:00Z')), { from: '2026-10-29', to: '2026-10-29' })
+  assert.deepEqual(orderPeriodRange('ontem', new Date('2027-01-01T03:00:00Z')), { from: '2026-12-31', to: '2026-12-31' })
+  assert.deepEqual(orderPeriodRange('ontem', new Date('2026-03-01T03:00:00Z')), { from: '2026-02-28', to: '2026-02-28' })
 })
 
 test('global audio stays silent on load/first touch, loops for arrivals, and stops only after the last resolution', async t => {

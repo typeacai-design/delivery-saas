@@ -1,4 +1,5 @@
 import { CARDAPIO_BLOQUEADO } from '@/lib/assinaturas'
+import { brasiliaDay } from '@/lib/brasilia'
 import { assinaturaVencida } from '@/lib/assinaturas-server'
 import { FlavorValidationError, validateFlavorItem } from '@/lib/flavor-order-server'
 import { savedItemTotal } from '@/lib/product-pricing'
@@ -31,7 +32,7 @@ function getAdminClient() {
 function validIsoDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const date = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && date <= new Date()
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && value <= brasiliaDay()
 }
 
 export async function GET(request: Request) {
@@ -276,12 +277,7 @@ export async function POST(request: Request) {
       const clienteDb = clienteMatches?.length === 1 ? clienteMatches[0] : null
 
       if (clienteDb?.data_nascimento) {
-        const dn = new Date(clienteDb.data_nascimento)
-        const hoje = new Date()
-        // Comparar dia/mês (ignora ano) no fuso do Brasil
-        const dnBR = new Date(dn.getTime() - 3 * 60 * 60 * 1000)
-        const hojeBR = new Date(hoje.getTime() - 3 * 60 * 60 * 1000)
-        if (dnBR.getUTCDate() === hojeBR.getUTCDate() && dnBR.getUTCMonth() === hojeBR.getUTCMonth()) {
+        if (clienteDb.data_nascimento.slice(5,10) === brasiliaDay().slice(5,10)) {
           aniversarioHoje = true
           // 10% de desconto, sobre o subtotal (não sobre entrega)
           const pct = (cfg.desconto_aniversario_percent || 10) / 100
@@ -302,7 +298,7 @@ export async function POST(request: Request) {
       const { data: cupom } = await admin.from('cupons')
         .select('codigo,tipo,valor,valor_minimo_pedido,validade,max_usos,usos_atuais,ativo')
         .eq('tenant_id', tenant.id).eq('codigo', codigo).eq('ativo', true).maybeSingle()
-      const valido = cupom && (!cupom.validade || new Date(`${cupom.validade}T23:59:59`) >= new Date()) &&
+      const valido = cupom && (!cupom.validade || cupom.validade.slice(0,10) >= brasiliaDay()) &&
         (!cupom.max_usos || Number(cupom.usos_atuais || 0) < Number(cupom.max_usos)) &&
         subtotalCalculado >= Number(cupom.valor_minimo_pedido || 0)
       if (!valido) return NextResponse.json({ error: 'Cupom invalido, expirado ou esgotado' }, { status: 400 })

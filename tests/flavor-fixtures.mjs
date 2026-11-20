@@ -1,3 +1,4 @@
+import * as brasilia from '../src/lib/brasilia.ts'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
@@ -6,7 +7,7 @@ import * as pricing from '../src/lib/product-pricing.ts'
 export function compile(file, imports = {}) {
   const source = readFileSync(new URL('../' + file, import.meta.url), 'utf8')
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
-  const context = { exports: {}, require: name => { if (!(name in imports)) throw new Error('Unexpected import ' + name); return imports[name] }, process: { env: {} }, console, Headers, Response, URL }
+  const context = { exports: {}, require: name => { if(name==='@/lib/brasilia')return brasilia; if (!(name in imports)) throw new Error('Unexpected import ' + name); return imports[name] }, process: { env: {} }, console, Headers, Response, URL }
   vm.runInNewContext(compiled, context)
   return context.exports
 }

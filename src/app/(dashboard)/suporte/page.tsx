@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { HelpCircle, Plus } from 'lucide-react'
 
@@ -97,7 +98,7 @@ export default function SuportePage() {
                 <p className="text-sm text-blue-900">{t.resposta_admin}</p>
               </div>
             )}
-            <p className="text-xs text-gray-400 mt-2">{new Date(t.created_at).toLocaleString('pt-BR')}</p>
+            <p className="text-xs text-gray-400 mt-2">{formatBrasilia(t.created_at,'datetime')}</p>
           </div>
         ))}
       </div>

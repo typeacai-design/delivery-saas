@@ -1,3 +1,4 @@
+import * as brasilia from '../src/lib/brasilia.ts'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -6,7 +7,7 @@ import ts from 'typescript'
 import React from 'react'
 import * as jsx from 'react/jsx-runtime'
 import {currentMonthRange} from '../src/lib/finance-period.ts'
-function compile(path,imports){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS}}).outputText,{exports,URL,Date,Response,console,process:{env:{}},require:name=>{if(!(name in imports))throw Error(name);return imports[name]}});return exports}
+function compile(path,imports){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS}}).outputText,{exports,URL,Date,Response,console,process:{env:{}},require:name=>{if(name==='@/lib/brasilia')return brasilia;if(!(name in imports))throw Error(name);return imports[name]}});return exports}
 const response={NextResponse:{json:(data,init)=>Response.json(data,init)}}
 function fixture(allowed=true){const calls=[],db={rpc:async(name,args)=>{calls.push({name,args});return {data:{received:10,receivable:5,balance:10},error:null}},from(table){const query={select(){return query},eq(...args){calls.push({filter:args});return query},single:async()=>({data:{id:'own',config:{}},error:null}),insert:async body=>{calls.push({table,body});return {error:null}},update(body){calls.push({table,update:body});return query},then(resolve){return Promise.resolve({data:[],error:null}).then(resolve)}};return query}};const auth={authenticatedTenant:async()=>({tenantId:allowed?'own':null,supabase:db,user:allowed?{id:'user'}:null}),tenantAuthStatus:a=>a.tenantId?null:401};return {calls,imports:{'next/server':response,'@/lib/tenant-auth':auth,'@supabase/supabase-js':{createClient:()=>{throw Error('Privileged client not needed')}}}}}
 test('Finance read uses authenticated tenant, bounded pagination and calendar dates; denial prevents RPC',async()=>{

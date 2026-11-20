@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -240,7 +241,7 @@ export default function CozinhaPage() {
                   </div>
                   <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                     <Clock size={14} />
-                    {new Date(pedido.data_criacao).toLocaleTimeString('pt-BR')}
+                    {formatBrasilia(pedido.data_criacao,'time')}
                   </div>
                 </div>
 

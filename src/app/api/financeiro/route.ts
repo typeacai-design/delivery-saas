@@ -1,3 +1,4 @@
+import { brasiliaDay } from '@/lib/brasilia'
 import { NextResponse } from 'next/server'
 import { authenticatedTenant } from '@/lib/tenant-auth'
 import { createClient } from '@supabase/supabase-js'
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
     if (!descricao || typeof descricao !== 'string' || !descricao.trim()) {
       return NextResponse.json({ error: 'Descrição é obrigatória.' }, { status: 400 })
     }
-    const dataFinal = data || new Date().toISOString().split('T')[0]
+    const dataFinal = data || brasiliaDay()
 
     // Usar service_role para BURLAR RLS — autenticação já foi validada acima
     const admin = adminClient()

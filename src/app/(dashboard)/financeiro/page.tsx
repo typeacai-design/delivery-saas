@@ -1,5 +1,7 @@
 'use client'
 
+import { brasiliaDay } from '@/lib/brasilia'
+import { formatBrasilia } from '@/lib/brasilia'
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { WalletCards, Receipt, CreditCard, Plus, X, ArrowUpRight, ArrowDownRight, TrendingUp, Calendar } from 'lucide-react'
@@ -298,7 +300,7 @@ function LancarModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
   const[tipo,setTipo]=useState('manual')
   const[descricao,setDescricao]=useState('')
   const[valor,setValor]=useState('')
-  const[data,setData]=useState(new Date().toISOString().split('T')[0])
+  const[data,setData]=useState(brasiliaDay())
   const[saving,setSaving]=useState(false)
 
   const salvar=async()=>{
@@ -403,7 +405,7 @@ function FinanceRecords({view,range,version,refresh}:{view:string;range:{from:st
  const [page,setPage]=useState(0),[data,setData]=useState<any>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),lock=useRef(false)
  useEffect(()=>{const controller=new AbortController();setData(null);setError('');fetch('/api/financeiro?'+new URLSearchParams({...range,view,offset:String(page*50)}),{cache:'no-store',signal:controller.signal}).then(async response=>{const body=await response.json();if(!response.ok)throw Error(body.error);return body}).then(setData).catch(e=>{if(!controller.signal.aborted)setError(e.message)});return()=>controller.abort()},[view,range.from,range.to,page,version])
  async function receive(id:string){if(lock.current||!window.confirm('Confirmar recebimento? O valor entrará no fluxo de caixa.'))return;lock.current=true;setBusy(true);setError('');try{const response=await fetch('/api/contas-receber',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});const body=await response.json();if(!response.ok)throw Error(body.error);setPage(0);refresh()}catch(e:any){setError(e.message)}finally{lock.current=false;setBusy(false)}}
- return <div>{error?<p role="alert">{error} <button onClick={refresh}>Atualizar</button></p>:null}{!data&&!error?<p role="status">Carregando…</p>:data?.rows.length?data.rows.map((row:any)=><div key={row.id} className="border-b py-3 flex justify-between items-center gap-3"><div className="min-w-0"><b className="text-sm">{row.descricao||row.nome}</b>{row.data?<small className="block text-gray-500">{new Date(row.data.length===10?row.data+'T12:00:00':row.data).toLocaleDateString('pt-BR')}{row.tipo?' · '+row.tipo:''}</small>:null}</div><div className="text-right shrink-0"><b className={Number(row.amount??row.valor)<0?'text-red-600':'text-green-700'}>{formatCurrency(Number(row.amount??row.valor))}</b>{view==='receber'?<button disabled={busy} className="block text-sm text-green-700 py-2" onClick={()=>void receive(row.id)}>Receber</button>:null}</div></div>):data?<p className="text-sm py-5 text-gray-500">{view==='receber'?'Nenhuma conta a receber.':view==='despesas'?'Nenhuma despesa cadastrada.':'Nenhuma movimentação neste período.'}</p>:null}{page>0||data?.hasMore?<div className="flex justify-between py-3"><button disabled={!page} onClick={()=>setPage(x=>x-1)}>Anterior</button><span>{page+1}</span><button disabled={!data?.hasMore} onClick={()=>setPage(x=>x+1)}>Próxima</button></div>:null}</div>
+ return <div>{error?<p role="alert">{error} <button onClick={refresh}>Atualizar</button></p>:null}{!data&&!error?<p role="status">Carregando…</p>:data?.rows.length?data.rows.map((row:any)=><div key={row.id} className="border-b py-3 flex justify-between items-center gap-3"><div className="min-w-0"><b className="text-sm">{row.descricao||row.nome}</b>{row.data?<small className="block text-gray-500">{formatBrasilia(row.data.length===10?row.data+'T12:00:00':row.data,'date')}{row.tipo?' · '+row.tipo:''}</small>:null}</div><div className="text-right shrink-0"><b className={Number(row.amount??row.valor)<0?'text-red-600':'text-green-700'}>{formatCurrency(Number(row.amount??row.valor))}</b>{view==='receber'?<button disabled={busy} className="block text-sm text-green-700 py-2" onClick={()=>void receive(row.id)}>Receber</button>:null}</div></div>):data?<p className="text-sm py-5 text-gray-500">{view==='receber'?'Nenhuma conta a receber.':view==='despesas'?'Nenhuma despesa cadastrada.':'Nenhuma movimentação neste período.'}</p>:null}{page>0||data?.hasMore?<div className="flex justify-between py-3"><button disabled={!page} onClick={()=>setPage(x=>x-1)}>Anterior</button><span>{page+1}</span><button disabled={!data?.hasMore} onClick={()=>setPage(x=>x+1)}>Próxima</button></div>:null}</div>
 }
 function ReceivableModal({onClose,onSave}:{onClose:()=>void;onSave:()=>void}){
  const [description,setDescription]=useState(''),[value,setValue]=useState(''),[due,setDue]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),lock=useRef(false)

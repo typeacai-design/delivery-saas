@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { brasiliaDay } from '@/lib/brasilia'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export async function GET(request: Request) {
@@ -32,8 +33,7 @@ export async function GET(request: Request) {
     }
 
     // Verificar validade
-    const agora = new Date()
-    if (cupom.validade && new Date(cupom.validade) < agora) {
+    if (cupom.validade && cupom.validade.slice(0,10) < brasiliaDay()) {
       return NextResponse.json({ valido: false, mensagem: 'Cupom expirado' })
     }
 

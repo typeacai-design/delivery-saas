@@ -1,3 +1,4 @@
+import { brasiliaDay } from '@/lib/brasilia'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { adminUnauthorizedResponse, getAdminSession } from '@/lib/admin-auth'
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'tenant_id e valor são obrigatórios' }, { status: 400 })
     }
 
-    const dataPgto = data_pagamento || new Date().toISOString().split('T')[0]
+    const dataPgto = data_pagamento || brasiliaDay()
     const mesRef = dataPgto.slice(0, 7) // YYYY-MM
 
     const { data, error } = await supabase

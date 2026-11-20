@@ -1,3 +1,4 @@
+import { brasiliaDay,brasiliaInstant,civilDayShift } from '@/lib/brasilia'
 import { createClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { getAdminSession } from '@/lib/admin-auth'
@@ -27,17 +28,14 @@ export default async function AdminDashboard() {
     .select('id, nome, slug, created_at, status, cidade')
     .order('created_at', { ascending: false })
 
-  const trintaDiasAtras = new Date()
-  trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30)
+  const trintaDiasAtras = brasiliaInstant(civilDayShift(brasiliaDay(),-30))
 
   const { data: pedidosRecentes } = await supabase
     .from('pedidos')
     .select('tenant_id, valor_total, data_criacao, status')
     .gte('data_criacao', trintaDiasAtras.toISOString())
 
-  const inicioMes = new Date()
-  inicioMes.setDate(1)
-  inicioMes.setHours(0, 0, 0, 0)
+  const inicioMes = brasiliaInstant(brasiliaDay().slice(0,8)+'01')
 
   const { data: pedidosMes } = await supabase
     .from('pedidos')

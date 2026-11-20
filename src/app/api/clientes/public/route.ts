@@ -1,3 +1,4 @@
+import { brasiliaDay } from '@/lib/brasilia'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { bearerToken, hashAccessToken, isValidCpf, normalizeCpf, rateLimited, tokenMatches } from '@/lib/customer-identity'
@@ -11,7 +12,7 @@ function validIsoDate(value: unknown) {
   const text = String(value)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false
   const date = new Date(text + 'T00:00:00Z')
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text && date <= new Date()
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text && text <= brasiliaDay()
 }
 
 export async function POST(request: Request) {

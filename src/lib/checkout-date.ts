@@ -14,18 +14,18 @@ function birthdayParts(value: string) {
   return { day, month, year, iso: `${match[3]}-${match[2]}-${match[1]}`, sortable: year * 10000 + month * 100 + day }
 }
 
-function fortalezaToday(now: Date) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Fortaleza', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now)
+function brasiliaToday(now: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now)
   const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find(part => part.type === type)?.value)
   return get('year') * 10000 + get('month') * 100 + get('day')
 }
 
 export function isValidBirthday(value: string, now = new Date()) {
   const birthday = birthdayParts(value)
-  return birthday !== null && birthday.sortable <= fortalezaToday(now)
+  return birthday !== null && birthday.sortable <= brasiliaToday(now)
 }
 
 export function birthdayToIso(value: string, now = new Date()) {
   const birthday = birthdayParts(value)
-  return birthday && birthday.sortable <= fortalezaToday(now) ? birthday.iso : null
+  return birthday && birthday.sortable <= brasiliaToday(now) ? birthday.iso : null
 }

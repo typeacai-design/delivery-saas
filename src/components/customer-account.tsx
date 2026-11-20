@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia,brasiliaDay } from '@/lib/brasilia'
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ChefHat, Check, Bike, Home, MapPin, Receipt, MessageCircle, Package, X as XIcon, ChevronRight, Loader2 } from 'lucide-react'
@@ -104,7 +105,7 @@ function validDate(value: string | undefined) {
   const [, day, month, year] = match
   const iso = `${year}-${month}-${day}`
   const date = new Date(`${iso}T00:00:00Z`)
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso && date <= new Date()
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso && iso <= brasiliaDay()
 }
 
 function isoDate(value: string | undefined) {
@@ -492,7 +493,7 @@ export function CustomerOrders({
                   </span>
                 </div>
                 <p className="text-xs text-gray-500">
-                  {new Date(order.created_at).toLocaleString('pt-BR')}
+                  {formatBrasilia(order.created_at,'datetime')}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
                   {totalItens} {totalItens === 1 ? 'item' : 'itens'} · {formatCurrency(Number(order.valor_total))}
@@ -543,8 +544,8 @@ export function CustomerProfile({ slug, cliente, setCliente }: { slug: string; c
       <h3 className="font-bold text-gray-900">Meu Cashback</h3>
       <p className="text-xs text-gray-500">Saldo disponível para suas próximas compras</p>
       <p className="text-3xl font-extrabold text-green-700">{formatCurrency(cashback.saldo)}</p>
-      {cashback.creditos.filter(c=>c.restante>0).length>0&&<div className="border-t pt-3 space-y-2"><p className="text-sm font-semibold">Meus créditos</p>{cashback.creditos.filter(c=>c.restante>0).slice(0,10).map((credito,i)=><div key={i} className="flex justify-between gap-3 text-xs"><span>{credito.expira_em?'Vence em '+new Date(credito.expira_em).toLocaleDateString('pt-BR'):'Sem vencimento'}</span><strong className={credito.expira_em&&new Date(credito.expira_em)<new Date()?'text-red-600':'text-green-700'}>{formatCurrency(credito.restante)}</strong></div>)}</div>}
-      {(cashback.utilizacoes||[]).length>0&&<div className="border-t pt-3 space-y-2"><p className="text-sm font-semibold">Cashback utilizado</p>{(cashback.utilizacoes||[]).slice(0,5).map((u,i)=><div key={i} className="flex justify-between text-xs gap-2"><span>{new Date(u.criado_em).toLocaleDateString('pt-BR')}</span><strong className="text-gray-700">-{formatCurrency(u.valor)}</strong></div>)}</div>}
+      {cashback.creditos.filter(c=>c.restante>0).length>0&&<div className="border-t pt-3 space-y-2"><p className="text-sm font-semibold">Meus créditos</p>{cashback.creditos.filter(c=>c.restante>0).slice(0,10).map((credito,i)=><div key={i} className="flex justify-between gap-3 text-xs"><span>{credito.expira_em?'Vence em '+formatBrasilia(credito.expira_em,'date'):'Sem vencimento'}</span><strong className={credito.expira_em&&new Date(credito.expira_em)<new Date()?'text-red-600':'text-green-700'}>{formatCurrency(credito.restante)}</strong></div>)}</div>}
+      {(cashback.utilizacoes||[]).length>0&&<div className="border-t pt-3 space-y-2"><p className="text-sm font-semibold">Cashback utilizado</p>{(cashback.utilizacoes||[]).slice(0,5).map((u,i)=><div key={i} className="flex justify-between text-xs gap-2"><span>{formatBrasilia(u.criado_em,'date')}</span><strong className="text-gray-700">-{formatCurrency(u.valor)}</strong></div>)}</div>}
     </div>}
     <div className="bg-white border rounded-2xl p-4 space-y-3">
     {fields.map(([key,label]) => <label key={key} className="block text-sm font-medium">{label}<input inputMode={key === 'cpf' || key === 'aniversario' ? 'numeric' : undefined} maxLength={key === 'aniversario' ? 10 : undefined} placeholder={key === 'aniversario' ? 'DD/MM/AAAA' : undefined} value={draft[key] || ''} onChange={event => setDraft(current => ({ ...current, [key]: key === 'cpf' ? event.target.value.replace(/\D/g, '').slice(0, 11) : key === 'aniversario' ? formatDate(event.target.value) : event.target.value }))} className="mt-1 w-full border rounded-xl px-3 py-2.5" /></label>)}

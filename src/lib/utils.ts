@@ -1,3 +1,4 @@
+import { brasiliaDay } from './brasilia'
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -45,9 +46,9 @@ export function formatarCodigoPedido(id: string, createdAt?: string | null, codi
   const year = (() => {
     if (createdAt) {
       const d = new Date(createdAt)
-      if (!Number.isNaN(d.getTime())) return String(d.getFullYear()).slice(-2)
+      if (!Number.isNaN(d.getTime())) return brasiliaDay(d).slice(2,4)
     }
-    return String(new Date().getFullYear()).slice(-2)
+    return brasiliaDay().slice(2,4)
   })()
 
   const numericId = (() => {

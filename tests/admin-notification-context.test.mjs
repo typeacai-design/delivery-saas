@@ -25,6 +25,7 @@ function load(file) {
   })
   const module = { exports: {} }
   const resolve = name => {
+    if(name==='@/lib/brasilia')return load('src/lib/brasilia.ts')
     if (name === 'react') return React
     if (name === 'react/jsx-runtime') return jsxRuntime
     if (name === 'lucide-react') return icons

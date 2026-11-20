@@ -1,5 +1,6 @@
 'use client'
 
+import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -205,7 +206,7 @@ export default function AtendimentoPage() {
   const mesasAbertas = sessoesMesa.filter(s => s.status === 'aberta')
 
   const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    return formatBrasilia(dateStr,'time',{ hour: '2-digit', minute: '2-digit' })
   }
 
   if (loading) {
