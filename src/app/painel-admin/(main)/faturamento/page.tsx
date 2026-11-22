@@ -38,7 +38,7 @@ export default function CobrancasPage() {
       <header className="wd-admin-page-header">
         <div>
           <h1 className="text-2xl font-semibold">Cobranças de assinatura</h1>
-          <p className="hint mt-1">R$ 50 por faixa de R$ 5 mil de faturamento. Emissão no dia 5 e vencimento no dia 10.</p>
+          <p className="hint mt-1">Grátis até R$ 2 mil de faturamento. Acima disso, R$ 50 por faixa de R$ 5 mil. Emissão no dia 5 e vencimento no dia 10.</p>
         </div>
       </header>
       {erro && <p role="alert">{erro}</p>}
@@ -64,7 +64,7 @@ export default function CobrancasPage() {
             {dados.estimativas.map(loja => (
               <li key={loja.tenant_id} className="flex flex-wrap justify-between gap-2 py-3">
                 <div><strong>{loja.loja}</strong><p className="hint text-sm">Faturamento de {formatCurrency(loja.faturamento_centavos / 100)}</p></div>
-                <div className="text-right"><strong>{formatCurrency(loja.valor_centavos / 100)}</strong><p className="hint text-sm">Estimativa da assinatura</p></div>
+                <div className="text-right"><strong>{formatCurrency(loja.valor_centavos / 100)}</strong><p className="hint text-sm">{loja.valor_centavos === 0 ? 'Plano gratuito' : 'Estimativa da assinatura'}</p></div>
               </li>
             ))}
           </ul>

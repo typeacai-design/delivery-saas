@@ -3,6 +3,11 @@ export const FINANCEIRO_FATURAS = '/financeiro?aba=contas'
 export const PEDIDOS_BLOQUEADOS = 'Os pedidos estão bloqueados até a confirmação do pagamento da assinatura.'
 export const CARDAPIO_BLOQUEADO = 'Esta loja não pode receber pedidos no momento. Entre em contato via WhatsApp.'
 
+/** Mesma regra da apuração mensal no banco, em centavos inteiros. */
+export function mensalidadeCentavos(faturamentoCentavos: number): number {
+  return faturamentoCentavos <= 200_000 ? 0 : Math.ceil(faturamentoCentavos / 500_000) * 5_000
+}
+
 const calendario = new Intl.DateTimeFormat('sv-SE', {
   timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
 })

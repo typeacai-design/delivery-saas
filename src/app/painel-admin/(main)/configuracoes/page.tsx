@@ -175,8 +175,8 @@ export default function ConfiguracoesPage() {
                 <thead><tr><th className="pb-2 text-left">Faturamento</th><th className="pb-2 text-right">Mensalidade</th></tr></thead>
                 <tbody className="divide-y">
                   {[
-                    ['Sem faturamento', 'R$ 0'],
-                    ['Até R$ 5.000', 'R$ 50'],
+                    ['Até R$ 2.000', 'R$ 0'],
+                    ['De R$ 2.000,01 a R$ 5.000', 'R$ 50'],
                     ['De R$ 5.000,01 a R$ 10.000', 'R$ 100'],
                     ['De R$ 10.000,01 a R$ 15.000', 'R$ 150'],
                   ].map(([faixa, valor]) => (
