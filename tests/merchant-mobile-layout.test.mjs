@@ -221,7 +221,9 @@ test('desktop order form body matches the original layout and mobile-only contro
   const end = page.indexOf('            )}', start)
   const digest = createHash('sha256').update(page.slice(start, end).trim()).digest('hex')
   assert.equal(digest, '1f1e1ecd970e37bb8626f310f6564c09638029b756a7fe910f1f4c9bc76d2ad6')
-  assert.match(page, /wd-desktop-orders-controls/); assert.match(page, /Mostrando/); assert.match(page, /Limpar filtro/)
+  assert.match(page, /wd-desktop-orders-controls/)
+  // Header and filter captions were removed on purpose; the screen is self-explanatory.
+  for (const removed of [/Mostrando <strong>/, /Limpar filtro/, /📅 Período:/, /RefreshCw/, /Gerencie os pedidos do seu delivery/, />ATENDIMENTO</, /'🔊 Som'/]) assert.doesNotMatch(page, removed)
   const css = fs.readFileSync(new URL('../src/app/(dashboard)/merchant.css', import.meta.url), 'utf8')
   assert.match(css, /wd-desktop-orders-controls[^}]+display:none!important/)
 })

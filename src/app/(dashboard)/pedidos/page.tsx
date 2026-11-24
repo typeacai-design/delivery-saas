@@ -6,7 +6,7 @@ import { chargedProductBase, savedItemTotal } from '@/lib/product-pricing'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, Check, Truck, X, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, Activity, History, ChefHat, Bell, Bike, MapPin, Home, Utensils, RefreshCw } from 'lucide-react'
+import { Clock, Check, Truck, X, ChevronRight, Plus, MessageCircle, ChevronDown, ChevronUp, Printer, Tag, Pencil, Save, Trash2, Search, AlertTriangle, Percent, Copy, Star, Activity, History, ChefHat, Bell, Bike, MapPin, Home, Utensils, Volume2, VolumeX } from 'lucide-react'
 import { Pedido, PedidoStatus } from '@/types'
 import { formatCurrency, formatarCodigoPedido } from '@/lib/utils'
 import { activeTenantId } from '@/lib/active-tenant-client'
@@ -1188,7 +1188,6 @@ export default function PedidosPage() {
       <div className="mb-3 md:mb-4">
         <div className="wd-orders-heading flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
-            <div className="eyebrow mb-1" style={{ color: '#16A34A' }}>ATENDIMENTO</div>
             <h1 className="text-3xl font-semibold tracking-tight mb-1 flex items-center gap-2 flex-wrap" style={{ color: 'var(--ink)' }}>
               <span>Pedidos</span>
               {novosPedidosCount > 0 && (
@@ -1197,21 +1196,16 @@ export default function PedidosPage() {
                 </span>
               )}
             </h1>
-            <p className="hint">Gerencie os pedidos do seu delivery</p>
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <div className="wd-desktop-orders-controls flex items-center gap-3">
             {/* Botão Som só aparece no desktop (no mobile some pra economizar espaço) */}
             <button
-              onClick={() => { setLoading(true); loadPedidos(); }}
-              className="px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border bg-white border-gray-300 text-gray-600 hover:bg-gray-100"
-              title="Atualizar pedidos"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-            <button
+              type="button"
               onClick={alternarSom}
-              className="hidden md:flex px-4 py-2 rounded-xl text-sm font-medium items-center gap-2 border"
+              aria-label={somAtivado ? 'Silenciar alerta de pedidos' : 'Ativar alerta de pedidos'}
+              aria-pressed={!somAtivado}
+              className="hidden md:flex p-2.5 rounded-xl items-center justify-center border"
               style={{
                 background: somAtivado ? '#F0FDF4' : '#F3F4F6',
                 borderColor: somAtivado ? '#86EFAC' : '#D1D5DB',
@@ -1219,7 +1213,7 @@ export default function PedidosPage() {
               }}
               title={somAtivado ? 'Som ativado - clique para silenciar' : 'Som desativado - clique para ativar'}
             >
-              {somAtivado ? '🔊 Som' : '🔇 Mudo'}
+              {somAtivado ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
             </button>
             </div>
             <Link
@@ -1569,26 +1563,8 @@ export default function PedidosPage() {
             })
           : pedidosFiltrados
 
-        const statusConfig = filtroStatus && STATUS_CONFIG[filtroStatus as PedidoStatus]
-          ? STATUS_CONFIG[filtroStatus as PedidoStatus]
-          : null
         return (
           <>
-            <div className="wd-desktop-orders-only">
-            {filtroStatus && statusConfig && (
-              <div className="mb-4 text-sm text-gray-500">
-                Mostrando <strong>{statusConfig.label}</strong> ({pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''})
-                <button onClick={() => setFiltroStatus('')} className="ml-2 text-blue-600 hover:underline">Limpar filtro</button>
-              </div>
-            )}
-
-            {(filtroDataDe || filtroDataAte) && (
-              <div className="mb-4 text-sm text-gray-500">
-                📅 Período: <strong>{filtroDataDe ? formatBrasilia(filtroDataDe,'date') : '...'} até {filtroDataAte ? formatBrasilia(filtroDataAte,'date') : '...'}</strong> — {pedidosPorData.length} pedido{pedidosPorData.length !== 1 ? 's' : ''}
-              </div>
-            )}
-
-            </div>
       {/* Lista de Pedidos em GRID 3 COLUNAS - key forca re-render quando filtro muda */}
       <div key={`grid-${filtroPeriodo}-${filtroDataDe}-${filtroDataAte}-${pedidosTab}`} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {loading ? (
