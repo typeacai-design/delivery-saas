@@ -629,3 +629,25 @@
 @media(min-width:768px){
  .wd-merchant .eyebrow:not(.wd-keep),.wd-merchant .wd-redundant{display:none!important}
 }
+
+/* Desktop kanban for the order flow (Pedidos > Fluxo). */
+.wd-kanban{display:grid;gap:12px;align-items:start;overflow-x:auto;padding-bottom:6px}
+.wd-kanban-column{background:#f6f8f6;border:1px solid #e3e9e4;border-radius:16px;padding:10px;min-width:0;transition:background .15s,border-color .15s,box-shadow .15s}
+.wd-kanban-column[data-accepts=false]{opacity:.55}
+.wd-kanban-column[data-accepts=true]{border-color:#86d19c;background:#f0faf3}
+.wd-kanban-column[data-over=true]{border-color:#16a34a;box-shadow:0 0 0 3px #16a34a33}
+.wd-kanban-header{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 4px 10px;font-weight:600;font-size:14px;color:#24382b}
+.wd-kanban-header b{min-width:24px;padding:1px 8px;border-radius:999px;background:#fff;border:1px solid #dfe7e1;font-size:12px;text-align:center}
+.wd-kanban-column[data-status=novo] .wd-kanban-header b{background:#f3e8ff;border-color:#d8b4fe;color:#7e22ce}
+.wd-kanban-column[data-status=preparando] .wd-kanban-header b{background:#fef3c7;border-color:#fcd34d;color:#92400e}
+.wd-kanban-column[data-status=pronto] .wd-kanban-header b{background:#dcfce7;border-color:#86efac;color:#166534}
+.wd-kanban-column[data-status=saiu] .wd-kanban-header b{background:#dbeafe;border-color:#93c5fd;color:#1d4ed8}
+.wd-kanban-cards{display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 250px);overflow-y:auto;min-height:80px}
+.wd-kanban-card{cursor:grab}
+.wd-kanban-card[draggable=false]{cursor:default}
+.wd-kanban-card[data-dragging=true]{opacity:.45}
+.wd-kanban-card:active{cursor:grabbing}
+.wd-kanban-empty{font-size:12px;color:#8a978e;text-align:center;padding:22px 6px;border:1px dashed #d5ddd7;border-radius:12px}
+.wd-kanban-toolbar{display:flex;justify-content:flex-end;margin-bottom:10px}
+.wd-auto-accept{display:inline-flex;align-items:center;gap:10px;font-size:13px;color:#33473a;background:#fff;border:1px solid #dfe7e1;border-radius:12px;padding:7px 12px;cursor:pointer}
+.wd-auto-accept input{width:18px;height:18px;accent-color:#16a34a;cursor:pointer}

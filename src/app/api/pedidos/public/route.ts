@@ -98,7 +98,8 @@ export async function POST(request: Request) {
       endereco_entrega,
       numero_entrega,
       complemento_entrega,
-      tipo_entrega = 'delivery',
+      tipo_entrega: tipoEntregaInformado = 'delivery',
+      mesa_token,
       cliente_aniversario,
       cliente_cpf,
       cliente_access_token,
@@ -114,9 +115,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Pedido sem itens' }, { status: 400 })
     }
     const cliente_nome = formatarNomeProprio(clienteNomeInformado)
-    if (!cliente_nome || !cliente_whatsapp) {
-      return NextResponse.json({ error: 'Nome e WhatsApp são obrigatórios' }, { status: 400 })
+    // Pedido pelo QR Code da mesa: nome obrigatório, WhatsApp opcional, sem entrega e pagamento no fim.
+    const modoMesa = typeof mesa_token === 'string' && mesa_token.length > 0
+    if (modoMesa && !/^[a-f0-9]{32}$/.test(mesa_token)) return NextResponse.json({ error: 'Mesa não encontrada' }, { status: 404 })
+    const tipo_entrega = modoMesa ? 'mesa' : tipoEntregaInformado === 'retirada' ? 'retirada' : 'delivery'
+    const whatsappDigitos = String(cliente_whatsapp || '').replace(/\D/g, '')
+    if (!cliente_nome || (!modoMesa && !whatsappDigitos)) {
+      return NextResponse.json({ error: modoMesa ? 'Informe seu nome' : 'Nome e WhatsApp são obrigatórios' }, { status: 400 })
     }
+    if (modoMesa && whatsappDigitos && whatsappDigitos.length < 10) return NextResponse.json({ error: 'Informe um WhatsApp válido' }, { status: 400 })
     if (!isValidCpf(cliente_cpf)) return NextResponse.json({ error: 'CPF inválido' }, { status: 400 })
 
     // 1) Valida tenant
@@ -149,6 +156,13 @@ export async function POST(request: Request) {
       if (!horario.aberto) {
         return NextResponse.json({ error: `Loja fechada — ${horario.motivo}` }, { status: 403 })
       }
+    }
+
+    let mesaPedido: { id: string; numero: number } | null = null
+    if (modoMesa) {
+      const { data: mesaDb } = await admin.from('mesas').select('id,numero').eq('tenant_id', tenant.id).eq('qr_token', mesa_token).eq('ativa', true).maybeSingle()
+      if (!mesaDb) return NextResponse.json({ error: 'Mesa não encontrada. Peça ajuda ao garçom.' }, { status: 404 })
+      mesaPedido = { id: mesaDb.id, numero: Number(mesaDb.numero) }
     }
 
     // 3) Valor mínimo
@@ -241,13 +255,13 @@ export async function POST(request: Request) {
       }
     }
     const valorMinimo = cfg.valor_minimo_pedido || 0
-    if (valorMinimo > 0 && subtotalCalculado < valorMinimo) {
+    if (!modoMesa && valorMinimo > 0 && subtotalCalculado < valorMinimo) {
       return NextResponse.json({
         error: `Pedido mínimo de R$ ${valorMinimo.toFixed(2).replace('.', ',')}`,
       }, { status: 400 })
     }
 
-    const whatsappLimpo = cliente_whatsapp.replace(/\D/g, '')
+    const whatsappLimpo = whatsappDigitos
     if (!cliente_access_token || String(cliente_access_token).length < 32) return NextResponse.json({ error: 'Identidade local ausente' }, { status: 400 })
     const clienteTokenHash = hashAccessToken(String(cliente_access_token))
     const { data: identityMatches } = await admin.from('clientes').select('id,acesso_token_hash').eq('tenant_id', tenant.id).eq('acesso_token_hash', clienteTokenHash).limit(2)
@@ -312,7 +326,8 @@ export async function POST(request: Request) {
     }
     // Cashback solicitado é conferido contra o saldo do cliente autenticado.
     // A dedução efetiva ocorre dentro da RPC transacional, com bloqueio de linha.
-    const cashbackSolicitado=Number(cashback_usado||0)
+    // Na mesa o pagamento é feito no fim, com o garçom: sem resgate de cashback no pedido.
+    const cashbackSolicitado=modoMesa?0:Number(cashback_usado||0)
     if(!Number.isFinite(cashbackSolicitado)||cashbackSolicitado<0||Math.abs(Math.round(cashbackSolicitado*100)-cashbackSolicitado*100)>0.000001)
       return NextResponse.json({error:'Valor de cashback inválido'},{status:400})
     if(cashbackSolicitado>0){
@@ -363,7 +378,7 @@ export async function POST(request: Request) {
       p_tenant_id: tenant.id,
       p_token_hash: clienteTokenHash,
       p_idempotency_hash: hashAccessToken(`${tenant.id}:${String(idempotencyKey)}`),
-      p_cliente: { nome: cliente_nome, telefone: whatsappLimpo, endereco: endereco_entrega || '', data_nascimento: aniversarioIso, cpf: cliente_cpf ? normalizeCpf(cliente_cpf) : '' },
+      p_cliente: { nome: cliente_nome, telefone: whatsappLimpo || null, endereco: endereco_entrega || '', data_nascimento: aniversarioIso, cpf: cliente_cpf ? normalizeCpf(cliente_cpf) : '' },
       p_pedido: { cashback_usado: cashbackSolicitado, valor_subtotal: subtotalCalculado, taxa_entrega: taxaCalculada, valor_desconto: valorDescontoTotal, valor_total: valorTotalFinal, formas_pagamento: formasSelecionadas, troco_para: troco_para || '', bairro_entrega: bairro_entrega || '', endereco_entrega: endereco_entrega || '', numero_entrega: numero_entrega || '', complemento_entrega: complemento_entrega || '', tipo_entrega, observacoes: observacoes || '', cupom_aplicado: cupomValidado || '' },
       p_itens: itensValidados,
       p_ignorar_estoque: venderSemEstoque,
@@ -385,6 +400,19 @@ export async function POST(request: Request) {
       }
       // Inclui o código do erro para diagnóstico
       return NextResponse.json({ error: 'Nao foi possivel concluir o pedido. Tente novamente em alguns instantes.', debug: estoqueError?.code || erroMsg }, { status: 409 })
+    }
+
+    if (mesaPedido) {
+      // Junta o pedido à comanda aberta da mesa (ou abre uma). O índice único garante uma comanda aberta por mesa.
+      const numeroMesa = String(mesaPedido.numero)
+      const buscarSessao = () => admin.from('sessoes_mesa').select('id').eq('tenant_id', tenant.id).eq('mesa_numero', numeroMesa).eq('status', 'aberta').maybeSingle()
+      let { data: sessao } = await buscarSessao()
+      if (!sessao) {
+        const { data: criada, error: erroSessao } = await admin.from('sessoes_mesa').insert({ tenant_id: tenant.id, mesa_numero: numeroMesa, cliente_nome, cliente_whatsapp: whatsappLimpo || null, status: 'aberta' }).select('id').single()
+        sessao = criada || (erroSessao?.code === '23505' ? (await buscarSessao()).data : null)
+      }
+      const { error: erroVinculo } = await admin.from('pedidos').update({ tipo_pedido: 'mesa', mesa_id: mesaPedido.id, sessao_mesa_id: sessao?.id || null }).eq('id', pedido.id).eq('tenant_id', tenant.id)
+      if (!sessao || erroVinculo) console.error('pedido_mesa_sem_comanda', pedido.id, erroVinculo?.code || 'sem_sessao')
     }
 
     return NextResponse.json({

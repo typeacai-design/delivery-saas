@@ -40,6 +40,14 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
       source.onended = () => gain.disconnect()
     }
     syncRef.current = sync
+    // Auto-accepted orders arrive already in Preparando: ring once instead of looping until accepted.
+    const playOnce = () => {
+      if (!enabledRef.current || !context || context.state !== 'running' || !buffer) return
+      const once = context.createBufferSource(); once.buffer = buffer
+      const gain = context.createGain(); gain.gain.value = 0.7
+      once.connect(gain); gain.connect(context.destination); once.start()
+      once.onended = () => gain.disconnect()
+    }
     // User gestures unlock a silent audio context. No order sound is played as a test.
     const unlock = () => {
       if (disposed) return
@@ -84,7 +92,7 @@ export default function GlobalSomPedidos({ children }: { children: React.ReactNo
       tenantId = await activeTenantId()
       if (disposed || !tenantId) return
       channel = supabase.channel(`merchant-order-alerts-${tenantId}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos', filter: `tenant_id=eq.${tenantId}` }, payload => receive(payload.new as AlertOrder))
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos', filter: `tenant_id=eq.${tenantId}` }, payload => { const order = payload.new as AlertOrder; if (tracker.initialized && order.status !== 'novo' && !order.deleted_at && !tracker.seen.has(order.id)) playOnce(); receive(order) })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `tenant_id=eq.${tenantId}` }, payload => receive(payload.new as AlertOrder, false))
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pedidos' }, payload => { tracker.remove((payload.old as AlertOrder).id); sync() })
         .subscribe(status => { if (status === 'SUBSCRIBED') void snapshot() })

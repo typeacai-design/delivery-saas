@@ -16,10 +16,10 @@ export default async function CardapioPublicoPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ pedido?: string }>
+  searchParams: Promise<{ pedido?: string; mesa?: string }>
 }) {
   const { slug } = await params
-  const { pedido: pedidoParam } = await searchParams
+  const { pedido: pedidoParam, mesa: mesaParam } = await searchParams
 
   // Esta pagina roda somente no servidor. A service role evita que o cardapio
   // publico dependa da sessao anonima/RLS para carregar os dados, sem expor a
@@ -196,7 +196,15 @@ export default async function CardapioPublicoPage({
   const theme = getCardapioTheme(paleta, config.cardapio_cores)
   const corPaleta = theme.primary
 
+  // QR Code da mesa: o código secreto identifica a mesa (o número pode mudar sem invalidar o QR).
+  let mesaQr: { numero: number; nome: string | null; token: string } | null = null
+  if (typeof mesaParam === 'string' && /^[a-f0-9]{32}$/.test(mesaParam)) {
+    const { data: mesaDb } = await supabase.from('mesas').select('numero,nome').eq('tenant_id', tenant.id).eq('qr_token', mesaParam).eq('ativa', true).maybeSingle()
+    if (mesaDb) mesaQr = { numero: Number(mesaDb.numero), nome: mesaDb.nome || null, token: mesaParam }
+  }
+
   const cardapioData = {
+    mesa: mesaQr,
     tenant: {
       id: tenant.id,
       sabores_ativo: tenant.sabores_ativo === true,

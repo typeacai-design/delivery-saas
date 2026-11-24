@@ -140,6 +140,7 @@ function formatFaixaTempo(min: number): string {
 }
 
 interface CardapioData {
+  mesa?: { numero: number; nome: string | null; token: string } | null
   tenant: {
     id: string
     nome: string
@@ -462,6 +463,7 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
   return (
     <div className={`cardapio-theme wd-font-${data.tipografia || 'classica'}`} style={{ background: data.theme.background, color: data.theme.text, '--cardapio-primary': data.theme.primary, '--cardapio-secondary': data.theme.secondary, '--cardapio-accent': data.theme.accent, '--cardapio-background': data.theme.background, '--cardapio-surface': data.theme.surface, '--cardapio-text': data.theme.text, '--cardapio-muted': data.theme.muted, '--cardapio-button': data.theme.button } as React.CSSProperties}>
       <AnnouncementStrip faixa={data.faixaAvisos} />
+      {data.mesa && <div role="status" className="sticky top-0 z-30 px-4 py-2 text-center text-sm font-semibold text-white" style={{ background: 'var(--cardapio-button, #16a34a)' }}>Você está na Mesa {data.mesa.numero} · o pedido vai direto para a sua mesa e o pagamento é no final</div>}
       {data.layout === 'moderno' ? (
         <LayoutModerno
           data={data}
@@ -516,6 +518,7 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         onEditItem={editarItem}
         onLimparCarrinho={limparCarrinho}
         onPedidoCriado={() => { carrinhoDoPedido.current = carrinho; reportarCarrinho([]) }}
+        mesa={data.mesa || null}
         tenantId={data.tenant.id}
         tenantSlug={data.tenant.slug}
         tenantNome={data.tenant.nome}

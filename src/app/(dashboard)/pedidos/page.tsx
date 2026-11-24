@@ -21,6 +21,7 @@ import { useMerchantMobile } from '@/lib/use-merchant-mobile'
 import { useOrderSound } from '@/components/global-som-pedidos'
 import MerchantDateRange from '@/components/merchant-date-range'
 import MerchantOrderStages from '@/components/merchant-order-stages'
+import MerchantOrderKanban from '@/components/merchant-order-kanban'
 import { orderPeriodRange } from '@/lib/order-period'
 import MerchantHistoryOrder from '@/components/merchant-history-order'
 import MerchantOrderCard from '@/components/merchant-order-card'
@@ -398,6 +399,21 @@ function ItensPedido({ pedidoId, compacto = false }: { pedidoId: string; compact
 
 export default function PedidosPage() {
   const mobile = useMerchantMobile()
+  const [aceiteAutomatico, setAceiteAutomatico] = useState(false)
+  const [salvandoAceite, setSalvandoAceite] = useState(false)
+  useEffect(() => {
+    fetch('/api/configuracoes/aceite-automatico', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null).then(d => { if (d) setAceiteAutomatico(d.ativo === true) }).catch(() => {})
+  }, [])
+  const alternarAceiteAutomatico = async (ativo: boolean) => {
+    setSalvandoAceite(true); setAceiteAutomatico(ativo)
+    try {
+      const r = await fetch('/api/configuracoes/aceite-automatico', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ativo }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { setAceiteAutomatico(!ativo); toastError(d.error || 'Não foi possível salvar') }
+    } catch { setAceiteAutomatico(!ativo); toastError('Sem conexão. Tente novamente.') }
+    finally { setSalvandoAceite(false) }
+  }
   const { somAtivado, alternarSom } = useOrderSound()
   const { error: toastError, success: toastSuccess, warning: toastWarning } = useToast()
   const [pedidos, setPedidos] = useState<Pedido[]>([])
@@ -1358,8 +1374,16 @@ export default function PedidosPage() {
       />}
 
       {/* Stats Bar - BOTOES POR ABA */}
+      {pedidosTab === 'fluxo' && !mobile && (
+        <div className="wd-kanban-toolbar">
+          <label className="wd-auto-accept" title="Novos pedidos entram direto em Preparando">
+            <input type="checkbox" checked={aceiteAutomatico} disabled={salvandoAceite} onChange={e => alternarAceiteAutomatico(e.target.checked)} />
+            Aceitar pedidos automaticamente
+          </label>
+        </div>
+      )}
       <div className="wd-order-stats-desktop flex flex-wrap items-center justify-start gap-2 mb-3 md:mb-4">
-        {pedidosTab === 'fluxo' && (() => {
+        {pedidosTab === 'fluxo' && mobile && (() => {
           // Usa o mesmo filtro aplicado ao grid (status + período) para que os
           // contadores batam com o que está exibido.
           const dataLocalISO = (dateStr: string) => {
@@ -1549,21 +1573,7 @@ export default function PedidosPage() {
             })
           : pedidosFiltrados
 
-        return (
-          <>
-      {/* Lista de Pedidos em GRID 3 COLUNAS - key forca re-render quando filtro muda */}
-      <div key={`grid-${filtroPeriodo}-${filtroDataDe}-${filtroDataAte}-${pedidosTab}`} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {loading ? (
-          <div className="col-span-full text-center py-8 text-gray-500">Carregando pedidos...</div>
-        ) : pedidosPorData.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <div className="text-gray-400 mb-2">📦 Nenhum pedido encontrado</div>
-            <div className="text-xs text-gray-400">
-              {pedidos.length === 0 ? 'Os pedidos aparecem automaticamente quando chegarem.' : 'Tente outro filtro ou período.'}
-            </div>
-          </div>
-        ) : (
-          pedidosPorData.map((pedido) => {
+        const renderPedidoCard = (pedido: Pedido) => {
             const config = STATUS_CONFIG[pedido.status]
             const StatusIcon = config.icon
             const nextStatus = (pedido as any).tipo_pedido === 'mesa' && pedido.status === 'pronto' ? 'entregue' : NEXT_STATUS[pedido.status]
@@ -1891,9 +1901,49 @@ export default function PedidosPage() {
               </div>
               </div>
             )
-          })
+        }
+
+        // Desktop Fluxo: kanban with every stage side by side (status filter does not apply here).
+        const kanbanFluxo = !mobile && pedidosTab === 'fluxo'
+        const pedidosKanban = kanbanFluxo ? pedidos.filter(p => {
+          if ((p as Pedido & { tipo_pedido?: string }).tipo_pedido === 'consolidado' || p.status === 'cancelado') return false
+          const dataPedido = dataLocalISO(p.data_criacao)
+          if (!dataPedido) return true
+          return (!filtroDataDe || dataPedido >= filtroDataDe) && (!filtroDataAte || dataPedido <= filtroDataAte)
+        }) : []
+        const colunasKanban = (['novo', 'preparando', 'pronto', 'saiu', 'entregue'] as const)
+          .filter(id => id !== 'novo' || !aceiteAutomatico || pedidosKanban.some(p => p.status === 'novo'))
+          .map(id => ({ id, label: STATUS_CONFIG[id].label }))
+
+        return (
+          <>
+      {kanbanFluxo ? (
+        loading ? <div className="text-center py-8 text-gray-500">Carregando pedidos...</div> : (
+          <MerchantOrderKanban
+            columns={colunasKanban}
+            orders={pedidosKanban}
+            renderCard={renderPedidoCard}
+            nextStatusOf={pedido => (pedido as Pedido & { tipo_pedido?: string }).tipo_pedido === 'mesa' && pedido.status === 'pronto' ? 'entregue' : NEXT_STATUS[pedido.status]}
+            onMove={(pedido, status) => updateStatus(pedido, status as PedidoStatus)}
+          />
+        )
+      ) : (
+      /* Lista de Pedidos em GRID 3 COLUNAS - key forca re-render quando filtro muda */
+      <div key={`grid-${filtroPeriodo}-${filtroDataDe}-${filtroDataAte}-${pedidosTab}`} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {loading ? (
+          <div className="col-span-full text-center py-8 text-gray-500">Carregando pedidos...</div>
+        ) : pedidosPorData.length === 0 ? (
+          <div className="col-span-full text-center py-12">
+            <div className="text-gray-400 mb-2">📦 Nenhum pedido encontrado</div>
+            <div className="text-xs text-gray-400">
+              {pedidos.length === 0 ? 'Os pedidos aparecem automaticamente quando chegarem.' : 'Tente outro filtro ou período.'}
+            </div>
+          </div>
+        ) : (
+          pedidosPorData.map(renderPedidoCard)
         )}
       </div>
+      )}
           </>
         )
       })()}

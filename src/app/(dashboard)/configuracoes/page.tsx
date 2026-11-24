@@ -2,12 +2,13 @@
 
 
 import NumericInput from '@/components/numeric-input'
+import MesaQrModal, { imprimirQrMesas, type MesaQr } from '@/components/mesa-qr-code'
 import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeTenantId } from '@/lib/active-tenant-client'
 import {
-  Clock, MapPin, CreditCard, User, Save, Plus, X, Sparkles, Calendar, Upload, Trash2, Image as ImageIcon, Copy, Ban, CheckCircle2, Utensils, Edit2
+  Clock, MapPin, CreditCard, User, Save, Plus, X, Sparkles, Calendar, Upload, Trash2, Image as ImageIcon, Copy, Ban, CheckCircle2, Utensils, Edit2, QrCode, Printer
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { CoordinateMap } from '@/components/coordinate-map'
@@ -369,7 +370,14 @@ function MesasTab({ tenant }: { tenant: any }) {
   const [msg, setMsg] = useState('')
 
   const [form, setForm] = useState({ numero: '', nome: '', capacidade: '4' })
-
+  const [qrMesa, setQrMesa] = useState<MesaQr | null>(null)
+  // A comanda aberta é ligada à mesa pelo número: não deixa excluir/renumerar mesa ocupada.
+  const comandaAberta = async (numero: number) => {
+    const tid = await activeTenantId()
+    if (!tid) return false
+    const { data } = await supabase.from('sessoes_mesa').select('id').eq('tenant_id', tid).eq('mesa_numero', String(numero)).eq('status', 'aberta').limit(1)
+    return Boolean(data?.length)
+  }
   const carregar = async () => {
     const tid = await activeTenantId()
     if (!tid) return
@@ -403,11 +411,17 @@ function MesasTab({ tenant }: { tenant: any }) {
     }
 
     if (editando) {
+      const atual = mesas.find(m => m.id === editando)
+      if (atual && Number(atual.numero) !== payload.numero && await comandaAberta(Number(atual.numero))) {
+        setMsg('⚠️ Feche a comanda aberta desta mesa antes de mudar o número')
+        setSalvando(false)
+        return
+      }
       const { error } = await supabase
         .from('mesas')
         .update({ numero: payload.numero, nome: payload.nome, capacidade: payload.capacidade })
         .eq('id', editando)
-      if (error) setMsg('Erro: ' + error.message)
+      if (error) setMsg(error.code === '23505' ? '⚠️ Já existe uma mesa com esse número' : 'Erro: ' + error.message)
       else { setMsg('✅ Mesa atualizada'); limparForm(); carregar() }
     } else {
       const { error } = await supabase.from('mesas').insert({ ...payload, ativa: true })
@@ -436,6 +450,7 @@ function MesasTab({ tenant }: { tenant: any }) {
   }
 
   const excluir = async (m: any) => {
+    if (await comandaAberta(Number(m.numero))) { setMsg(`⚠️ A Mesa ${m.numero} tem comanda aberta. Feche a conta antes de excluir.`); return }
     if (!confirm(`Excluir a Mesa ${m.numero}? Pedidos antigos manterão o histórico.`)) return
     const { error } = await supabase.from('mesas').delete().eq('id', m.id)
     if (error) setMsg('Erro ao excluir: ' + error.message)
@@ -499,7 +514,14 @@ function MesasTab({ tenant }: { tenant: any }) {
 
           {/* Lista de mesas */}
           <div className="glass p-6">
-            <h2 className="text-lg font-semibold mb-4">Mesas cadastradas</h2>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <h2 className="text-lg font-semibold">Mesas cadastradas</h2>
+              {tenant?.slug && mesas.some(m => m.ativa && m.qr_token) && (
+                <button type="button" className="btn-ghost text-xs" onClick={() => imprimirQrMesas(tenant.slug, tenant.nome || '', mesas.filter(m => m.ativa && m.qr_token))}>
+                  <Printer size={14} /> Imprimir QR de todas
+                </button>
+              )}
+            </div>
             {loading ? (
               <p className="hint">Carregando…</p>
             ) : mesas.length === 0 ? (
@@ -524,6 +546,11 @@ function MesasTab({ tenant }: { tenant: any }) {
                       <button onClick={() => editar(m)} className="btn-ghost text-xs flex-1 justify-center">
                         <Edit2 size={12} /> Editar
                       </button>
+                      {tenant?.slug && m.qr_token && (
+                        <button onClick={() => setQrMesa(m)} className="btn-ghost text-xs flex-1 justify-center" title="Ver, baixar ou imprimir o QR Code desta mesa">
+                          <QrCode size={12} /> QR Code
+                        </button>
+                      )}
                       <button onClick={() => toggleAtiva(m)} className="btn-ghost text-xs flex-1 justify-center">
                         {m.ativa ? '⏸️ Desativar' : '▶️ Ativar'}
                       </button>
@@ -537,6 +564,7 @@ function MesasTab({ tenant }: { tenant: any }) {
             )}
           </div>
       {msg && <p className="text-sm text-center text-gray-700">{msg}</p>}
+      {qrMesa && tenant?.slug && <MesaQrModal mesa={qrMesa} slug={tenant.slug} lojaNome={tenant.nome || ''} onClose={() => setQrMesa(null)} />}
     </div>
   )
 }

@@ -124,6 +124,8 @@ interface CheckoutDrawerProps {
   valorMinimoPedido?: number
   onPedidoCriado?: (pedido: any) => void
   onClienteCadastrado?: (cliente: any) => void
+  /** Cardápio aberto pelo QR Code da mesa: sem entrega, WhatsApp opcional e pagamento no fim com o garçom. */
+  mesa?: { numero: number; nome?: string | null; token: string } | null
 }
 
 export function CheckoutDrawer({
@@ -146,7 +148,11 @@ export function CheckoutDrawer({
   valorMinimoPedido = 0,
   onPedidoCriado,
   onClienteCadastrado,
+  mesa = null,
 }: CheckoutDrawerProps) {
+  const modoMesa = Boolean(mesa)
+  const etapasCheckout = (modoMesa ? ['cliente', 'pagamento', 'aniversario', 'observacoes'] : ['cliente', 'entrega', 'pagamento', 'aniversario', 'observacoes']) as string[]
+  const rotulosEtapa: Record<string, string> = { cliente: 'Dados', entrega: 'Entrega', pagamento: 'Pagamento', aniversario: 'Identificacao', observacoes: 'Revisao' }
   const newIdempotencyKey = () => {
     const bytes = crypto.getRandomValues(new Uint8Array(32))
     return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('')
@@ -260,8 +266,8 @@ export function CheckoutDrawer({
   const taxaKmRaw = Math.max(Number(entregaConfig?.km?.minimo || 0), distanciaKm * Number(entregaConfig?.km?.valor_km || 0))
   const taxaKm = entregaConfig?.km?.arredondamento === 'ceil' ? Math.ceil(taxaKmRaw) : entregaConfig?.km?.arredondamento === 'round' ? Math.round(taxaKmRaw) : taxaKmRaw
   const taxaEntrega = entregaConfig?.metodo === 'km' ? taxaKm : (bairroSelecionado?.taxa || 0)
-  const tipoRecebimento = cliente.tipo_recebimento || 'delivery'
-  const taxaEntregaAplicada = tipoRecebimento === 'retirada' ? 0 : taxaEntrega
+  const tipoRecebimento = modoMesa ? 'mesa' : (cliente.tipo_recebimento || 'delivery')
+  const taxaEntregaAplicada = tipoRecebimento === 'delivery' ? taxaEntrega : 0
   const descontoCupom = cupomAplicado?.desconto || 0
   const [saldoCashback,setSaldoCashback]=useState(0)
   const [cashbackAtivo,setCashbackAtivo]=useState(false)
@@ -269,7 +275,7 @@ export function CheckoutDrawer({
   const [valorCashback,setValorCashback]=useState('')
   const [cashbackCarregando,setCashbackCarregando]=useState(false)
   useEffect(()=>{
-    if(!isOpen||step!=='pagamento'||!cliente.accessToken||!tenantSlug){setSaldoCashback(0);setCashbackAtivo(false);setUsarCashback(false);return}
+    if(!isOpen||step!=='pagamento'||!cliente.accessToken||!tenantSlug||modoMesa){setSaldoCashback(0);setCashbackAtivo(false);setUsarCashback(false);return}
     let cancelled=false
     setCashbackCarregando(true)
     fetch('/api/clientes/public?tenant_slug='+encodeURIComponent(tenantSlug),{headers:{Authorization:'Bearer '+cliente.accessToken},cache:'no-store'})
@@ -277,7 +283,7 @@ export function CheckoutDrawer({
       .catch(()=>{if(!cancelled){setSaldoCashback(0);setCashbackAtivo(false)}})
       .finally(()=>{if(!cancelled)setCashbackCarregando(false)})
     return()=>{cancelled=true}
-  },[isOpen,step,cliente.accessToken,tenantSlug])
+  },[isOpen,step,cliente.accessToken,tenantSlug,modoMesa])
   const totalAntesCashback = Math.max(0,subtotal+taxaEntregaAplicada-descontoCupom)
   const cashbackUsado = usarCashback&&cashbackAtivo ? Math.round(Math.min(totalAntesCashback,saldoCashback,Math.max(0,Number(valorCashback.replace(',','.'))||0))*100)/100 : 0
   const total = Math.max(0,Math.round((totalAntesCashback-cashbackUsado)*100)/100)
@@ -306,7 +312,8 @@ export function CheckoutDrawer({
   // ============================================================
   const validarCliente = () => {
     if (!cliente.nome.trim()) return 'Informe seu nome'
-    if (!cliente.whatsapp || cliente.whatsapp.replace(/\D/g, '').length < 10) return 'Informe um WhatsApp válido'
+    const digitosWhats = (cliente.whatsapp || '').replace(/\D/g, '')
+    if (modoMesa ? digitosWhats.length > 0 && digitosWhats.length < 10 : digitosWhats.length < 10) return 'Informe um WhatsApp válido'
     if (cliente.cpf && !validCpf(cliente.cpf)) return 'Informe um CPF válido ou deixe o campo vazio'
     return null
   }
@@ -386,8 +393,8 @@ export function CheckoutDrawer({
         accessToken = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('')
         setCliente((current: ClienteLocal) => ({ ...current, accessToken }))
       }
-      // 1. Cadastrar/atualizar cliente — também via rota pública
-      try {
+      // 1. Cadastrar/atualizar cliente — também via rota pública (mesa sem WhatsApp não tem cadastro a atualizar)
+      if (!modoMesa || (cliente.whatsapp || '').replace(/\D/g, '').length >= 10) try {
         const clienteRes = await fetch('/api/clientes/public', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -445,6 +452,7 @@ export function CheckoutDrawer({
         cliente_latitude: cliente.latitude || null,
         cliente_longitude: cliente.longitude || null,
         tipo_entrega: tipoRecebimento,
+        mesa_token: mesa?.token || null,
         cliente_aniversario: cliente.aniversario ? birthdayToIso(cliente.aniversario) : null,
         cliente_cpf: cliente.cpf || null,
         cliente_access_token: accessToken,
@@ -506,7 +514,7 @@ export function CheckoutDrawer({
       numero: tipoRecebimento === 'retirada' ? '' : cliente.numero,
       complemento: tipoRecebimento === 'retirada' ? undefined : cliente.complemento,
       bairro: tipoRecebimento === 'retirada' ? '' : (bairroSelecionado?.bairro || ''),
-      observacoes: observacaoPedido, tipoEntrega: tipoRecebimento,
+      observacoes: observacaoPedido, tipoEntrega: tipoRecebimento === 'mesa' ? 'retirada' : tipoRecebimento,
     })
     const telefoneUnificado = tenantTelefone?.replace(/\D/g, '') || ''
     window.open(`https://wa.me/55${telefoneUnificado}?text=${encodeURIComponent(mensagemUnificada)}`, '_blank')
@@ -529,6 +537,7 @@ export function CheckoutDrawer({
         total={total}
         tempoTotal={tempoTotal}
         tenantNome={tenantNome}
+        mesa={mesa}
         onFechar={() => {
           setStep('carrinho')
           onLimparCarrinho()
@@ -555,7 +564,7 @@ export function CheckoutDrawer({
             {step !== 'carrinho' && (
               <button onClick={() => {
                 if (step === 'entrega') setStep('cliente')
-                else if (step === 'pagamento') setStep('entrega')
+                else if (step === 'pagamento') setStep(modoMesa ? 'cliente' : 'entrega')
                 else if (step === 'aniversario') setStep('pagamento')
                 else if (step === 'observacoes') setStep('aniversario')
                 else if (step === 'cliente') setStep('carrinho')
@@ -578,7 +587,7 @@ export function CheckoutDrawer({
 
         {/* Progress */}
         {step !== 'carrinho' && (
-          <div className="wd-progress px-4 py-2 border-b flex items-center gap-2 overflow-x-auto text-xs" aria-label="Progresso do pedido">{(['cliente','entrega','pagamento','aniversario','observacoes'] as const).map((id,i)=>{const labels=['Dados','Entrega','Pagamento','Identificacao','Revisao'];const atual=['cliente','entrega','pagamento','aniversario','observacoes'].indexOf(step);return <span key={id} className={`whitespace-nowrap ${i===atual?'font-bold':''}`} aria-current={i===atual?'step':undefined}>{i<atual?'✓ ':''}{labels[i]}{i<4?' →':''}</span>})}</div>
+          <div className="wd-progress px-4 py-2 border-b flex items-center gap-2 overflow-x-auto text-xs" aria-label="Progresso do pedido">{etapasCheckout.map((id,i)=>{const atual=etapasCheckout.indexOf(step);return <span key={id} className={`whitespace-nowrap ${i===atual?'font-bold':''}`} aria-current={i===atual?'step':undefined}>{i<atual?'✓ ':''}{rotulosEtapa[id]}{i<etapasCheckout.length-1?' →':''}</span>})}</div>
         )}
 
         {/* Content */}
@@ -612,6 +621,8 @@ export function CheckoutDrawer({
                   accessToken = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('')
                   setCliente((current: ClienteLocal) => ({ ...current, accessToken }))
                 }
+                const temWhats = (cliente.whatsapp || '').replace(/\D/g, '').length >= 10
+                if (modoMesa && !temWhats) { setStep('pagamento'); return }
                 if (tenantSlug) {
                   const response = await fetch('/api/clientes/public', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -619,11 +630,12 @@ export function CheckoutDrawer({
                   })
                   const result = await response.json()
                   if (!response.ok && result.code !== 'NEW_ORDER_REQUIRED') { alert(result.error || 'Não foi possível salvar seus dados.'); return }
-                  if (result.code === 'NEW_ORDER_REQUIRED') { setStep('entrega'); return }
+                  if (result.code === 'NEW_ORDER_REQUIRED') { setStep(modoMesa ? 'pagamento' : 'entrega'); return }
                   onClienteCadastrado?.({ ...cliente, accessToken, ...(result.cliente || result), whatsapp: (result.cliente || result).telefone || cliente.whatsapp, aniversario: cliente.aniversario })
                 }
-                setStep('entrega')
+                setStep(modoMesa ? 'pagamento' : 'entrega')
               }}
+              modoMesa={modoMesa}
             />
           )}
 
@@ -856,10 +868,10 @@ function CarrinhoView({ itens, onUpdateQuantity, onRemoveItem, onEditItem, onCon
   )
 }
 
-function ClienteView({ cliente, setCliente, onContinuar }: any) {
+function ClienteView({ cliente, setCliente, onContinuar, modoMesa = false }: any) {
   return (
     <div className="p-4 space-y-4">
-      <p className="text-sm text-gray-600 mb-4">Seus dados para contato e identificação</p>
+      <p className="text-sm text-gray-600 mb-4">{modoMesa ? 'Seu nome para identificarmos seu pedido na mesa' : 'Seus dados para contato e identificação'}</p>
 
       <div>
         <label className="block text-sm font-medium mb-1.5">Nome completo *</label>
@@ -876,7 +888,7 @@ function ClienteView({ cliente, setCliente, onContinuar }: any) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1.5">WhatsApp *</label>
+        <label className="block text-sm font-medium mb-1.5">{modoMesa ? 'WhatsApp (opcional)' : 'WhatsApp *'}</label>
         <div className="relative">
           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -1275,7 +1287,7 @@ function ObservacoesView({ observacaoPedido, setObservacaoPedido, itens, subtota
   </div>
 }
 
-function ModalConfirmacao({ pedido, cliente, total, tempoTotal, tenantNome, onFechar, onEnviarWhatsApp }: any) {
+function ModalConfirmacao({ pedido, cliente, total, tempoTotal, tenantNome, mesa, onFechar, onEnviarWhatsApp }: any) {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
@@ -1288,7 +1300,7 @@ function ModalConfirmacao({ pedido, cliente, total, tempoTotal, tenantNome, onFe
           <h2 className="text-2xl font-bold mb-2">Pedido Enviado!</h2>
           <p className="text-gray-600 mb-6">
             Seu pedido foi criado e enviado para <strong>{tenantNome || 'a loja'}</strong>.
-            <br />Aguarde a confirmação pelo WhatsApp.
+            <br />{mesa ? `Mesa ${mesa.numero}: é só aguardar. O pagamento é feito no final, com o garçom.` : 'Aguarde a confirmação pelo WhatsApp.'}
           </p>
 
           <div className="wd-panel rounded-2xl p-4 mb-6 text-left space-y-2">
@@ -1324,7 +1336,7 @@ function ModalConfirmacao({ pedido, cliente, total, tempoTotal, tenantNome, onFe
           )}
 
           <div className="space-y-3">
-            <button
+            {!mesa && <button
               onClick={onEnviarWhatsApp}
               className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2"
               style={{
@@ -1336,7 +1348,7 @@ function ModalConfirmacao({ pedido, cliente, total, tempoTotal, tenantNome, onFe
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
               </svg>
               Enviar via WhatsApp
-            </button>
+            </button>}
 
             <button
               onClick={onFechar}
