@@ -71,7 +71,7 @@ export default function CardapioPage() {
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
             Cardapio
           </h1>
-          <p className="hint mt-2">Design, produtos e adicionais</p>
+          <p className="wd-redundant hint mt-2">Design, produtos e adicionais</p>
         </div>
       </div>
 
@@ -171,7 +171,7 @@ function DesignTab() {
     <MerchantDisclosure title="Cores personalizadas e tipografia" className="wd-design-section"><div className="glass p-6 space-y-4">
       <div className="eyebrow">Identidade</div>
       <h2 className="text-lg font-semibold">Cores personalizadas e tipografia</h2>
-      <p className="hint text-xs">A previa abaixo acompanha instantaneamente suas escolhas.</p>
+      <p className="wd-redundant hint text-xs">A previa abaixo acompanha instantaneamente suas escolhas.</p>
       <div className="grid md:grid-cols-3 gap-3">{([{id:'classica',nome:'Classica',fonte:'Playfair Display / Lato'},{id:'moderna',nome:'Moderna',fonte:'Poppins / Inter'},{id:'minimalista',nome:'Minimalista',fonte:'Montserrat'}] as const).map((op) => <button type="button" key={op.id} onClick={() => setTipografia(op.id)} className="text-left p-3 rounded-xl border" style={{ borderColor: tipografia === op.id ? cores.primary : 'var(--line)', background: tipografia === op.id ? cores.primary + '12' : 'white' }}><b>{op.nome}</b><span className="block text-xs opacity-70">{op.fonte}</span></button>)}</div>
       <div className="grid md:grid-cols-3 gap-4">{(['primary','secondary','accent'] as const).map((key) => <HexColorField key={key} label={key} value={cores[key]} onChange={(value) => setCores({ ...cores, [key]: normalizeHex(value) })} />)}</div>
       {(() => { const preview = getCardapioTheme(paleta, cores); return <div className={'mt-4 rounded-2xl overflow-hidden border wd-font-' + tipografia} style={{ background: preview.background, color: preview.text, borderColor: preview.secondary }}>

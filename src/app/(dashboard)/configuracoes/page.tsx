@@ -91,7 +91,7 @@ export default function ConfiguracoesPage() {
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
             Configurações
           </h1>
-          <p className="hint mt-2">Horários, entregas e perfil</p>
+          <p className="wd-redundant hint mt-2">Horários, entregas e perfil</p>
         </div>
       </div>
 

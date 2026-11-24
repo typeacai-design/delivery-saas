@@ -176,7 +176,7 @@ export default function EquipePage() {
         <div>
           <div className="eyebrow mb-2">Equipe</div>
           <h1 className="text-3xl font-semibold">Acessos operacionais</h1>
-          <p className="hint mt-1">Atendentes, Cozinha e Motoboy acessam com usuário e senha.</p>
+          <p className="wd-redundant hint mt-1">Atendentes, Cozinha e Motoboy acessam com usuário e senha.</p>
         </div>
         {canManage && (
           <button className="btn-primary" onClick={() => start()}>

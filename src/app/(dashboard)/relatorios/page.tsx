@@ -77,7 +77,7 @@ export default function RelatoriosPage() {
             <h1 className="text-3xl md:text-4xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
               Relatórios
             </h1>
-            <p className="hint mt-2">Vendas por período, item e complemento</p>
+            <p className="wd-redundant hint mt-2">Vendas por período, item e complemento</p>
           </div>
           <button className="btn-primary" disabled={!snapshotMatches||loading||!!erroRelatorio} onClick={() => {
             if(!snapshot||!snapshotMatches)return
@@ -143,27 +143,27 @@ export default function RelatoriosPage() {
       {/* Resumo */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-5">
         <div className="glass p-5">
-          <div className="eyebrow mb-2 flex items-center gap-1"><DollarSign size={12}/> Entradas</div>
+          <div className="eyebrow wd-keep mb-2 flex items-center gap-1"><DollarSign size={12}/> Entradas</div>
           <div className="text-2xl font-semibold text-green-600">{formatCurrency(totalEntradas)}</div>
         </div>
         <div className="glass p-5">
-          <div className="eyebrow mb-2 flex items-center gap-1"><DollarSign size={12}/> Saídas</div>
+          <div className="eyebrow wd-keep mb-2 flex items-center gap-1"><DollarSign size={12}/> Saídas</div>
           <div className="text-2xl font-semibold text-red-600">{formatCurrency(totalSaidas)}</div>
         </div>
         <div className="glass p-5">
-          <div className="eyebrow mb-2 flex items-center gap-1"><TrendingUp size={12}/> Saldo</div>
+          <div className="eyebrow wd-keep mb-2 flex items-center gap-1"><TrendingUp size={12}/> Saldo</div>
           <div className="text-2xl font-semibold" style={{ color: totalEntradas - totalSaidas >= 0 ? 'var(--green)' : '#DC2626' }}>
             {formatCurrency(totalEntradas - totalSaidas)}
           </div>
         </div>
         <div className="glass p-5">
-          <div className="eyebrow mb-2">Pedidos</div>
+          <div className="eyebrow wd-keep mb-2">Pedidos</div>
           <div className="text-2xl font-semibold gradient-text-teal">
             {numeroPedidosPagos}
           </div>
         </div>
         <div className="glass p-5">
-          <div className="eyebrow mb-2 flex items-center gap-1"><BarChart3 size={12}/> Ticket Médio</div>
+          <div className="eyebrow wd-keep mb-2 flex items-center gap-1"><BarChart3 size={12}/> Ticket Médio</div>
           <div className="text-2xl font-semibold gradient-text-teal">
             {formatCurrency(ticketMedio)}
           </div>

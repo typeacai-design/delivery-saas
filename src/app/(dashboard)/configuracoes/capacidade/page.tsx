@@ -54,7 +54,7 @@ export default function CapacidadePage() {
         <div>
           <div className="eyebrow mb-2">Capacidade</div>
           <h1 className="text-2xl font-semibold">Turnos de produção</h1>
-          <p className="hint mt-1">Defina quantos pedidos sua loja aguenta por turno</p>
+          <p className="wd-redundant hint mt-1">Defina quantos pedidos sua loja aguenta por turno</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="btn-primary">
           <Plus size={16} /> Novo turno

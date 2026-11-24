@@ -144,7 +144,7 @@ export default function ComplementosTab() {
       {/* Header */}
       <div className="bg-white rounded-2xl border p-5 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: '#E5E7EB' }}>
         <div>
-          <div className="text-xs text-gray-500 mb-1">Adicionais</div>
+          <div className="wd-redundant text-xs text-gray-500 mb-1">Adicionais</div>
           <h2 className="text-lg font-semibold text-gray-900">Listas de Complementos</h2>
         </div>
         <button
@@ -156,7 +156,7 @@ export default function ComplementosTab() {
         </button>
       </div>
 
-      <p className="text-sm text-gray-600 px-1">Para pizzas divididas, cadastre o preço da pizza inteira de cada sabor nesta lista. A divisão e o máximo de sabores são configurados no produto. Use uma lista por tamanho quando os preços forem diferentes.</p>
+      <p className="wd-redundant text-sm text-gray-600 px-1">Para pizzas divididas, cadastre o preço da pizza inteira de cada sabor nesta lista. A divisão e o máximo de sabores são configurados no produto. Use uma lista por tamanho quando os preços forem diferentes.</p>
 
       {/* Filtros */}
       <div className="bg-white rounded-2xl border p-4 flex flex-wrap gap-3" style={{ borderColor: '#E5E7EB' }}>

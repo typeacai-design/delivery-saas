@@ -167,7 +167,7 @@ export default function ClientesPage() {
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">
             CRM de Clientes
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="wd-redundant text-sm text-gray-500 mt-1">
             Cadastre, segmente e acompanhe quem compra mais na sua loja.
           </p>
         </div>

@@ -32,7 +32,7 @@ export default function AuditoriaPage() {
       <div>
         <div className="eyebrow mb-2">Auditoria</div>
         <h1 className="text-2xl font-semibold">Histórico de ações</h1>
-        <p className="hint mt-1">Registros de todas as ações importantes executadas na sua loja</p>
+        <p className="wd-redundant hint mt-1">Registros de todas as ações importantes executadas na sua loja</p>
       </div>
 
       <div className="flex items-center gap-3">

@@ -74,7 +74,7 @@ export default function MotoboysPage() {
             <Bike size={11} /> Logística
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Motoboys</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="wd-redundant text-sm text-gray-500 mt-1">
             Entregadores próprios da loja. Configure comissão e acompanhe entregas.
           </p>
         </div>

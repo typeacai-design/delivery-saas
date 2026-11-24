@@ -1222,7 +1222,7 @@ export default function NovoPedidoPage() {
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
           Lançar Pedido
         </h1>
-        <p className="hint">Registre um pedido com o mesmo fluxo do cliente</p>
+        <p className="wd-redundant hint">Registre um pedido com o mesmo fluxo do cliente</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -1285,26 +1285,11 @@ export default function PedidosPage() {
       ) : (
       <div className="flex items-center justify-center md:justify-start gap-3 mb-3 md:mb-4 bg-white md:bg-transparent p-3 md:p-0 rounded-xl md:rounded-none border md:border-0 shadow-sm md:shadow-none flex-wrap">
         {pedidosTab === 'historico' && (
-          <>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-600">📅 De:</label>
-              <input
-                type="date"
-                value={filtroDataDe}
-                onChange={(e) => { setFiltroDataDe(e.target.value); setFiltroPeriodo('todos') }}
-                className="form-input text-sm px-3 py-1.5"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-600">Até:</label>
-              <input
-                type="date"
-                value={filtroDataAte}
-                onChange={(e) => { setFiltroDataAte(e.target.value); setFiltroPeriodo('todos') }}
-                className="form-input text-sm px-3 py-1.5"
-              />
-            </div>
-          </>
+          <MerchantDateRange from={filtroDataDe} to={filtroDataAte} onApply={({ from, to }) => {
+            setFiltroDataDe(from)
+            setFiltroDataAte(to)
+            setFiltroPeriodo('todos')
+          }} />
         )}
         <div className="flex items-center gap-2">
           {pedidosTab === 'fluxo' ? (

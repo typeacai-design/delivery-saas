@@ -584,8 +584,8 @@
  .wd-new-order-notification{top:24px;right:24px;padding:16px 24px;border:0;background:linear-gradient(to right,#22c55e,#16a34a);box-shadow:0 25px 50px -12px #00000040}
 }
 
-/* Approved compact period selector: history on mobile only. */
-@media(max-width:767px){
+/* Approved compact period selector (order history). Base look is shared; desktop opens it as a popover. */
+@media all{
  .wd-merchant .wd-period-filter{margin-bottom:16px}
  .wd-merchant .wd-period-trigger{width:100%;display:grid;grid-template-columns:21px minmax(0,1fr) 15px;align-items:center;gap:10px;border:1px solid #dfe7e1;background:#fff;box-shadow:0 2px 5px #17251c08;border-radius:13px;padding:9px 13px;min-height:56px;text-align:left;color:#17251c}
  .wd-merchant .wd-period-trigger>svg:first-child{color:#368b49}
@@ -606,6 +606,15 @@
  .wd-merchant .wd-period-actions .wd-period-apply{border:0;background:linear-gradient(#16ae55,#09913f);color:#fff;font-weight:600;box-shadow:0 3px 0 #08732f}
 }
 @media(max-width:360px){.wd-merchant .wd-period-trigger{gap:7px;padding:9px 11px}.wd-merchant .wd-period-calendar{padding:10px}}
+@media(min-width:768px){
+ .wd-merchant .wd-period-filter{position:relative;margin-bottom:0}
+ .wd-merchant .wd-period-trigger{width:auto;min-width:250px;min-height:46px;padding:6px 13px;cursor:pointer}
+ .wd-merchant .wd-period-calendar{position:absolute;top:calc(100% + 8px);left:0;z-index:40;width:330px;margin-top:0;box-shadow:0 14px 34px #17251c24}
+ .wd-merchant .wd-period-days button,.wd-merchant .wd-period-month button,.wd-merchant .wd-period-actions button{cursor:pointer}
+ .wd-merchant .wd-period-days button{min-height:38px}
+ .wd-merchant .wd-period-days button:not([aria-pressed=true]):hover{background:#f0f6f2}
+ .wd-merchant .wd-period-actions button:disabled{cursor:not-allowed;opacity:.55}
+}
 
 @media (max-width:767px) {
  .wd-history-summary { display:flex; flex-direction:column; width:100%; text-align:left; gap:10px; padding:16px; border:1px solid #e4e8ee; border-radius:18px; background:#fff; box-shadow:0 2px 5px #17203308; }
@@ -614,4 +623,9 @@
  .wd-history-summary>b { font-size:15px; color:#172033; }
  .wd-history-summary>time { color:#64766a; font-size:12px; }
  .wd-history-order>.wd-mobile-order { margin-top:8px; }
+}
+
+/* Desktop only: hide redundant captions above/below titles. KPI labels opt out with .wd-keep. Mobile unchanged. */
+@media(min-width:768px){
+ .wd-merchant .eyebrow:not(.wd-keep),.wd-merchant .wd-redundant{display:none!important}
 }

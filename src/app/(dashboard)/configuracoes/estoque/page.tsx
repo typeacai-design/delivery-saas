@@ -11,7 +11,7 @@ export default function EstoqueConfigPage() {
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
           Controle de Estoque
         </h1>
-        <p className="hint">Gerencie o estoque dos seus produtos</p>
+        <p className="wd-redundant hint">Gerencie o estoque dos seus produtos</p>
       </div>
 
       <div className="max-w-2xl space-y-6">

@@ -34,7 +34,7 @@ export default function SuportePage() {
         <div>
           <div className="eyebrow mb-2">Suporte</div>
           <h1 className="text-2xl font-semibold">Tickets</h1>
-          <p className="hint mt-1">Abra um ticket e o admin responderá por aqui</p>
+          <p className="wd-redundant hint mt-1">Abra um ticket e o admin responderá por aqui</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="btn-primary">
           <Plus size={16} /> Novo ticket

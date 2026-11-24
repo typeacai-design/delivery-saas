@@ -111,7 +111,7 @@ export default function MarketingPage() {
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
             Marketing
           </h1>
-          <p className="hint mt-2">Clientes, fidelização e recuperação</p>
+          <p className="wd-redundant hint mt-2">Clientes, fidelização e recuperação</p>
         </div>
       </div>
 

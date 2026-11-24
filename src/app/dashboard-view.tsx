@@ -415,7 +415,7 @@ export default function VisaoGeralPage() {
             <h1 className="text-3xl md:text-4xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
               {saudacao}, <span className="gradient-text">chefe!</span>
             </h1>
-            <p className="hint mt-2 max-w-md">
+            <p className="wd-redundant hint mt-2 max-w-md">
               Aqui está o resumo das vendas de hoje e do mês.
             </p>
           </div>
@@ -478,7 +478,7 @@ export default function VisaoGeralPage() {
               <div className="size-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(22,163,74,.14)' }}>
                 <TrendingUp size={18} style={{ color: '#15803D' }} strokeWidth={2.5} />
               </div>
-              <span className="eyebrow">Vendas hoje</span>
+              <span className="eyebrow wd-keep">Vendas hoje</span>
             </div>
             <div className="text-5xl font-semibold gradient-text tabular-nums mb-2">
               {formatCurrency(totalHoje)}
@@ -494,7 +494,7 @@ export default function VisaoGeralPage() {
               <div className="size-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,0,0,.06)' }}>
                 <Calendar size={18} style={{ color: '#0A0A0A' }} strokeWidth={2.5} />
               </div>
-              <span className="eyebrow">Faturamento do mês</span>
+              <span className="eyebrow wd-keep">Faturamento do mês</span>
             </div>
             <div className="text-5xl font-semibold tabular-nums mb-2" style={{ color: 'var(--ink)' }}>
               {formatCurrency(totalMes)}
