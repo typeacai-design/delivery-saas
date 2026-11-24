@@ -200,6 +200,7 @@ export default async function CardapioPublicoPage({
     tenant: {
       id: tenant.id,
       sabores_ativo: tenant.sabores_ativo === true,
+      cashback_ativo: config.cashback_ativo === true,
       nome: tenant.nome,
       slug: tenant.slug,
       telefone: tenant.telefone || '',

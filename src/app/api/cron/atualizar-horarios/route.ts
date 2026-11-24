@@ -86,10 +86,8 @@ export async function GET(request: Request) {
       }
 
       // Verificar se está dentro do horário de funcionamento
-      const dentroHorario = verificarHorarioFuncionamento(
-        config.horarios_dias,
-        config.excecoes_horario || []
-      )
+      // Datas especiais (excecoes_horario) foram descontinuadas: vale só o horário semanal.
+      const dentroHorario = verificarHorarioFuncionamento(config.horarios_dias, [])
 
       // Se está dentro do horário, abrir a loja automaticamente
       if (dentroHorario) {

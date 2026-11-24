@@ -2,7 +2,7 @@
 import { createFlavorSnapshot, flavorCount } from '@/lib/flavor-pricing'
 import { normalizeCartPrices } from '@/lib/product-pricing'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { ShoppingCart, Search, SlidersHorizontal, MapPin, ChevronDown, Home, FileText, ShoppingBag, User, Plus, Bell, Clock, Star } from 'lucide-react'
 import { formatCurrency, ordenarComplementos } from '@/lib/utils'
@@ -147,6 +147,7 @@ interface CardapioData {
     telefone: string
     logo_url: string | null
     sabores_ativo?: boolean
+    cashback_ativo?: boolean
     banner_url: string | null
     banners: string[]
     endereco: string
@@ -298,6 +299,41 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
     if (carrinhoCarregadoSlug !== data.tenant.slug) return
     try { localStorage.setItem(`delivery_carrinho_${data.tenant.slug}`, JSON.stringify(carrinho)) } catch { /* noop */ }
   }, [carrinho, data.tenant.slug, carrinhoCarregadoSlug])
+
+  // Carrinho abandonado: o painel do lojista vê o carrinho assim que algo é adicionado.
+  // Carrinho vazio (pedido feito ou limpo) remove o registro. Só envia "vazio" se já havia reportado algo.
+  const reportarCarrinho = useCallback((itens: CartItem[]) => {
+    try {
+      const slug = data.tenant.slug
+      const flag = `delivery_carrinho_reportado_${slug}`
+      if (itens.length === 0 && !localStorage.getItem(flag)) return
+      const chaveSessao = `delivery_carrinho_sessao_${slug}`
+      let sessao = localStorage.getItem(chaveSessao) || ''
+      if (!/^[A-Za-z0-9-]{16,64}$/.test(sessao)) {
+        sessao = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+        localStorage.setItem(chaveSessao, sessao)
+      }
+      const payload = itens.map(item => ({
+        nome: item.variante_nome ? `${item.nome} (${item.variante_nome})` : item.nome,
+        quantidade: item.quantidade,
+        valor: item.valor_unitario + (item.variante_preco || 0) + item.complementos.reduce((soma, c) => soma + c.valor * c.quantidade, 0),
+      }))
+      if (itens.length > 0) localStorage.setItem(flag, '1'); else localStorage.removeItem(flag)
+      fetch('/api/carrinho/salvar', {
+        method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_slug: slug, session_id: sessao, itens: payload, cliente_nome: clienteLocal?.nome || '', cliente_whatsapp: clienteLocal?.whatsapp || '' }),
+      }).catch(() => { /* silencioso: não atrapalha a compra */ })
+    } catch { /* noop */ }
+  }, [data.tenant.slug, clienteLocal?.nome, clienteLocal?.whatsapp])
+
+  // Carrinho que virou pedido: não volta para "abandonados" enquanto o cliente não mexer nele.
+  const carrinhoDoPedido = useRef<CartItem[] | null>(null)
+  useEffect(() => {
+    if (carrinhoCarregadoSlug !== data.tenant.slug) return
+    if (carrinhoDoPedido.current === carrinho) return
+    const timer = window.setTimeout(() => reportarCarrinho(carrinho), 1200)
+    return () => window.clearTimeout(timer)
+  }, [carrinho, carrinhoCarregadoSlug, data.tenant.slug, reportarCarrinho])
 
   // Tracking de visita ao cardápio (1× por sessão)
   useEffect(() => {
@@ -479,6 +515,7 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         onRemoveItem={removerItem}
         onEditItem={editarItem}
         onLimparCarrinho={limparCarrinho}
+        onPedidoCriado={() => { carrinhoDoPedido.current = carrinho; reportarCarrinho([]) }}
         tenantId={data.tenant.id}
         tenantSlug={data.tenant.slug}
         tenantNome={data.tenant.nome}
@@ -516,7 +553,7 @@ export function CardapioCliente({ data }: { data: CardapioData }) {
         complementos={complementosDoProduto}
         listas={produtoSelecionado ? listasPorProduto[produtoSelecionado.id] || [] : []}
         onAddToCart={adicionarAoCarrinho}
-        onGoToCheckout={() => { setCheckoutDireto(true); setCarrinhoAberto(true) }}
+        onGoToCheckout={() => { setCheckoutDireto(false); setCarrinhoAberto(true) }}
         paletaCor={data.corPaleta}
         initialItem={itemEmEdicao}
         onReplaceItem={substituirItem}
@@ -1081,7 +1118,7 @@ function LayoutClassico({ data, busca, setBusca, categoriaAtiva, setCategoriaAti
         </div>
       </header>
 
-      {abaAtiva === 'pedidos' ? <CustomerOrders slug={data.tenant.slug} cliente={clienteLocal} pedidoInicial={data.pedidoInicial || null} onVoltar={() => navegarPara('inicio')} onSelecionarPedido={(codigo) => navegarPara('pedidos', codigo)} /> : abaAtiva === 'perfil' ? <CustomerProfile slug={data.tenant.slug} cliente={clienteLocal} setCliente={setClienteLocal} /> : <main className="wd-content px-4 py-4">
+      {abaAtiva === 'pedidos' ? <CustomerOrders slug={data.tenant.slug} cliente={clienteLocal} pedidoInicial={data.pedidoInicial || null} onVoltar={() => navegarPara('inicio')} onSelecionarPedido={(codigo) => navegarPara('pedidos', codigo)} /> : abaAtiva === 'perfil' ? <CustomerProfile slug={data.tenant.slug} cliente={clienteLocal} setCliente={setClienteLocal} cashbackAtivo={data.tenant.cashback_ativo === true} /> : <main className="wd-content px-4 py-4">
         <StoreActions data={data} />
         <SecondaryStrip data={data}/>
         {/* Banner Hero */}

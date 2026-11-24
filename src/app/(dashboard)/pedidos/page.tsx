@@ -1,4 +1,6 @@
 'use client'
+
+import NumericInput from '@/components/numeric-input'
 import { brasiliaDay } from '@/lib/brasilia'
 import { formatBrasilia } from '@/lib/brasilia'
 import { chargedProductBase, savedItemTotal } from '@/lib/product-pricing'
@@ -240,13 +242,12 @@ function ItemEditor({ item, idx, onChange, onRemove, tenantId }: {
 
         {/* VALOR */}
         <label className="wd-oe-number"><span className="wd-oe-item-label">Valor unitário (R$)</span>
-        <input
-          type="number"
+        <NumericInput
           step="0.01"
           className="form-input text-sm w-24"
           value={item.valor_unitario || 0}
           disabled={temSabores}
-          onChange={(e) => onChange(idx, { ...item, valor_unitario: Number(e.target.value) || 0 })}
+          onValueChange={v => onChange(idx, { ...item, valor_unitario: v ?? 0 })}
           title="Valor unitário" aria-label="Valor unitário"
         />
         </label>
@@ -2455,22 +2456,20 @@ export default function PedidosPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm">
                     <span className="font-medium block mb-1">Taxa de entrega (R$)</span>
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.01"
                       className="form-input w-full"
                       value={pedidoEditando.taxa_entrega || 0}
-                      onChange={e => setPedidoEditando({ ...pedidoEditando, taxa_entrega: Number(e.target.value) })}
+                      onValueChange={v => setPedidoEditando({ ...pedidoEditando, taxa_entrega: v ?? 0 })}
                     />
                   </label>
                   <label className="text-sm">
                     <span className="font-medium block mb-1">Desconto (R$)</span>
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.01"
                       className="form-input w-full"
                       value={pedidoEditando.valor_desconto || 0}
-                      onChange={e => setPedidoEditando({ ...pedidoEditando, valor_desconto: Number(e.target.value) })}
+                      onValueChange={v => setPedidoEditando({ ...pedidoEditando, valor_desconto: v ?? 0 })}
                     />
                   </label>
                 </div>
@@ -2623,22 +2622,20 @@ export default function PedidosPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm">
                     <span className="font-medium block mb-1">Taxa de entrega (R$)</span>
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.01"
                       className="form-input w-full"
                       value={pedidoEditando.taxa_entrega || 0}
-                      onChange={e => setPedidoEditando({ ...pedidoEditando, taxa_entrega: Number(e.target.value) })}
+                      onValueChange={v => setPedidoEditando({ ...pedidoEditando, taxa_entrega: v ?? 0 })}
                     />
                   </label>
                   <label className="text-sm">
                     <span className="font-medium block mb-1">Desconto (R$)</span>
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.01"
                       className="form-input w-full"
                       value={pedidoEditando.valor_desconto || 0}
-                      onChange={e => setPedidoEditando({ ...pedidoEditando, valor_desconto: Number(e.target.value) })}
+                      onValueChange={v => setPedidoEditando({ ...pedidoEditando, valor_desconto: v ?? 0 })}
                     />
                   </label>
                 </div>

@@ -157,8 +157,11 @@ export function CheckoutDrawer({
   const carrinhoKey = `delivery_carrinho_${tenantSlug || tenantId}`
   const [step, setStep] = useState<'carrinho' | 'cliente' | 'entrega' | 'pagamento' | 'aniversario' | 'observacoes' | 'confirmacao'>('carrinho')
 
+  // Every time the cart is opened it starts on the item list (never on a step left half-way).
+  // A just-created order keeps its confirmation screen until the customer closes it.
   useEffect(() => {
-    if (isOpen && startAtCustomer) setStep('cliente')
+    if (!isOpen) return
+    setStep(current => current === 'confirmacao' ? current : startAtCustomer ? 'cliente' : 'carrinho')
   }, [isOpen, startAtCustomer])
   useEffect(()=>{if(!isOpen)return;const previous=document.activeElement as HTMLElement|null;const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose();const d=document.querySelector<HTMLElement>('.wd-checkout-dialog');if(d)keepFocusInside(d,e)};document.addEventListener('keydown',onKey);requestAnimationFrame(()=>document.querySelector<HTMLElement>('.wd-checkout-dialog button, .wd-checkout-dialog input')?.focus());return()=>{document.removeEventListener('keydown',onKey);previous?.focus()}},[isOpen,onClose])
 
@@ -590,6 +593,7 @@ export function CheckoutDrawer({
                 if (carrinhoLocal.length === 0) return
                 setStep('cliente')
               }}
+              onAdicionarMais={onClose}
               valorMinimoPedido={valorMinimoPedido}
               subtotal={subtotal}
             />
@@ -764,7 +768,7 @@ export function CheckoutDrawer({
 // SUB-VIEWS
 // ============================================================
 
-function CarrinhoView({ itens, onUpdateQuantity, onRemoveItem, onEditItem, onContinuar, valorMinimoPedido, subtotal }: any) {
+function CarrinhoView({ itens, onUpdateQuantity, onRemoveItem, onEditItem, onContinuar, onAdicionarMais, valorMinimoPedido, subtotal }: any) {
   if (itens.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -841,8 +845,13 @@ function CarrinhoView({ itens, onUpdateQuantity, onRemoveItem, onEditItem, onCon
           boxShadow: '0 8px 24px -8px rgba(22,163,74,.5)',
         }}
       >
-        Continuar
+        Finalizar pedido
       </button>
+      {onAdicionarMais && (
+        <button type="button" onClick={onAdicionarMais} className="wd-secondary-action w-full py-3 rounded-2xl font-semibold border-2">
+          Adicionar mais itens
+        </button>
+      )}
     </div>
   )
 }

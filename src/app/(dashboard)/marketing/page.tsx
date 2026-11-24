@@ -226,7 +226,7 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
   const abrirNovo = () => {
     setEditing(null)
     const amanha = civilDayShift(brasiliaDay(),30)
-    setForm({ codigo: '', tipo: 'percentual', valor: '', valor_minimo_pedido: '0', validade: amanha, max_usos: '' })
+    setForm({ codigo: '', tipo: 'percentual', valor: '', valor_minimo_pedido: '', validade: amanha, max_usos: '' })
     setShowModal(true)
   }
 
@@ -234,7 +234,7 @@ function CuponsTab({ cupons: initialCupons }: { cupons: any[] }) {
     setEditing(c)
     setForm({
       codigo: c.codigo, tipo: c.tipo, valor: String(c.valor),
-      valor_minimo_pedido: String(c.valor_minimo_pedido || 0),
+      valor_minimo_pedido: c.valor_minimo_pedido ? String(c.valor_minimo_pedido) : '',
       validade: c.validade?.split('T')[0] || '',
       max_usos: c.max_usos ? String(c.max_usos) : '',
     })

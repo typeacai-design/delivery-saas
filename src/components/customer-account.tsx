@@ -508,7 +508,7 @@ export function CustomerOrders({
   )
 }
 
-export function CustomerProfile({ slug, cliente, setCliente }: { slug: string; cliente: Customer; setCliente: React.Dispatch<React.SetStateAction<Customer>> }) {
+export function CustomerProfile({ slug, cliente, setCliente, cashbackAtivo = false }: { slug: string; cliente: Customer; setCliente: React.Dispatch<React.SetStateAction<Customer>>; cashbackAtivo?: boolean }) {
   const [draft, setDraft] = useState<Customer>(cliente)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -520,6 +520,9 @@ export function CustomerProfile({ slug, cliente, setCliente }: { slug: string; c
       .then(r=>r.ok?r.json():null).then(data=>{if(!cancelled&&data?.cashback)setCashback(data.cashback)}).catch(()=>{})
     return()=>{cancelled=true}
   },[slug,cliente.accessToken])
+  // Store with cashback on: always show the balance (R$ 0,00 for customers without purchases). Store without it: show nothing.
+  const cashbackVisivel = cashback ? cashback.ativo : cashbackAtivo
+  const saldoCashback = cashback?.saldo ?? 0
 
 
   async function save() {
@@ -540,12 +543,12 @@ export function CustomerProfile({ slug, cliente, setCliente }: { slug: string; c
 
   const fields = [['nome','Nome'],['whatsapp','WhatsApp'],['cpf','CPF (opcional)'],['endereco','Endereço'],['numero','Número'],['bairro','Bairro'],['complemento','Complemento'],['aniversario','Aniversário']]
   return <section className="px-4 py-5 pb-24"><h2 className="text-2xl font-bold mb-4">Meu perfil</h2>
-    {cashback?.ativo&&<div className="bg-white border border-green-200 rounded-2xl p-5 mb-4 space-y-3">
+    {cashbackVisivel&&<div className="bg-white border border-green-200 rounded-2xl p-5 mb-4 space-y-3">
       <h3 className="font-bold text-gray-900">Meu Cashback</h3>
       <p className="text-xs text-gray-500">Saldo disponível para suas próximas compras</p>
-      <p className="text-3xl font-extrabold text-green-700">{formatCurrency(cashback.saldo)}</p>
-      {cashback.creditos.filter(c=>c.restante>0).length>0&&<div className="border-t pt-3 space-y-2"><p className="text-sm font-semibold">Meus créditos</p>{cashback.creditos.filter(c=>c.restante>0).slice(0,10).map((credito,i)=><div key={i} className="flex justify-between gap-3 text-xs"><span>{credito.expira_em?'Vence em '+formatBrasilia(credito.expira_em,'date'):'Sem vencimento'}</span><strong className={credito.expira_em&&new Date(credito.expira_em)<new Date()?'text-red-600':'text-green-700'}>{formatCurrency(credito.restante)}</strong></div>)}</div>}
-      {(cashback.utilizacoes||[]).length>0&&<div className="border-t pt-3 space-y-2"><p className="text-sm font-semibold">Cashback utilizado</p>{(cashback.utilizacoes||[]).slice(0,5).map((u,i)=><div key={i} className="flex justify-between text-xs gap-2"><span>{formatBrasilia(u.criado_em,'date')}</span><strong className="text-gray-700">-{formatCurrency(u.valor)}</strong></div>)}</div>}
+      <p className="text-3xl font-extrabold text-green-700">{formatCurrency(saldoCashback)}</p>
+      {(cashback?.creditos||[]).filter(c=>c.restante>0).length>0&&<div className="border-t pt-3 space-y-2"><p className="text-sm font-semibold">Meus créditos</p>{(cashback?.creditos||[]).filter(c=>c.restante>0).slice(0,10).map((credito,i)=><div key={i} className="flex justify-between gap-3 text-xs"><span>{credito.expira_em?'Vence em '+formatBrasilia(credito.expira_em,'date'):'Sem vencimento'}</span><strong className={credito.expira_em&&new Date(credito.expira_em)<new Date()?'text-red-600':'text-green-700'}>{formatCurrency(credito.restante)}</strong></div>)}</div>}
+      {(cashback?.utilizacoes||[]).length>0&&<div className="border-t pt-3 space-y-2"><p className="text-sm font-semibold">Cashback utilizado</p>{(cashback?.utilizacoes||[]).slice(0,5).map((u,i)=><div key={i} className="flex justify-between text-xs gap-2"><span>{formatBrasilia(u.criado_em,'date')}</span><strong className="text-gray-700">-{formatCurrency(u.valor)}</strong></div>)}</div>}
     </div>}
     <div className="bg-white border rounded-2xl p-4 space-y-3">
     {fields.map(([key,label]) => <label key={key} className="block text-sm font-medium">{label}<input inputMode={key === 'cpf' || key === 'aniversario' ? 'numeric' : undefined} maxLength={key === 'aniversario' ? 10 : undefined} placeholder={key === 'aniversario' ? 'DD/MM/AAAA' : undefined} value={draft[key] || ''} onChange={event => setDraft(current => ({ ...current, [key]: key === 'cpf' ? event.target.value.replace(/\D/g, '').slice(0, 11) : key === 'aniversario' ? formatDate(event.target.value) : event.target.value }))} className="mt-1 w-full border rounded-xl px-3 py-2.5" /></label>)}

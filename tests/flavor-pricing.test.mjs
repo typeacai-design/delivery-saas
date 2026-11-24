@@ -63,6 +63,7 @@ test('unchanged edit trusts saved snapshots, accepts quantity-only changes and d
 function publicApi(db, overdue = false) {
  return compile('src/app/api/pedidos/public/route.ts', {
   '@/lib/assinaturas': compile('src/lib/assinaturas.ts', {}), '@/lib/assinaturas-server': { assinaturaVencida: async () => overdue },
+  '@/lib/nome-proprio': compile('src/lib/nome-proprio.ts', {}),
   'next/server':{NextResponse:{json:(body,init)=>Response.json(body,init)}},
   '@supabase/supabase-js':{createClient:()=>db}, '@/lib/product-pricing':pricing,'@/lib/flavor-order-server':server,
   '@/lib/customer-identity':{rateLimited:async()=>false,isValidCpf:()=>true,hashAccessToken:v=>v,normalizeCpf:v=>v,tokenMatches:()=>true},

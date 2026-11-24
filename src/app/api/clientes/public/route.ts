@@ -1,4 +1,5 @@
 import { brasiliaDay } from '@/lib/brasilia'
+import { formatarNomeProprio } from '@/lib/nome-proprio'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { bearerToken, hashAccessToken, isValidCpf, normalizeCpf, rateLimited, tokenMatches } from '@/lib/customer-identity'
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     const { data: matches } = await admin.from('clientes').select('id,acesso_token_hash').eq('tenant_id', tenant.id).eq('acesso_token_hash', tokenHash).limit(2)
     if ((matches || []).length > 1) return respond({ error: 'Não foi possível processar a solicitação' }, 409)
     const existing = matches?.[0]
-    const values = { nome: String(nome).slice(0, 160), telefone: String(telefone).replace(/\D/g, '').slice(0, 15), endereco: endereco ? String(endereco).slice(0, 500) : null, data_nascimento: data_nascimento ? String(data_nascimento) : null, cpf: cpf ? normalizeCpf(cpf) : null, acesso_token_hash: tokenHash }
+    const values = { nome: formatarNomeProprio(nome).slice(0, 160), telefone: String(telefone).replace(/\D/g, '').slice(0, 15), endereco: endereco ? String(endereco).slice(0, 500) : null, data_nascimento: data_nascimento ? String(data_nascimento) : null, cpf: cpf ? normalizeCpf(cpf) : null, acesso_token_hash: tokenHash }
     if (existing?.acesso_token_hash && !tokenMatches(token, existing.acesso_token_hash)) return respond({ error: 'Não foi possível processar a solicitação' }, 403)
     const query = existing
       ? admin.from('clientes').update(values).eq('id', existing.id)

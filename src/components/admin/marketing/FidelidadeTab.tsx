@@ -1,7 +1,9 @@
 'use client'
+
+import NumericInput from '@/components/numeric-input'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Coins, Save, Clock, Wallet } from 'lucide-react'
+import { Coins, Save, Clock, Wallet, History } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 type CashbackConfig = { cashback_ativo: boolean; cashback_tipo: 'percentual' | 'fixo_por_real'; cashback_percent: number; cashback_valor_por_real: number; cashback_validade_dias: number | null }
@@ -14,6 +16,7 @@ export default function FidelidadeTab() {
   const [clientes,setClientes]=useState<any[]>([])
   const [saldos,setSaldos]=useState<Record<string,number>>({})
   const [busca,setBusca]=useState('')
+  const [retroativo,setRetroativo]=useState(false)
   const supabase=createClient()
   const tenantId=async()=>{const r=await fetch('/api/auth/session',{cache:'no-store'});const b=await r.json();return r.ok?b.tenant?.id:null}
   useEffect(()=>{void carregar()},[])
@@ -42,7 +45,15 @@ export default function FidelidadeTab() {
     const {data:tenant,error:readError}=await supabase.from('tenants').select('config').eq('id',tid).single()
     if(readError){setMensagem('Erro ao carregar configuração atual');setSalvando(false);return}
     const {error}=await supabase.from('tenants').update({config:{...(tenant?.config||{}),...config,fidelidade_ativo:false,fidelidade_tipo:'desativado',pontos_por_real:0}}).eq('id',tid)
-    setMensagem(error?'Não foi possível salvar: '+error.message:'Configurações de cashback salvas!')
+    if(error){setMensagem('Não foi possível salvar: '+error.message);setSalvando(false);return}
+    if(config.cashback_ativo&&retroativo){
+      const res=await fetch('/api/cashback/retroativo',{method:'POST'})
+      const body=await res.json().catch(()=>({}))
+      if(!res.ok){setMensagem('Configurações salvas, mas o retroativo falhou: '+(body.error||'tente novamente'));setSalvando(false);return}
+      setRetroativo(false)
+      setMensagem(body.pedidos>0?`Configurações salvas! Retroativo aplicado: ${formatCurrency(Number(body.total))} para ${body.clientes} cliente(s), referente a ${body.pedidos} pedido(s).`:'Configurações salvas! Não havia compras anteriores sem cashback.')
+      await carregar()
+    }else setMensagem('Configurações de cashback salvas!')
     setSalvando(false)
   }
   const exemplo=100*(config.cashback_tipo==='percentual'?config.cashback_percent/100:config.cashback_valor_por_real)
@@ -55,9 +66,10 @@ export default function FidelidadeTab() {
           <button type="button" onClick={()=>setConfig({...config,cashback_tipo:'percentual'})} className={`text-left p-4 rounded-xl border-2 ${config.cashback_tipo==='percentual'?'border-green-600 bg-green-50':'border-gray-200'}`}><strong>Porcentagem (%)</strong><p className="text-xs text-gray-500 mt-1">Ex.: 5% do valor total pago</p></button>
           <button type="button" onClick={()=>setConfig({...config,cashback_tipo:'fixo_por_real'})} className={`text-left p-4 rounded-xl border-2 ${config.cashback_tipo==='fixo_por_real'?'border-green-600 bg-green-50':'border-gray-200'}`}><strong>Valor por R$ 1</strong><p className="text-xs text-gray-500 mt-1">Ex.: R$ 0,05 para cada R$ 1 gasto</p></button>
         </div></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><label className="text-sm font-semibold">Valor da recompensa<input className="form-input w-full mt-2" type="number" min="0" max={config.cashback_tipo==='percentual'?'100':'1'} step="0.01" value={config.cashback_tipo==='percentual'?config.cashback_percent:config.cashback_valor_por_real} onChange={e=>setConfig({...config,[config.cashback_tipo==='percentual'?'cashback_percent':'cashback_valor_por_real']:Number(e.target.value)})}/><span className="text-xs text-gray-500">{config.cashback_tipo==='percentual'?'Percentual do pedido':'Reais de cashback por real gasto'}</span></label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><label className="text-sm font-semibold">Valor da recompensa<NumericInput className="form-input w-full mt-2" min="0" max={config.cashback_tipo==='percentual'?'100':'1'} step="0.01" value={config.cashback_tipo==='percentual'?config.cashback_percent:config.cashback_valor_por_real} onValueChange={v=>setConfig({...config,[config.cashback_tipo==='percentual'?'cashback_percent':'cashback_valor_por_real']:v??0})}/><span className="text-xs text-gray-500">{config.cashback_tipo==='percentual'?'Percentual do pedido':'Reais de cashback por real gasto'}</span></label>
         <label className="text-sm font-semibold">Validade dos créditos<select className="form-input w-full mt-2" value={config.cashback_validade_dias??'sem'} onChange={e=>setConfig({...config,cashback_validade_dias:e.target.value==='sem'?null:Number(e.target.value)})}>{[7,15,30,60,90,180,365].map(d=><option key={d} value={d}>{d} dias</option>)}<option value="sem">Sem vencimento</option></select><span className="text-xs text-gray-500">Contados a partir do crédito após pagamento</span></label></div>
         <div className="bg-green-50 border border-green-100 rounded-xl p-4"><p className="text-xs text-green-900">Exemplo em pedido de R$ 100,00, incluindo entrega</p><p className="text-xl font-bold text-green-700 mt-1">{formatCurrency(exemplo)} de cashback</p></div>
+        <label className="flex justify-between items-center gap-3 border rounded-xl p-4 cursor-pointer"><div className="flex items-start gap-3"><History size={20} className="text-green-700 mt-0.5 shrink-0"/><div><div className="font-semibold text-gray-900">Rodar retroativo</div><p className="text-xs text-gray-500">Ao salvar, todos os clientes recebem o cashback das compras pagas que já fizeram, com a regra acima. Cada pedido só gera cashback uma vez e a validade conta a partir de hoje.</p></div></div><input type="checkbox" checked={retroativo} onChange={e=>setRetroativo(e.target.checked)} className="size-5 accent-green-600 shrink-0"/></label>
       </div>}
       <button type="button" disabled={salvando||carregando} onClick={salvar} className="btn-primary"><Save size={16}/>{salvando?'Salvando...':'Salvar configurações'}</button>
       {mensagem&&<p role="status" className="text-sm text-gray-700">{mensagem}</p>}

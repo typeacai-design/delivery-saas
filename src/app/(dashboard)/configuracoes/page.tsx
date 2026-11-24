@@ -1,5 +1,7 @@
 'use client'
 
+
+import NumericInput from '@/components/numeric-input'
 import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -145,10 +147,6 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
   const [horariosCarregado, setHorariosCarregado] = useState<Record<string, { abre: string; fecha: string; ativo: boolean }> | null>(
     config.horarios_dias || null
   )
-  const [excecoes, setExcecoes] = useState<{ data: string; abre: string; fecha: string; motivo?: string }[]>(
-    config.excecoes_horario || []
-  )
-  const [novaExcecao, setNovaExcecao] = useState({ data: '', abre: '', fecha: '', motivo: '' })
   const [lojaAberta, setLojaAberta] = useState(config.loja_aberta !== false)
 
   const [saving, setSaving] = useState(false)
@@ -157,12 +155,10 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
   // Sincronizar estado com o tenant quando ele mudar
   useEffect(() => {
     const novoHorarios = config.horarios_dias || horariosDefault
-    const novoExcecoes = config.excecoes_horario || []
     setHorarios(novoHorarios)
     setHorariosCarregado(novoHorarios)
-    setExcecoes(novoExcecoes)
     setLojaAberta(config.loja_aberta !== false)
-  }, [tenant?.id, config.horarios_dias, config.excecoes_horario, config.loja_aberta])
+  }, [tenant?.id, config.horarios_dias, config.loja_aberta])
 
   // Mostrar loading enquanto nao tiver dados do tenant
   if (!tenant) {
@@ -228,7 +224,8 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
       const novoConfig = {
         ...configAtual,
         horarios_dias: horarios,
-        excecoes_horario: excecoes,
+        // Datas especiais foram descontinuadas: limpa qualquer exceção antiga ao salvar.
+        excecoes_horario: [],
         loja_aberta: lojaAberta,
       }
 
@@ -260,16 +257,6 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
     } finally {
       setSaving(false)
     }
-  }
-
-  const addExcecao = () => {
-    if (!novaExcecao.data || !novaExcecao.abre || !novaExcecao.fecha) return
-    setExcecoes([...excecoes, novaExcecao])
-    setNovaExcecao({ data: '', abre: '', fecha: '', motivo: '' })
-  }
-
-  const removeExcecao = (idx: number) => {
-    setExcecoes(excecoes.filter((_, i) => i !== idx))
   }
 
   return (
@@ -352,52 +339,6 @@ function HorariosTab({ tenant, loadTenantFromParent }: { tenant: any; loadTenant
           })}
         </div>
       </div>
-
-      <div className="glass p-6">
-        <div className="eyebrow mb-1">Exceções</div>
-        <h2 className="text-lg font-semibold mb-2">Datas especiais</h2>
-        <p className="hint text-xs mb-4">Abra mais cedo ou feche mais tarde em datas específicas (feriados, eventos)</p>
-
-        <div className="glass-soft p-4 mb-3">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
-            <div>
-              <label>Data</label>
-              <input type="date" value={novaExcecao.data} onChange={(e) => setNovaExcecao({ ...novaExcecao, data: e.target.value })} />
-            </div>
-            <div>
-              <label>Abre</label>
-              <input type="time" value={novaExcecao.abre} onChange={(e) => setNovaExcecao({ ...novaExcecao, abre: e.target.value })} />
-            </div>
-            <div>
-              <label>Fecha</label>
-              <input type="time" value={novaExcecao.fecha} onChange={(e) => setNovaExcecao({ ...novaExcecao, fecha: e.target.value })} />
-            </div>
-            <button onClick={addExcecao} className="btn-primary justify-center"><Plus size={14} />Adicionar</button>
-          </div>
-          <div className="mt-2">
-            <label>Motivo (opcional)</label>
-            <input value={novaExcecao.motivo} onChange={(e) => setNovaExcecao({ ...novaExcecao, motivo: e.target.value })} placeholder="Ex: Feriado, Evento especial..." />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          {excecoes.map((ex, idx) => (
-            <div key={idx} className="glass-soft p-3 flex items-center gap-3">
-              <Calendar size={16} style={{ color: 'var(--green)' }} />
-              <div className="font-mono text-sm font-semibold">{formatBrasilia(ex.data,'date')}</div>
-              <div className="hint">{ex.abre} - {ex.fecha}</div>
-              {ex.motivo && <div className="hint text-xs flex-1 truncate">• {ex.motivo}</div>}
-              <button onClick={() => removeExcecao(idx)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg">
-                <X size={14} />
-              </button>
-            </div>
-          ))}
-          {excecoes.length === 0 && (
-            <div className="text-center py-6 hint text-sm">Nenhuma exceção cadastrada</div>
-          )}
-        </div>
-      </div>
-
       <div className="flex flex-col gap-2">
         {saveMsg && (
           <div
@@ -614,12 +555,12 @@ function EntregasTab() {
   const calcPreview=async()=>{if(!preview?.longitude||!data.origem?.longitude)return;const r=await fetch('/api/mapbox',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'route',origem:data.origem,destino:preview})});const b=await r.json();if(r.ok){const raw=Math.max(Number(data.config.minimo)||0,b.km*Number(data.config.valor_km||0));const taxa=data.config.arredondamento==='ceil'?Math.ceil(raw):data.config.arredondamento==='round'?Math.round(raw):raw;setPreview({...preview,...b,taxa})}else setMsg(b.error)}
   return <div className="space-y-5">
     <div className="glass p-6"><h2 className="text-lg font-semibold mb-4">Método da taxa</h2><div className="grid grid-cols-2 gap-3">{(['bairro','km'] as const).map(v=><button key={v} disabled={v==='km'&&mapOk===false} onClick={()=>{if(v==='km'&&mapOk!==true){setMsg('Entrega por km indisponível. Configure o Mapbox ou mantenha bairro.');return}setMetodo(v)}} className="p-4 rounded-xl border disabled:opacity-50 disabled:cursor-not-allowed" style={{borderColor:metodo===v?'var(--green)':'var(--line)'}}>{v==='bairro'?'Por bairro':'Por quilômetro'}</button>)}</div></div>
-    {metodo==='bairro'?<><div className="glass p-6"><h2 className="text-lg font-semibold mb-4">{form.id?'Editar':'Novo'} bairro</h2><div className="grid md:grid-cols-5 gap-3"><input placeholder="Bairro" value={form.bairro} onChange={e=>setForm({...form,bairro:e.target.value})} className="form-input"/><input type="number" step=".01" placeholder="Taxa" value={form.taxa} onChange={e=>setForm({...form,taxa:Number(e.target.value)})} className="form-input"/><input type="number" placeholder="Prazo (min)" value={form.prazo_min} onChange={e=>setForm({...form,prazo_min:e.target.value})} className="form-input"/><label className="flex items-center gap-2"><input type="checkbox" checked={form.ativo} onChange={e=>setForm({...form,ativo:e.target.checked})}/>Ativo</label><button className="btn-primary justify-center" onClick={saveBairro}><Save size={14}/>Salvar</button></div></div><div className="glass p-6 space-y-2">{data.bairros.map((b:any)=><div key={b.id} className="glass-soft p-3 flex items-center gap-3"><MapPin size={15}/><b className="flex-1">{b.bairro}</b><span>{formatCurrency(Number(b.taxa))}{b.prazo_min?` · ${b.prazo_min} min`:''}</span><span className={b.ativo?'text-green-700':'text-gray-400'}>{b.ativo?'Ativo':'Inativo'}</span><button onClick={()=>setForm({...b,prazo_min:b.prazo_min||''})}>Editar</button><button className="text-red-600" onClick={()=>remove(b.id)}>Excluir</button></div>)}</div></>:<div className="glass p-6 space-y-4"><h2 className="text-lg font-semibold">Taxa por distância real</h2><div className="relative"><label>Origem da loja</label><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Busque o endereço de origem" className="form-input"/><div className="absolute z-20 bg-white shadow rounded-xl w-full">{suggestions.map(s=><button className="block w-full text-left p-2" key={s.id} onClick={()=>selectPlace(s)}>{s.label}</button>)}</div></div>{mapOk===false&&<div className="p-3 bg-amber-50 text-amber-800 rounded-xl">Mapa indisponível: configure MAPBOX_ACCESS_TOKEN no servidor. Bairro continua funcionando.</div>}<CoordinateMap value={data.origem} onChange={(p:any)=>setData((d:any)=>({...d,origem:{...d.origem,...p}}))}/><div className="grid md:grid-cols-4 gap-3"><FieldNum label="R$/km" value={data.config.valor_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,valor_km:v}}))}/><FieldNum label="Taxa mínima" value={data.config.minimo} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,minimo:v}}))}/><FieldNum label="Raio máximo (km)" value={data.config.max_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,max_km:v}}))}/><label>Arredondamento<select value={data.config.arredondamento} onChange={e=>setData((d:any)=>({...d,config:{...d.config,arredondamento:e.target.value}}))} className="form-input"><option value="ceil">Para cima</option><option value="round">Mais próximo</option><option value="none">Centavos</option></select></label></div><button className="btn-primary" onClick={saveKm}>Salvar taxa por km</button><div className="border-t pt-4"><h3 className="font-semibold">Prévia de rota</h3><input className="form-input mt-2" placeholder="Longitude destino" onChange={e=>setPreview({...preview,longitude:Number(e.target.value)})}/><input className="form-input mt-2" placeholder="Latitude destino" onChange={e=>setPreview({...preview,latitude:Number(e.target.value)})}/><button className="btn-ghost mt-2" onClick={calcPreview}>Calcular rota</button>{preview?.km&&<p className="mt-2"><b>{preview.km.toFixed(2)} km</b> · {preview.minutos} min · taxa {formatCurrency(preview.taxa)}</p>}</div></div>}{msg&&<p className="text-sm text-center">{msg}</p>}
+    {metodo==='bairro'?<><div className="glass p-6"><h2 className="text-lg font-semibold mb-4">{form.id?'Editar':'Novo'} bairro</h2><div className="grid md:grid-cols-5 gap-3"><input placeholder="Bairro" value={form.bairro} onChange={e=>setForm({...form,bairro:e.target.value})} className="form-input"/><NumericInput step=".01" placeholder="Taxa" value={form.taxa} onValueChange={v=>setForm({...form,taxa:v??0})} className="form-input"/><input type="number" placeholder="Prazo (min)" value={form.prazo_min} onChange={e=>setForm({...form,prazo_min:e.target.value})} className="form-input"/><label className="flex items-center gap-2"><input type="checkbox" checked={form.ativo} onChange={e=>setForm({...form,ativo:e.target.checked})}/>Ativo</label><button className="btn-primary justify-center" onClick={saveBairro}><Save size={14}/>Salvar</button></div></div><div className="glass p-6 space-y-2">{data.bairros.map((b:any)=><div key={b.id} className="glass-soft p-3 flex items-center gap-3"><MapPin size={15}/><b className="flex-1">{b.bairro}</b><span>{formatCurrency(Number(b.taxa))}{b.prazo_min?` · ${b.prazo_min} min`:''}</span><span className={b.ativo?'text-green-700':'text-gray-400'}>{b.ativo?'Ativo':'Inativo'}</span><button onClick={()=>setForm({...b,prazo_min:b.prazo_min||''})}>Editar</button><button className="text-red-600" onClick={()=>remove(b.id)}>Excluir</button></div>)}</div></>:<div className="glass p-6 space-y-4"><h2 className="text-lg font-semibold">Taxa por distância real</h2><div className="relative"><label>Origem da loja</label><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Busque o endereço de origem" className="form-input"/><div className="absolute z-20 bg-white shadow rounded-xl w-full">{suggestions.map(s=><button className="block w-full text-left p-2" key={s.id} onClick={()=>selectPlace(s)}>{s.label}</button>)}</div></div>{mapOk===false&&<div className="p-3 bg-amber-50 text-amber-800 rounded-xl">Mapa indisponível: configure MAPBOX_ACCESS_TOKEN no servidor. Bairro continua funcionando.</div>}<CoordinateMap value={data.origem} onChange={(p:any)=>setData((d:any)=>({...d,origem:{...d.origem,...p}}))}/><div className="grid md:grid-cols-4 gap-3"><FieldNum label="R$/km" value={data.config.valor_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,valor_km:v}}))}/><FieldNum label="Taxa mínima" value={data.config.minimo} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,minimo:v}}))}/><FieldNum label="Raio máximo (km)" value={data.config.max_km} onChange={(v:number)=>setData((d:any)=>({...d,config:{...d.config,max_km:v}}))}/><label>Arredondamento<select value={data.config.arredondamento} onChange={e=>setData((d:any)=>({...d,config:{...d.config,arredondamento:e.target.value}}))} className="form-input"><option value="ceil">Para cima</option><option value="round">Mais próximo</option><option value="none">Centavos</option></select></label></div><button className="btn-primary" onClick={saveKm}>Salvar taxa por km</button><div className="border-t pt-4"><h3 className="font-semibold">Prévia de rota</h3><input className="form-input mt-2" placeholder="Longitude destino" onChange={e=>setPreview({...preview,longitude:Number(e.target.value)})}/><input className="form-input mt-2" placeholder="Latitude destino" onChange={e=>setPreview({...preview,latitude:Number(e.target.value)})}/><button className="btn-ghost mt-2" onClick={calcPreview}>Calcular rota</button>{preview?.km&&<p className="mt-2"><b>{preview.km.toFixed(2)} km</b> · {preview.minutos} min · taxa {formatCurrency(preview.taxa)}</p>}</div></div>}{msg&&<p className="text-sm text-center">{msg}</p>}
     <TempoPicoSection />
   </div>
 }
 
-function FieldNum({label,value,onChange}:{label:string,value:any,onChange:(v:number)=>void}){return <label>{label}<input type="number" step=".01" value={value??''} onChange={e=>onChange(Number(e.target.value))}/></label>}
+function FieldNum({label,value,onChange}:{label:string,value:any,onChange:(v:number)=>void}){return <label>{label}<NumericInput step=".01" value={value??''} onValueChange={v=>onChange(v??0)}/></label>}
 
 function TempoPicoSection() {
   const { success: toastSuccess, error: toastError } = useToast()
@@ -758,13 +699,12 @@ function TempoPicoSection() {
             Aplicado em dias recorrentes e datas específicas (pode ser sobrescrito por data).
           </p>
           <div className="flex gap-2">
-            <input
-              type="number"
+            <NumericInput
               min={0}
               max={240}
               className="form-input flex-1"
               value={tempoExtraGlobal}
-              onChange={(e) => setTempoExtraGlobal(Math.max(0, Math.min(240, Number(e.target.value) || 0)))}
+              onValueChange={v => setTempoExtraGlobal(Math.max(0, Math.min(240, v ?? 0)))}
             />
             <button onClick={salvarGlobal} disabled={salvando} className="btn-primary">
               <Save size={14} /> Salvar
@@ -792,13 +732,12 @@ function TempoPicoSection() {
                   {d.nome}
                 </button>
                 {ativo && item && (
-                  <input
-                    type="number"
+                  <NumericInput
                     min={0}
                     max={240}
                     className="w-16 text-xs form-input"
                     value={item.tempo_extra_minutos}
-                    onChange={(e) => atualizarExtraRecorrente(item.id, Math.max(0, Math.min(240, Number(e.target.value) || 0)))}
+                    onValueChange={v => atualizarExtraRecorrente(item.id, Math.max(0, Math.min(240, v ?? 0)))}
                   />
                 )}
               </div>
@@ -819,14 +758,13 @@ function TempoPicoSection() {
               value={novaData}
               onChange={(e) => setNovaData(e.target.value)}
             />
-            <input
-              type="number"
+            <NumericInput
               min={0}
               max={240}
               placeholder="+ min"
               className="form-input"
               value={novaDataExtra}
-              onChange={(e) => setNovaDataExtra(Math.max(0, Math.min(240, Number(e.target.value) || 0)))}
+              onValueChange={v => setNovaDataExtra(Math.max(0, Math.min(240, v ?? 0)))}
             />
             <input
               type="text"
@@ -1024,10 +962,9 @@ function PagamentosTab({ tenant }: { tenant: any }) {
           <p className="hint mb-4">Valor máximo que sua loja consegue dar de troco</p>
           <div className="flex gap-2 items-center">
             <span className="hint">R$</span>
-            <input
-              type="number"
+            <NumericInput
               value={trocoMax}
-              onChange={(e) => setTrocoMax(parseFloat(e.target.value) || 0)}
+              onValueChange={v => setTrocoMax(v ?? 0)}
               style={{ width: 150 }}
               step="0.01"
             />

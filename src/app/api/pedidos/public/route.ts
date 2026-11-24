@@ -1,4 +1,5 @@
 import { CARDAPIO_BLOQUEADO } from '@/lib/assinaturas'
+import { formatarNomeProprio } from '@/lib/nome-proprio'
 import { brasiliaDay } from '@/lib/brasilia'
 import { assinaturaVencida } from '@/lib/assinaturas-server'
 import { FlavorValidationError, validateFlavorItem } from '@/lib/flavor-order-server'
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     const {
       tenant_slug,
-      cliente_nome,
+      cliente_nome: clienteNomeInformado,
       cliente_whatsapp,
       itens,
       valor_subtotal,
@@ -112,6 +113,7 @@ export async function POST(request: Request) {
     if (!itens || !Array.isArray(itens) || itens.length === 0) {
       return NextResponse.json({ error: 'Pedido sem itens' }, { status: 400 })
     }
+    const cliente_nome = formatarNomeProprio(clienteNomeInformado)
     if (!cliente_nome || !cliente_whatsapp) {
       return NextResponse.json({ error: 'Nome e WhatsApp são obrigatórios' }, { status: 400 })
     }

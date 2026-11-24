@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import * as pricing from '../src/lib/product-pricing.ts'
+import { formatarNomeProprio } from '../src/lib/nome-proprio.ts'
 
 const fixed = { id: 'fixed', preco: 20, exibir_preco_a_partir_de: false }
 const reference = { id: 'reference', preco: 20, exibir_preco_a_partir_de: true }
@@ -71,6 +72,7 @@ function publicRoute(product, complementPrice = 22) {
     '@supabase/supabase-js': { createClient: () => admin },
     '@/lib/assinaturas': {},
     '@/lib/assinaturas-server': { assinaturaVencida: async () => false },
+    '@/lib/nome-proprio': { formatarNomeProprio },
     '@/lib/product-pricing': pricing,
     '@/lib/flavor-order-server': flavorServer,
     '@/lib/customer-identity': { rateLimited: async () => false, isValidCpf: () => true, hashAccessToken: value => value, normalizeCpf: value => value, tokenMatches: () => true },

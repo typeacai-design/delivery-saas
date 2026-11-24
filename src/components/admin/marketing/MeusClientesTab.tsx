@@ -4,7 +4,7 @@ import { brasiliaDay } from '@/lib/brasilia'
 import { formatBrasilia } from '@/lib/brasilia'
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Users, Search, Phone, MapPin, ShoppingBag, Calendar, Eye, ChevronDown, ChevronUp, Trophy, Cake, Filter } from 'lucide-react'
+import { Users, Search, Phone, MapPin, ShoppingBag, Calendar, Eye, ChevronDown, ChevronUp, Trophy, Cake, Filter, Pencil, X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 type FiltroCliente = 'todos' | 'top10' | 'aniversariantes'
@@ -18,6 +18,31 @@ export default function MeusClientesTab() {
   const [filtro, setFiltro] = useState<FiltroCliente>('todos')
   const [expandido, setExpandido] = useState<string | null>(null)
   const [pedidosCliente, setPedidosCliente] = useState<any[]>([])
+  const [editando, setEditando] = useState<string | null>(null)
+  const [formEdicao, setFormEdicao] = useState({ nome: '', telefone: '', endereco: '', bairro: '', data_nascimento: '' })
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+  const [erroEdicao, setErroEdicao] = useState('')
+
+  const abrirEdicao = (c: any) => {
+    setFormEdicao({ nome: c.nome || '', telefone: c.telefone || '', endereco: c.endereco || '', bairro: c.bairro || '', data_nascimento: (c.data_nascimento || '').slice(0, 10) })
+    setErroEdicao('')
+    setEditando(c.id)
+  }
+
+  const salvarEdicao = async (clienteId: string) => {
+    setSalvandoEdicao(true); setErroEdicao('')
+    try {
+      const res = await fetch(`/api/clientes/${clienteId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formEdicao) })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) { setErroEdicao(body.error || 'Não foi possível salvar'); return }
+      setClientes(prev => prev.map(c => c.id === clienteId ? { ...c, ...body.cliente } : c))
+      setEditando(null)
+    } catch {
+      setErroEdicao('Sem conexão. Tente novamente.')
+    } finally {
+      setSalvandoEdicao(false)
+    }
+  }
 
 
   // Recarregar quando a aba volta a ficar visivel (cache-busting)
@@ -49,6 +74,7 @@ export default function MeusClientesTab() {
   }
 
   const expandir = async (clienteId: string) => {
+    setEditando(null)
     if (expandido === clienteId) {
       setExpandido(null)
       setPedidosCliente([])
@@ -232,15 +258,35 @@ export default function MeusClientesTab() {
               </div>
 
               {expandidoAt && (
-                <div className="border-t border-gray-200 bg-gray-50 p-4 space-y-3">
-                  {/* Detalhes cadastro */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="relative border-t border-gray-200 bg-gray-50 p-4 space-y-3">
+                  {editando !== c.id && (
+                    <button type="button" onClick={() => abrirEdicao(c)} className="absolute top-3 right-3 p-2 rounded-lg text-gray-600 hover:bg-white hover:text-green-700 border border-transparent hover:border-gray-200" title="Editar cliente" aria-label="Editar dados do cliente">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
+                  {editando === c.id ? (
+                    <form className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm" onSubmit={e => { e.preventDefault(); salvarEdicao(c.id) }}>
+                      <label className="flex flex-col gap-1 font-medium">Nome<input className="form-input" required value={formEdicao.nome} onChange={e => setFormEdicao({ ...formEdicao, nome: e.target.value })} /></label>
+                      <label className="flex flex-col gap-1 font-medium">Telefone (WhatsApp)<input className="form-input" required inputMode="tel" value={formEdicao.telefone} onChange={e => setFormEdicao({ ...formEdicao, telefone: e.target.value })} /></label>
+                      <label className="flex flex-col gap-1 font-medium md:col-span-2">Endereço<input className="form-input" value={formEdicao.endereco} onChange={e => setFormEdicao({ ...formEdicao, endereco: e.target.value })} /></label>
+                      <label className="flex flex-col gap-1 font-medium">Bairro<input className="form-input" value={formEdicao.bairro} onChange={e => setFormEdicao({ ...formEdicao, bairro: e.target.value })} /></label>
+                      <label className="flex flex-col gap-1 font-medium">Aniversário<input className="form-input" type="date" max={brasiliaDay()} value={formEdicao.data_nascimento} onChange={e => setFormEdicao({ ...formEdicao, data_nascimento: e.target.value })} /></label>
+                      {erroEdicao && <p className="md:col-span-2 text-sm text-red-600">{erroEdicao}</p>}
+                      <div className="md:col-span-2 flex justify-end gap-2">
+                        <button type="button" onClick={() => setEditando(null)} className="px-4 py-2 rounded-xl border bg-white text-gray-700 flex items-center gap-1"><X className="w-4 h-4" />Cancelar</button>
+                        <button type="submit" disabled={salvandoEdicao} className="btn-primary">{salvandoEdicao ? 'Salvando...' : 'Salvar'}</button>
+                      </div>
+                    </form>
+                  ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm pr-10">
                     {c.email && <div><span className="font-medium">Email:</span> {c.email}</div>}
                     {c.cpf && <div><span className="font-medium">CPF:</span> {c.cpf}</div>}
                     {c.data_nascimento && <div><span className="font-medium">Nascimento:</span> {formatBrasilia(c.data_nascimento,'date')}</div>}
                     {c.endereco && <div className="md:col-span-2"><span className="font-medium">Endereço:</span> {c.endereco}</div>}
+                    {c.bairro && <div><span className="font-medium">Bairro:</span> {c.bairro}</div>}
                     {c.ltv && <div><span className="font-medium">LTV (valor total):</span> {formatCurrency(Number(c.ltv))}</div>}
                   </div>
+                  )}
 
                   {/* Histórico de pedidos */}
                   <div className="border-t pt-3">
