@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { ALL_TENANT_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
+import { MANAGEMENT_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
 
 // API de diagnóstico para debugar pedidos
 export async function GET() {
   try {
-    const auth = await authenticatedTenant(ALL_TENANT_ROLES)
+    const auth = await authenticatedTenant(MANAGEMENT_ROLES)
     const { supabase, tenantId, user, role } = auth
     const authStatus = tenantAuthStatus(auth)
 

@@ -1,306 +1,148 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bike, ChefHat, Edit, Plus, Trash2, KeyRound, Copy, Check } from 'lucide-react'
-import { Dialog } from '@/components/ui/Dialog'
-import { useToast } from '@/components/toast'
+import { Bike, ChefHat, Copy, Check, KeyRound, Pencil, Plus, Trash2, UtensilsCrossed, X } from 'lucide-react'
+import { FUNCOES_EQUIPE, NOME_FUNCAO, SENHA_MINIMA, formatarCelular, type FuncaoEquipe } from '@/lib/equipe'
+import { MODOS_DISTRIBUICAO, NOME_MODO, type ModoDistribuicao } from '@/lib/entregas'
 
-type Perfil = 'attendant' | 'cozinha' | 'motoboy'
-type Member = { id: string; nome: string; username: string; perfil: Perfil; ativo: boolean }
-
-const perfis = [
-  { id: 'attendant' as Perfil, nome: 'Atendimento', desc: 'Operador com acesso total à aba de pedidos (delivery, mesas, retirada).', icon: ChefHat },
-  { id: 'cozinha' as Perfil, nome: 'Cozinha', desc: 'Acesso operacional aos pedidos em produção.', icon: ChefHat },
-  { id: 'motoboy' as Perfil, nome: 'Motoboy', desc: 'Acesso operacional às entregas atribuídas.', icon: Bike },
-]
-
-/**
- * Faz r.json() com fallback amigável quando a API retorna HTML (404/502).
- * Quando o servidor responde HTML em vez de JSON (rota inexistente, deploy quebrado,
- * CDN/WAF, etc.), o toast mostra uma mensagem útil em vez de "Não foi possível salvar"
- * silencioso. Sempre retorna `data` e `error` separados.
- */
-async function parseApiResponse(r: Response): Promise<{ data: any; error: string }> {
-  const contentType = r.headers.get('content-type') || ''
-  if (!contentType.includes('application/json')) {
-    if (r.status === 404) return { data: null, error: 'Recurso não encontrado (404). A rota pode estar ausente nesta versão — tente recarregar a página.' }
-    if (r.status === 502 || r.status === 503) return { data: null, error: `Servidor indisponível (${r.status}). Tente novamente em alguns segundos.` }
-    if (r.status >= 500) return { data: null, error: `Erro no servidor (${r.status}).` }
-    if (r.status >= 400) return { data: null, error: `Falha na requisição (${r.status}).` }
-    return { data: null, error: 'Resposta inválida do servidor.' }
-  }
-  try {
-    const body = await r.json()
-    return { data: body, error: body?.error || '' }
-  } catch {
-    return { data: null, error: 'Resposta JSON inválida do servidor.' }
-  }
+const DESCRICAO_MODO: Record<ModoDistribuicao, string> = {
+  motoboys_escolhem: 'Toda entrega pronta aparece para os motoboys disponíveis; quem pegar primeiro leva.',
+  lojista_escolhe: 'Você escolhe o motoboy no detalhe de cada pedido de entrega.',
+  automatico: 'O sistema entrega para o próximo motoboy disponível, por ordem.',
 }
 
+type Membro = { id: string; nome: string; telefone: string | null; role: FuncaoEquipe; ativo: boolean; disponivel: boolean; created_at: string }
+const ICONE: Record<FuncaoEquipe, typeof ChefHat> = { kitchen: ChefHat, attendant: UtensilsCrossed, motoboy: Bike }
+const vazio = { nome: '', celular: '', senha: '', funcao: 'kitchen' as FuncaoEquipe }
+
 export default function EquipePage() {
-  const { success: toastSuccess, error: toastError } = useToast()
-  const [members, setMembers] = useState<Member[]>([])
-  const [canManage, setCanManage] = useState(true) // logado como owner/manager no sistema
-  const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState(false)
-  const [editing, setEditing] = useState<Member | null>(null)
-  const [open, setOpen] = useState(false)
-  const [form, setForm] = useState<{ nome: string; username: string; senha: string; perfil: Perfil }>({
-    nome: '', username: '', senha: '', perfil: 'attendant',
-  })
-  const [senhaEdit, setSenhaEdit] = useState('')
-  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [equipe, setEquipe] = useState<Membro[]>([])
+  const [carregando, setCarregando] = useState(true)
+  const [form, setForm] = useState(vazio)
+  const [editando, setEditando] = useState<Membro | null>(null)
+  const [aberto, setAberto] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+  const [aviso, setAviso] = useState('')
+  const [linkCopiado, setLinkCopiado] = useState(false)
+  const [modo, setModo] = useState<ModoDistribuicao | null>(null)
 
-  async function load() {
-    setLoading(true)
+  const carregar = async () => {
+    setCarregando(true)
+    const r = await fetch('/api/equipe', { cache: 'no-store' })
+    const b = await r.json().catch(() => ({}))
+    if (r.ok) setEquipe(b.equipe || []); else setErro(b.error || 'Não foi possível carregar a equipe')
+    setCarregando(false)
+  }
+  useEffect(() => {
+    const t = window.setTimeout(() => { void carregar() }, 0)
+    fetch('/api/equipe/configuracao', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(b => { if (b) setModo(b.distribuicao) }).catch(() => {})
+    return () => window.clearTimeout(t)
+  }, [])
+  const salvarModo = async (novo: ModoDistribuicao) => {
+    const anterior = modo; setModo(novo)
+    const r = await fetch('/api/equipe/configuracao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ distribuicao: novo }) })
+    if (!r.ok) { setModo(anterior); setAviso('Não foi possível salvar a forma de distribuição') } else setAviso(`Entregas: ${NOME_MODO[novo]}.`)
+  }
+
+  const abrirNovo = () => { setEditando(null); setForm(vazio); setErro(''); setAberto(true) }
+  const abrirEdicao = (m: Membro) => { setEditando(m); setForm({ nome: m.nome, celular: formatarCelular(m.telefone), senha: '', funcao: m.role }); setErro(''); setAberto(true) }
+
+  const salvar = async (e: React.FormEvent) => {
+    e.preventDefault(); setSalvando(true); setErro('')
     try {
-      const r = await fetch('/api/membros-equipe', { credentials: 'include' })
-      const { data, error } = await parseApiResponse(r)
-      if (r.ok && data) {
-        setMembers(data.membros || [])
-        setCanManage(true)
-      } else {
-        toastError('Erro ao carregar', error)
-      }
-    } catch (e: any) {
-      toastError('Erro de rede', e?.message || 'Falha ao carregar')
-    } finally {
-      setLoading(false)
-    }
+      const r = editando
+        ? await fetch(`/api/equipe/${editando.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: form.nome, funcao: form.funcao, ...(form.senha ? { senha: form.senha } : {}) }) })
+        : await fetch('/api/equipe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const b = await r.json().catch(() => ({}))
+      if (!r.ok) { setErro(b.error || 'Não foi possível salvar'); return }
+      setAberto(false)
+      setAviso(b.jaTinhaConta ? `${b.membro.nome} já tinha acesso ao WeDelivery: entra com a senha que já usa.` : editando ? 'Alterações salvas.' : `${b.membro.nome} cadastrado. Envie o link de acesso para a pessoa.`)
+      await carregar()
+    } catch { setErro('Sem conexão. Tente novamente.') } finally { setSalvando(false) }
   }
 
-  useEffect(() => { load() }, [])
-
-  function start(member?: Member) {
-    setEditing(member || null)
-    setForm(member
-      ? { nome: member.nome, username: member.username, senha: '', perfil: member.perfil }
-      : { nome: '', username: '', senha: '', perfil: 'attendant' }
-    )
-    setSenhaEdit('')
-    setOpen(true)
+  const alternarAtivo = async (m: Membro) => {
+    const r = await fetch(`/api/equipe/${m.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ativo: !m.ativo }) })
+    if (r.ok) await carregar()
+  }
+  const remover = async (m: Membro) => {
+    if (!confirm(`Remover ${m.nome} da equipe? A pessoa perde o acesso na hora.`)) return
+    const r = await fetch(`/api/equipe/${m.id}`, { method: 'DELETE' })
+    const b = await r.json().catch(() => ({}))
+    if (r.ok) await carregar(); else setAviso(b.error || 'Não foi possível remover')
+  }
+  const copiarLink = async () => {
+    try { await navigator.clipboard.writeText(`${window.location.origin}/acesso`); setLinkCopiado(true); setTimeout(() => setLinkCopiado(false), 1800) } catch { /* noop */ }
   }
 
-  async function save() {
-    setActionLoading(true)
-    try {
-      const payload: any = { nome: form.nome, username: form.username, perfil: form.perfil }
-      if (form.senha) payload.senha = form.senha
-
-      const r = await fetch('/api/membros-equipe', {
-        method: editing ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(editing ? { id: editing.id, ...payload } : payload),
-      })
-
-      const { data, error } = await parseApiResponse(r)
-
-      if (!r.ok || error) {
-        toastError('Não foi possível salvar', error || 'Tente novamente')
-        return
-      }
-
-      setOpen(false)
-      toastSuccess(editing ? 'Acesso atualizado.' : 'Acesso criado.')
-      await load()
-    } catch (err: any) {
-      console.error('[equipe/save] Erro:', err)
-      toastError('Erro', err?.message || 'Erro inesperado. Tente novamente.')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  async function resetSenha(member: Member) {
-    const nova = prompt(`Nova senha para ${member.nome}:`, '')
-    if (!nova || nova.length < 6) {
-      toastError('Senha inválida', 'Mínimo 6 caracteres')
-      return
-    }
-    setActionLoading(true)
-    const r = await fetch(`/api/membros-equipe?id=${member.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senha: nova }),
-    })
-    const { error } = await parseApiResponse(r)
-    setActionLoading(false)
-    if (r.ok && !error) toastSuccess('Senha redefinida')
-    else toastError('Erro', error)
-  }
-
-  async function toggle(member: Member) {
-    setActionLoading(true)
-    const r = await fetch(`/api/membros-equipe?id=${member.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ativo: !member.ativo }),
-    })
-    const { error } = await parseApiResponse(r)
-    setActionLoading(false)
-    if (r.ok && !error) {
-      toastSuccess(member.ativo ? 'Acesso desativado' : 'Acesso ativado')
-      await load()
-    } else {
-      toastError('Erro', error)
-    }
-  }
-
-  async function remove(member: Member) {
-    if (!confirm(`Excluir o acesso de ${member.nome}?`)) return
-    setActionLoading(true)
-    const r = await fetch(`/api/membros-equipe?id=${member.id}`, { method: 'DELETE' })
-    const { error } = await parseApiResponse(r)
-    setActionLoading(false)
-    if (r.ok && !error) {
-      toastSuccess('Acesso removido')
-      await load()
-    } else {
-      toastError('Erro', error)
-    }
-  }
-
-  function copiarLink(perfil: Perfil) {
-    const base = typeof window !== 'undefined' ? window.location.origin : ''
-    // Atendente usa a rota raiz (/acesso); Cozinha e Motoboy têm rotas dedicadas
-    const path = perfil === 'attendant' ? '/acesso' : `/acesso/${perfil}`
-    const url = `${base}${path}`
-    navigator.clipboard.writeText(url)
-    toastSuccess('Link copiado!', url)
-  }
-
-  return (
-    <div className="space-y-5">
-      <header className="flex justify-between items-start">
-        <div>
-          <div className="eyebrow mb-2">Equipe</div>
-          <h1 className="text-3xl font-semibold">Acessos operacionais</h1>
-          <p className="wd-redundant hint mt-1">Atendentes, Cozinha e Motoboy acessam com usuário e senha.</p>
-        </div>
-        {canManage && (
-          <button className="btn-primary" onClick={() => start()}>
-            <Plus size={16} />
-            Novo acesso
-          </button>
-        )}
-      </header>
-
-      {/* Cards explicativos com link rápido */}
-      <div className="grid md:grid-cols-2 gap-3">
-        {perfis.map((role) => (
-          <div key={role.id} className="glass p-5">
-            <role.icon size={20} />
-            <h2 className="font-semibold mt-2">{role.nome}</h2>
-            <p className="hint text-sm">{role.desc}</p>
-            <button
-              onClick={() => copiarLink(role.id)}
-              className="mt-3 inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
-            >
-              <Copy size={12} /> Copiar link de acesso
-            </button>
-          </div>
-        ))}
+  return <div className="space-y-5">
+    <header className="glass p-6 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 className="text-3xl font-semibold">Equipe</h1>
+        <p className="wd-redundant hint mt-1">Cozinha, garçons e motoboys entram pelo celular e senha</p>
       </div>
+      <div className="flex gap-2 flex-wrap">
+        <button type="button" onClick={copiarLink} className="btn-ghost">{linkCopiado ? <Check size={16} /> : <Copy size={16} />}{linkCopiado ? 'Link copiado' : 'Copiar link de acesso'}</button>
+        <button type="button" onClick={abrirNovo} className="btn-primary"><Plus size={16} />Adicionar pessoa</button>
+      </div>
+    </header>
 
-      {members.length > 0 && (
-        <section className="glass p-4">
-          <h2 className="font-semibold mb-3">Pessoas cadastradas</h2>
-          <div className="space-y-2">
-            {members.map((m) => (
-              <div key={m.id} className="glass-soft p-4 flex items-center gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <b>{m.nome}</b>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${m.ativo ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
-                      {m.ativo ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </div>
-                  <p className="hint text-xs mt-0.5">
-                    usuário: <code className="bg-gray-100 px-1.5 py-0.5 rounded">{m.username}</code>
-                    {' · '}{perfis.find((r) => r.id === m.perfil)?.nome}
-                  </p>
-                </div>
-                <button className="btn-ghost flex items-center gap-1" onClick={() => toggle(m)}>
-                  {m.ativo ? 'Desativar' : 'Ativar'}
-                </button>
-                <button
-                  className="btn-icon-round"
-                  onClick={() => resetSenha(m)}
-                  title="Redefinir senha"
-                >
-                  <KeyRound size={14} />
-                </button>
-                <button className="btn-icon-round" onClick={() => start(m)} title="Editar">
-                  <Edit size={14} />
-                </button>
-                <button className="btn-icon-round" onClick={() => remove(m)} title="Excluir">
-                  <Trash2 size={14} />
-                </button>
+    {aviso && <div role="status" className="glass p-3 text-sm flex justify-between gap-3"><span>{aviso}</span><button type="button" onClick={() => setAviso('')} aria-label="Fechar aviso"><X size={16} /></button></div>}
+
+    {carregando ? <p className="hint text-center py-8">Carregando…</p> : equipe.length === 0 ? (
+      <div className="glass p-10 text-center space-y-3">
+        <p className="font-semibold">Nenhuma pessoa na equipe ainda</p>
+        <button type="button" onClick={abrirNovo} className="btn-primary mx-auto"><Plus size={16} />Adicionar a primeira pessoa</button>
+      </div>
+    ) : FUNCOES_EQUIPE.map(funcao => {
+      const pessoas = equipe.filter(m => m.role === funcao)
+      if (!pessoas.length) return null
+      const Icone = ICONE[funcao]
+      return <section key={funcao} className="glass p-5">
+        <h2 className="font-semibold mb-3 flex items-center gap-2"><Icone size={18} />{NOME_FUNCAO[funcao]} <span className="text-sm text-gray-500">({pessoas.length})</span></h2>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {pessoas.map(m => <article key={m.id} className={`rounded-xl border p-4 bg-white ${m.ativo ? '' : 'opacity-60'}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-semibold truncate">{m.nome}</div>
+                <div className="text-sm text-gray-500">{formatarCelular(m.telefone)}</div>
+                <div className="text-xs mt-1">{!m.ativo ? <span className="text-gray-500">Acesso bloqueado</span> : funcao === 'motoboy' ? <span className={m.disponivel ? 'text-green-700' : 'text-gray-500'}>{m.disponivel ? '● Disponível' : '○ Inativo'}</span> : <span className="text-green-700">Acesso liberado</span>}</div>
               </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        title={editing ? 'Editar acesso' : 'Novo acesso'}
-      >
-        <div className="space-y-3">
-          <label className="block">
-            <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Nome</span>
-            <input
-              className="form-input w-full"
-              value={form.nome}
-              onChange={(e) => setForm({ ...form, nome: e.target.value })}
-              placeholder="Ex: João Cozinha"
-            />
-          </label>
-          <label className="block">
-            <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Usuário</span>
-            <input
-              className="form-input w-full"
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
-              placeholder="ex: joao_cozinha"
-            />
-            <span className="text-xs text-gray-500">Use letras, números e underscore. Mín. 3 caracteres.</span>
-          </label>
-          <label className="block">
-            <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>
-              {editing ? 'Nova senha (deixe vazio para manter)' : 'Senha'}
-            </span>
-            <input
-              type="password"
-              className="form-input w-full"
-              value={form.senha}
-              onChange={(e) => setForm({ ...form, senha: e.target.value })}
-              placeholder={editing ? '••••••' : 'Mínimo 6 caracteres'}
-            />
-          </label>
-          <label className="block">
-            <span className="block text-sm font-medium mb-1" style={{ color: '#172033' }}>Função</span>
-            <select
-              className="form-input w-full"
-              value={form.perfil}
-              onChange={(e) => setForm({ ...form, perfil: e.target.value as Perfil })}
-            >
-              {perfis.map((r) => (
-                <option key={r.id} value={r.id}>{r.nome}</option>
-              ))}
-            </select>
-          </label>
-          <button
-            disabled={actionLoading}
-            className="btn-primary w-full disabled:opacity-50"
-            onClick={save}
-          >
-            {actionLoading ? 'Salvando…' : 'Salvar'}
-          </button>
+              <div className="flex gap-1">
+                <button type="button" onClick={() => abrirEdicao(m)} className="p-2 rounded-lg hover:bg-gray-100" aria-label={`Editar ${m.nome}`}><Pencil size={15} /></button>
+                <button type="button" onClick={() => remover(m)} className="p-2 rounded-lg hover:bg-red-50 text-red-600" aria-label={`Remover ${m.nome}`}><Trash2 size={15} /></button>
+              </div>
+            </div>
+            <button type="button" onClick={() => alternarAtivo(m)} className="btn-ghost text-xs mt-3 w-full justify-center">{m.ativo ? 'Bloquear acesso' : 'Liberar acesso'}</button>
+          </article>)}
         </div>
-      </Dialog>
-    </div>
-  )
+      </section>
+    })}
+
+    {modo && <section className="glass p-5">
+      <h2 className="font-semibold mb-3">Como as entregas chegam aos motoboys</h2>
+      <div className="grid sm:grid-cols-3 gap-3">{MODOS_DISTRIBUICAO.map(m => <button type="button" key={m} onClick={() => salvarModo(m)} aria-pressed={modo === m}
+        className={`text-left rounded-xl border-2 p-4 ${modo === m ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white'}`}>
+        <strong className="text-sm">{NOME_MODO[m]}</strong><p className="text-xs text-gray-500 mt-1">{DESCRICAO_MODO[m]}</p>
+      </button>)}</div>
+    </section>}
+
+    {aberto && <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setAberto(false)}>
+      <form role="dialog" aria-modal="true" aria-label={editando ? 'Editar pessoa da equipe' : 'Adicionar pessoa à equipe'} onSubmit={salvar} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
+        <div className="flex items-center justify-between"><h3 className="text-lg font-semibold">{editando ? `Editar ${editando.nome}` : 'Adicionar pessoa'}</h3><button type="button" onClick={() => setAberto(false)} aria-label="Fechar"><X size={18} /></button></div>
+        <label className="block text-sm font-medium">Nome<input className="form-input w-full mt-1" required value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} /></label>
+        <label className="block text-sm font-medium">Celular (usado para entrar)<input className="form-input w-full mt-1" required inputMode="tel" placeholder="(11) 99999-9999" disabled={Boolean(editando)} value={form.celular} onChange={e => setForm({ ...form, celular: e.target.value })} /></label>
+        <fieldset><legend className="text-sm font-medium mb-1">Função</legend><div className="grid grid-cols-3 gap-2">{FUNCOES_EQUIPE.map(f => {
+          const Icone = ICONE[f]
+          return <button type="button" key={f} onClick={() => setForm({ ...form, funcao: f })} aria-pressed={form.funcao === f} className={`rounded-xl border-2 p-3 text-sm flex flex-col items-center gap-1 ${form.funcao === f ? 'border-green-600 bg-green-50' : 'border-gray-200'}`}><Icone size={18} />{NOME_FUNCAO[f]}</button>
+        })}</div></fieldset>
+        <label className="block text-sm font-medium"><span className="flex items-center gap-1"><KeyRound size={14} />{editando ? 'Nova senha (deixe vazio para manter)' : 'Senha'}</span>
+          <input className="form-input w-full mt-1" type="text" autoComplete="new-password" minLength={editando ? undefined : SENHA_MINIMA} required={!editando} value={form.senha} onChange={e => setForm({ ...form, senha: e.target.value })} placeholder={`Mínimo ${SENHA_MINIMA} caracteres`} />
+        </label>
+        {erro && <p className="text-sm text-red-600">{erro}</p>}
+        <button type="submit" disabled={salvando} className="btn-primary w-full justify-center">{salvando ? 'Salvando…' : editando ? 'Salvar' : 'Cadastrar'}</button>
+      </form>
+    </div>}
+  </div>
 }

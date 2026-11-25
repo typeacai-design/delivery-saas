@@ -499,8 +499,10 @@ export default function PedidosPage() {
       setNovosPedidosCount(countNovos)
       setPedidos(pedidosData)
 
-      const { data: entregadores } = await supabase.from('motoboys').select('*').eq('tenant_id', tenantId).order('nome')
-      setMotoboys(entregadores || [])
+      // Motoboys agora são pessoas da Equipe (login por celular).
+      const equipeRes = await fetch('/api/equipe', { cache: 'no-store' }).catch(() => null)
+      const equipeBody = equipeRes?.ok ? await equipeRes.json() : { equipe: [] }
+      setMotoboys((equipeBody.equipe || []).filter((m: { role: string; ativo: boolean }) => m.role === 'motoboy' && m.ativo))
       setLoading(false)
 
       // 2. Inscreve para receber novos pedidos INSTANTANEAMENTE
@@ -644,13 +646,14 @@ export default function PedidosPage() {
     if (pedidosTab === 'mesas') loadSessoesMesa()
   }, [pedidosTab, loadSessoesMesa])
 
-  const atribuirMotoboy = async (pedidoId: string, motoboyId: string) => {
-    const { error } = await supabase.from('pedidos').update({ motoboy_id: motoboyId || null }).eq('id', pedidoId)
-    if (error) {
-      toastError('Erro ao atribuir motoboy')
+  const atribuirMotoboy = async (pedidoId: string, entregadorId: string) => {
+    const res = await fetch(`/api/pedidos/${pedidoId}/entregador`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entregador_id: entregadorId || null }) })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toastError(body.error || 'Erro ao escolher o motoboy')
       return
     }
-    setSelectedPedido((p: any) => p?.id === pedidoId ? { ...p, motoboy_id: motoboyId || null } : p)
+    setSelectedPedido((p: any) => p?.id === pedidoId ? { ...p, entregador_id: entregadorId || null } : p)
     loadPedidos()
   }
 
@@ -2088,27 +2091,25 @@ export default function PedidosPage() {
                 </div>
               )}
 
-              {/* Motoboy */}
+              {/* Motoboy (pessoa da Equipe) — só para entregas */}
+              {(selectedPedido as any).tipo_entrega === 'delivery' && !(selectedPedido as any).sessao_mesa_id && (
               <div className="border-t pt-4">
-                <h3 className="font-medium mb-2">🛵 Entregador</h3>
+                <h3 className="font-medium mb-2">🛵 Motoboy</h3>
                 <select
                   className="form-input w-full"
-                  value={(selectedPedido as any).motoboy_id || ''}
+                  value={(selectedPedido as any).entregador_id || ''}
                   onChange={e => atribuirMotoboy(selectedPedido.id, e.target.value)}
+                  disabled={['entregue', 'cancelado'].includes(selectedPedido.status)}
                 >
-                  <option value="">Selecionar entregador...</option>
+                  <option value="">{motoboys.length ? 'Escolher motoboy...' : 'Cadastre motoboys em Equipe'}</option>
                   {motoboys.map(m => (
-                    <option key={m.id} value={m.id}>
-                      {m.nome} ({m.tipo_comissao === 'fixa' ? `R$ ${Number(m.comissao_fixa).toFixed(2)}` : `${Number(m.comissao_percent).toFixed(1)}%`})
+                    <option key={m.id} value={m.user_id}>
+                      {m.nome}{m.disponivel ? ' · disponível' : ' · inativo'}
                     </option>
                   ))}
                 </select>
-                {((selectedPedido as any).motoboy_comissao != null) && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Comissão registrada: {formatCurrency(Number((selectedPedido as any).motoboy_comissao))}
-                  </p>
-                )}
               </div>
+              )}
 
               {/* Avaliação - só aparece quando pedido está entregue */}
               {selectedPedido.status === 'entregue' && (

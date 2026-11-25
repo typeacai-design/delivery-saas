@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { ALL_TENANT_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
+import { MANAGEMENT_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
 
 export async function GET() {
   try {
-    const auth = await authenticatedTenant(ALL_TENANT_ROLES)
+    const auth = await authenticatedTenant(MANAGEMENT_ROLES)
     const { supabase, user, tenantId } = auth
     const authStatus = tenantAuthStatus(auth)
     if (authStatus || !user) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão para esta loja' }, { status: authStatus || 401 })
@@ -23,7 +23,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const auth = await authenticatedTenant(ALL_TENANT_ROLES)
+    const auth = await authenticatedTenant(MANAGEMENT_ROLES)
     const { supabase, user, tenantId } = auth
     const authStatus = tenantAuthStatus(auth)
     if (authStatus || !user) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão para esta loja' }, { status: authStatus || 401 })

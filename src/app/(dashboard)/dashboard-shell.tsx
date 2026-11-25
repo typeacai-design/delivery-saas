@@ -42,13 +42,10 @@ export default function DashboardShell({
   const [role, setRole] = useState(roleFromServer || 'owner')
   const [confirmSairOpen, setConfirmSairOpen] = useState(false)
   const sair = async () => {
-    document.cookie = 'wd_employee_role=; path=/; max-age=0; samesite=lax'
     await createClient().auth.signOut()
     localStorage.removeItem('wedelivery-auth')
     window.location.replace('/')
   }
-  const perfisOperacionais = ['attendant', 'kitchen', 'motoboy', 'delivery']
-  const ehPerfilOperacional = perfisOperacionais.includes(role)
 
   // Quando tenantFromServer é fornecido, o DashboardLayoutServer já fez toda
   // a verificação de role — sem redirect operacional. Pula o fetch redundante.
@@ -82,22 +79,9 @@ export default function DashboardShell({
 
   useEffect(() => {
     if (!authChecked) return
-    if (pathname === '/motoboys') { router.replace('/equipe'); return }
     if (['/sorteios', '/embaixadores'].includes(pathname)) { router.replace('/marketing'); return }
-
-    // Perfis operacionais (atendente/cozinha/motoboy) só podem acessar sua
-    // tela dedicada em /acesso/<perfil>. Qualquer rota do dashboard é bloqueada.
-    if (['attendant', 'kitchen', 'motoboy'].includes(role)) {
-      const destino =
-        role === 'attendant' ? '/acesso/atendimento' :
-        role === 'kitchen' ? '/acesso/cozinha' :
-        role === 'motoboy' ? '/acesso/motoboy' : '/acesso'
-      router.replace(destino)
-      return
-    }
-
-    const allowed = role === 'delivery' ? ['/dashboard', '/pedidos'] : null
-    if (allowed && !allowed.some((route) => pathname === route || pathname.startsWith(route + '/'))) router.replace('/pedidos')
+    // A equipe tem área própria; o painel do lojista é só para dono e gerente.
+    if (role !== 'owner' && role !== 'manager') window.location.replace('/acesso')
   }, [authChecked, pathname, role, router])
 
   const initials = (tenant?.nome || 'F')
@@ -128,7 +112,7 @@ export default function DashboardShell({
     { href: '/clientes', label: 'Clientes', icon: Users },
     { href: '/cardapio', label: 'Cardápio', icon: Utensils },
     { href: '/gestao', label: 'Gestão', icon: Package },
-    { href: '/equipes', label: 'Equipe', icon: Users },
+    { href: '/equipe', label: 'Equipe', icon: Users },
     { href: '/marketing', label: 'Marketing', icon: Megaphone },
     { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
     { href: '/configuracoes', label: 'Configurações', icon: Settings },
@@ -205,50 +189,7 @@ export default function DashboardShell({
         </div>
       </div>
 
-      {!ehPerfilOperacional && <MerchantMobileNav onLogout={() => setConfirmSairOpen(true)} />}
-      {ehPerfilOperacional && (
-        <nav className="app-bottom-nav">
-          <div className="grid grid-cols-2 gap-1 px-1.5 py-1">
-            <Link
-              href="/pedidos"
-              aria-label="Pedidos"
-              className="flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition active:scale-95"
-              style={
-                pathname === '/pedidos' || pathname.startsWith('/pedidos/')
-                  ? {
-                      background:
-                        'linear-gradient(135deg, rgba(22,163,74,.18), rgba(22,163,74,.06))',
-                      border: '1px solid rgba(22,163,74,.30)',
-                      color: '#15803D',
-                    }
-                  : {
-                      background: 'rgba(255,255,255,.6)',
-                      border: '1px solid var(--line)',
-                      color: 'var(--ink-muted)',
-                    }
-              }
-            >
-              <ShoppingCart className="w-4 h-4" strokeWidth={pathname === '/pedidos' || pathname.startsWith('/pedidos/') ? 2.5 : 2} />
-              <span className="text-[10px] font-medium leading-none">Pedidos</span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={() => setConfirmSairOpen(true)}
-              aria-label="Sair"
-              className="flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition active:scale-95"
-              style={{
-                background: 'rgba(255,255,255,.6)',
-                border: '1px solid var(--line)',
-                color: 'var(--ink-muted)',
-              }}
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="text-[10px] font-medium leading-none">Sair</span>
-            </button>
-          </div>
-        </nav>
-      )}
+      <MerchantMobileNav onLogout={() => setConfirmSairOpen(true)} />
 
       <ConfirmSairModal
         open={confirmSairOpen}

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { authenticatedTenant, ALL_TENANT_ROLES, tenantAuthStatus } from '@/lib/tenant-auth'
+import { authenticatedTenant, MANAGEMENT_ROLES, tenantAuthStatus } from '@/lib/tenant-auth'
 import { assinaturaVencida, billingClient } from '@/lib/assinaturas-server'
 import { PEDIDOS_BLOQUEADOS } from '@/lib/assinaturas'
 
 // API para o frontend buscar pedidos - usa SERVICE ROLE para bypass RLS
 export async function GET() {
   try {
-    const auth = await authenticatedTenant(ALL_TENANT_ROLES)
+    const auth = await authenticatedTenant(MANAGEMENT_ROLES)
     const { user, tenantId } = auth
     const authStatus = tenantAuthStatus(auth)
     if (authStatus || !tenantId || !user) return NextResponse.json({ error: 'Acesso indisponível.' }, { status: authStatus ?? 403 })

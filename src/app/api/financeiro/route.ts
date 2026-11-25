@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   if (url.searchParams.has('view')) return periodRead(url)
   try {
     // 1) Autentica o usuário e descobre o tenant dele
-    const { tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
+    const { tenantId } = await authenticatedTenant(['owner', 'manager'])
     if (!tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 
     // 2) Usa service_role para buscar os dados (bypassa RLS)
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     // Owner, manager e attendant podem lançar transações
-    const { tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
+    const { tenantId } = await authenticatedTenant(['owner', 'manager'])
     if (!tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 
     const body = await request.json()
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const { supabase, tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
+  const { supabase, tenantId } = await authenticatedTenant(['owner', 'manager'])
   if (!tenantId) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 
   const body = await request.json()

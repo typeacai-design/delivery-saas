@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function PATCH(request: Request) {
   try {
-    const { supabase, tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant'])
+    const { supabase, tenantId } = await authenticatedTenant(['owner', 'manager'])
     if (!tenantId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }

@@ -4,12 +4,9 @@ import { FlavorValidationError, normalizeManualFlavorItems, manualFlavorTotals }
 import { removeReferenceCharges } from '@/lib/product-pricing'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { authenticateFuncionario, FuncionarioPerfil } from '@/lib/funcionario-auth'
 
 // POST /api/pedidos/manual - Lancamento manual de pedidos
-// Pode ser chamado por:
-// - Lojista (owner/manager) via sessão do Supabase
-// - Funcionário (attendant) via header X-Membro-Equipe
+// Chamado pelo lojista (owner/manager) via sessão do Supabase.
 function adminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,30 +17,12 @@ function adminClient() {
 
 export async function POST(request: Request) {
   try {
-    // =====================================================
-    // AUTENTICAÇÃO DUAL: Lojista OU Funcionário
-    // =====================================================
-    let tenantId: string | null = null
-    let tipoAcesso: 'lojista' | 'funcionario' | null = null
-
-    // Primeiro, tentar autenticação de funcionário (header X-Membro-Equipe)
-    const funcionarioAuth = await authenticateFuncionario(request, ['attendant'])
-
-    if (funcionarioAuth) {
-      tenantId = funcionarioAuth.tenantId
-      tipoAcesso = 'funcionario'
-    } else {
-      // Não é funcionário, verificar se é lojista autenticado
-      const { authenticatedTenant } = await import('@/lib/tenant-auth')
-      const auth = await authenticatedTenant(['owner', 'manager'])
-
-      if (!auth.tenantId) {
-        return NextResponse.json({ error: 'Sem permissao' }, { status: 403 })
-      }
-
-      tenantId = auth.tenantId
-      tipoAcesso = 'lojista'
+    const { authenticatedTenant } = await import('@/lib/tenant-auth')
+    const auth = await authenticatedTenant(['owner', 'manager'])
+    if (!auth.tenantId) {
+      return NextResponse.json({ error: 'Sem permissao' }, { status: 403 })
     }
+    const tenantId: string = auth.tenantId
 
     if (tenantId && await assinaturaVencida(tenantId)) return NextResponse.json({ error: PEDIDOS_BLOQUEADOS }, { status: 402 })
     const body = await request.json()

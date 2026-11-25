@@ -1,10 +1,10 @@
 ﻿import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
-export type TenantRole = 'owner' | 'manager' | 'attendant' | 'kitchen' | 'motoboy' | 'delivery'
-export const ALL_TENANT_ROLES: TenantRole[] = ['owner', 'manager', 'attendant', 'kitchen', 'motoboy', 'delivery']
+export type TenantRole = 'owner' | 'manager' | 'attendant' | 'kitchen' | 'motoboy'
+export const ALL_TENANT_ROLES: TenantRole[] = ['owner', 'manager', 'attendant', 'kitchen', 'motoboy']
 export const MANAGEMENT_ROLES: TenantRole[] = ['owner', 'manager']
-export const SALES_ROLES: TenantRole[] = ['owner', 'manager', 'attendant']
+export const SALES_ROLES: TenantRole[] = ['owner', 'manager'] // Equipe (cozinha/garçom/motoboy) usa só /api/equipe-app.
 interface TenantMembership { tenant_id: string; role: TenantRole; ativo: boolean }
 
 export async function authenticatedTenant(allowedRoles: TenantRole[] = ['owner'], options: { allowPending?: boolean } = {}) {

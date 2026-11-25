@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import type { TenantRole } from '@/lib/tenant-auth'
 import DashboardShell from './dashboard-shell'
+import { INICIO_FUNCAO, ehFuncaoEquipe } from '@/lib/equipe'
 
 /**
  * Server-side guard do AdminLayout (lojista).
@@ -12,7 +13,7 @@ import DashboardShell from './dashboard-shell'
  *
  * - Sem sessão → /login
  * - Sessão sem membership → /login?error=access
- * - Role operacional (attendant/kitchen/motoboy/delivery) → /acesso/<perfil>
+ * - Equipe (kitchen/attendant/motoboy) → /acesso/<função>
  * - Tenant pending_approval → /aguardando-aprovacao
  * - Tenant inativo/suspenso → /login?error=inactive
  * - Lojista OK → renderiza o DashboardShell já com tenant e role populados
@@ -54,16 +55,9 @@ export default async function DashboardLayoutServer({
 
   if (!role) redirect('/login?error=access')
 
-  // Perfis operacionais não podem renderizar o AdminLayout.
-  // Redireciona para a tela dedicada ANTES do HTML ser gerado.
-  if (role === 'attendant' || role === 'kitchen' || role === 'motoboy' || role === 'delivery') {
-    const destino =
-      role === 'attendant' ? '/acesso/atendimento'
-      : role === 'kitchen' ? '/acesso/cozinha'
-      : role === 'motoboy' ? '/acesso/motoboy'
-      : '/pedidos' // delivery
-    redirect(destino)
-  }
+  // Equipe (Cozinha, Garçom, Motoboy) nunca renderiza o painel do lojista: vai para a área própria.
+  if (ehFuncaoEquipe(role)) redirect(INICIO_FUNCAO[role])
+  if (role !== 'owner' && role !== 'manager') redirect('/login?error=access')
 
   // Validação do tenant ativo.
   const { data: tenant } = await supabase

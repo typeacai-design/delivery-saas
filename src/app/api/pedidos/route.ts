@@ -4,12 +4,12 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { FlavorValidationError, normalizeManualFlavorItems, manualFlavorTotals } from '@/lib/flavor-order-server'
 import { removeReferenceCharges } from '@/lib/product-pricing'
 import { NextResponse } from 'next/server'
-import { ALL_TENANT_ROLES, SALES_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
+import { MANAGEMENT_ROLES, SALES_ROLES, authenticatedTenant, tenantAuthStatus } from '@/lib/tenant-auth'
 
 // GET - listar pedidos do tenant
 export async function GET() {
   try {
-    const auth = await authenticatedTenant(ALL_TENANT_ROLES)
+    const auth = await authenticatedTenant(MANAGEMENT_ROLES)
     const { supabase, tenantId } = auth
     const authStatus = tenantAuthStatus(auth)
     if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão para esta loja' }, { status: authStatus })
@@ -254,7 +254,7 @@ export async function POST(request: Request) {
 // PUT - atualizar status do pedido
 export async function PUT(request: Request) {
   try {
-    const auth = await authenticatedTenant(ALL_TENANT_ROLES)
+    const auth = await authenticatedTenant(MANAGEMENT_ROLES)
     const { supabase, tenantId } = auth
     const authStatus = tenantAuthStatus(auth)
     if (authStatus) return NextResponse.json({ error: authStatus === 401 ? 'Não autenticado' : 'Sem permissão para esta loja' }, { status: authStatus })

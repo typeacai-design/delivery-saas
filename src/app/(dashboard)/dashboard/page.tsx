@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { dataFatura, FINANCEIRO_FATURAS, nomeCompetencia, situacaoFatura } from '@/lib/assinaturas'
 import { faturasDoLojista, assinaturaVencida } from '@/lib/assinaturas-server'
-import { redirect } from 'next/navigation'
 import { authenticatedTenant } from '@/lib/tenant-auth'
 import VisaoGeralPage from '@/app/dashboard-view'
 
@@ -10,12 +9,8 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function DashboardPage() {
-  const { role, tenantId } = await authenticatedTenant(['owner', 'manager', 'attendant', 'kitchen', 'motoboy', 'delivery'])
-
-  // Attendant: redireciona direto para pedidos
-  if (role === 'attendant') {
-    redirect('/pedidos')
-  }
+  // A equipe nunca chega aqui: o layout do painel a manda para /acesso.
+  const { role, tenantId } = await authenticatedTenant(['owner', 'manager'])
 
   const podeVerFaturas = tenantId && (role === 'owner' || role === 'manager')
   const [faturas, vencida] = podeVerFaturas

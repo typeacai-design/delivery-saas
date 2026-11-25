@@ -40,10 +40,7 @@ export async function GET(request: NextRequest) {
       httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/',
       maxAge: member?.ativo ? 60 * 60 * 24 * 365 : 0,
     })
-    response.cookies.set('wd_employee_role', ['attendant', 'kitchen', 'motoboy'].includes(member?.role || '') ? member!.role : '', {
-      httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/',
-      maxAge: ['attendant', 'kitchen', 'motoboy'].includes(member?.role || '') ? 60 * 60 * 8 : 0,
-    })
+    response.cookies.set('wd_employee_role', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 0 })
     return response
   } catch {
     return redirect('/login?oauth_error=failed')

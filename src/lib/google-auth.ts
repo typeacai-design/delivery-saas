@@ -8,7 +8,7 @@ export function googleDestination(memberships: GoogleMembership[], status: strin
   if (!member.ativo || !['active', 'pending_approval'].includes(status || '')) return '/login?oauth_error=blocked'
   if (status === 'pending_approval') return '/aguardando-aprovacao'
   if (member.role === 'owner' || member.role === 'manager') return '/dashboard'
-  const destinations: Record<string, string> = { attendant: '/acesso/atendimento', kitchen: '/acesso/cozinha', motoboy: '/acesso/motoboy' }
+  const destinations: Record<string, string> = { attendant: '/acesso/garcom', kitchen: '/acesso/cozinha', motoboy: '/acesso/motoboy' }
   return destinations[member.role] || '/login?oauth_error=blocked'
 }
 export function normalizeReferral(value: string | null) {

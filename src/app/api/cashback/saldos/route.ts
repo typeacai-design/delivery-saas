@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function GET() {
   try {
-    const {tenantId}=await authenticatedTenant(['owner','manager','attendant'])
+    const {tenantId}=await authenticatedTenant(['owner', 'manager'])
     if(!tenantId)return NextResponse.json({error:'Não autorizado'},{status:401})
     const admin=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false}})
     const {data,error}=await admin.from('cashback_creditos').select('cliente_id,valor_restante,expira_em').eq('tenant_id',tenantId).gt('valor_restante',0).limit(10000)

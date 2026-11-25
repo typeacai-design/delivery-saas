@@ -1,0 +1,65 @@
+/* Área da equipe (Cozinha, Garçom, Motoboy): mobile primeiro, tablet e desktop também. */
+.wd-equipe{min-height:100vh;background:#f4f7f5;color:#17251c;font-family:inherit}
+.wd-equipe-topo{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:#fff;border-bottom:1px solid #e3e9e4}
+.wd-equipe-topo small{display:block;color:#5d7063;font-size:12px}
+.wd-equipe-sair{display:inline-flex;align-items:center;gap:6px;border:1px solid #dfe7e1;border-radius:12px;padding:8px 12px;background:#fff;color:#33473a;font-size:13px}
+.wd-equipe-aviso{display:flex;align-items:center;gap:10px;margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:#fff8e6;border:1px solid #f5d98b;color:#6b4e00;font-size:13px}
+.wd-equipe-aviso span{flex:1}
+.wd-equipe-aviso button{border:0;border-radius:10px;padding:8px 14px;background:#16a34a;color:#fff;font-weight:600}
+.wd-equipe-menu{display:flex;gap:8px;padding:12px 16px 0}
+.wd-equipe-menu a{flex:1;text-align:center;padding:10px;border-radius:12px;border:1px solid #dfe7e1;background:#fff;color:#33473a;font-weight:600;font-size:14px}
+.wd-equipe-menu a[aria-current=page]{background:#16a34a;border-color:#16a34a;color:#fff}
+.wd-equipe-conteudo{padding:16px;max-width:1500px;margin:0 auto}
+.wd-equipe-vazio{text-align:center;color:#748178;padding:40px 12px;font-size:14px}
+.wd-equipe-erro{margin-bottom:12px;padding:10px 12px;border-radius:12px;background:#fdecec;color:#a32020;font-size:13px}
+
+/* Cartões */
+.wd-eq-card{background:#fff;border:1px solid #e3e9e4;border-radius:16px;padding:14px;box-shadow:0 2px 6px #17251c0a}
+.wd-eq-card-topo{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.wd-eq-codigo{font-weight:800;font-size:18px}
+.wd-eq-tag{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:#eef3ef;color:#33473a;white-space:nowrap}
+.wd-eq-tag[data-tipo=mesa]{background:#fff1e0;color:#9a4b00}
+.wd-eq-tag[data-tipo=delivery]{background:#e6f0ff;color:#1d4ed8}
+.wd-eq-tag[data-tipo=retirada]{background:#f3e8ff;color:#7e22ce}
+.wd-eq-meta{font-size:13px;color:#5d7063;display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
+.wd-eq-itens{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.wd-eq-itens li{font-size:15px;line-height:1.35}
+.wd-eq-itens b{font-weight:800;margin-right:4px}
+.wd-eq-itens small{display:block;color:#5d7063;font-size:13px}
+.wd-eq-obs{margin-top:8px;padding:8px 10px;border-radius:10px;background:#fff8e6;color:#6b4e00;font-size:13px}
+.wd-eq-botao{width:100%;margin-top:12px;min-height:48px;border:0;border-radius:12px;background:#16a34a;color:#fff;font-weight:700;font-size:15px}
+.wd-eq-botao:disabled{opacity:.6}
+.wd-eq-botao-sec{width:100%;margin-top:8px;min-height:44px;border:1px solid #dfe7e1;border-radius:12px;background:#fff;color:#33473a;font-weight:600}
+
+/* Kanban da cozinha (mesmo componente do painel do lojista) */
+.wd-equipe .wd-kanban{display:grid;gap:12px;align-items:start;overflow-x:auto;padding-bottom:6px}
+.wd-equipe .wd-kanban-column{background:#eef3ef;border:1px solid #e3e9e4;border-radius:16px;padding:10px;min-width:0;transition:background .15s,border-color .15s,box-shadow .15s}
+.wd-equipe .wd-kanban-column[data-accepts=false]{opacity:.55}
+.wd-equipe .wd-kanban-column[data-accepts=true]{border-color:#86d19c;background:#f0faf3}
+.wd-equipe .wd-kanban-column[data-over=true]{border-color:#16a34a;box-shadow:0 0 0 3px #16a34a33}
+.wd-equipe .wd-kanban-header{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 4px 10px;font-weight:700;font-size:15px}
+.wd-equipe .wd-kanban-header b{min-width:26px;padding:1px 8px;border-radius:999px;background:#fff;border:1px solid #dfe7e1;font-size:13px;text-align:center}
+.wd-equipe .wd-kanban-cards{display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 220px);overflow-y:auto;min-height:80px}
+.wd-equipe .wd-kanban-card{cursor:grab}
+.wd-equipe .wd-kanban-card[draggable=false]{cursor:default}
+.wd-equipe .wd-kanban-card[data-dragging=true]{opacity:.45}
+.wd-equipe .wd-kanban-empty{font-size:13px;color:#8a978e;text-align:center;padding:22px 6px;border:1px dashed #d5ddd7;border-radius:12px}
+
+/* Garçom e motoboy */
+.wd-eq-grade{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.wd-eq-mesa[data-pronto=true]{border-color:#16a34a;box-shadow:0 0 0 3px #16a34a33}
+.wd-eq-pronto{display:flex;align-items:center;gap:6px;margin:8px 0;padding:8px 10px;border-radius:10px;background:#e7f7ec;color:#166534;font-weight:700;font-size:14px}
+.wd-eq-linha{display:flex;justify-content:space-between;gap:8px;font-size:14px;padding:4px 0}
+.wd-eq-filtro{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:end}
+.wd-eq-filtro label{display:flex;flex-direction:column;font-size:12px;color:#5d7063;gap:4px}
+.wd-eq-filtro input{border:1px solid #dfe7e1;border-radius:10px;padding:8px 10px;background:#fff}
+.wd-eq-interruptor{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border-radius:16px;background:#fff;border:2px solid #e3e9e4;margin-bottom:14px}
+.wd-eq-interruptor[data-ativo=true]{border-color:#16a34a;background:#f0faf3}
+.wd-eq-interruptor strong{font-size:18px}
+.wd-eq-modal{position:fixed;inset:0;z-index:60;background:#0008;display:flex;align-items:flex-end;justify-content:center;padding:12px}
+.wd-eq-modal>div{background:#fff;border-radius:18px;width:100%;max-width:440px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.wd-eq-modal input,.wd-eq-modal select{border:1px solid #dfe7e1;border-radius:12px;padding:12px;font-size:16px;width:100%}
+.wd-eq-formas{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wd-eq-formas button{min-height:44px;border-radius:12px;border:2px solid #dfe7e1;background:#fff;font-weight:600}
+.wd-eq-formas button[aria-pressed=true]{border-color:#16a34a;background:#f0faf3;color:#166534}
+@media(min-width:768px){.wd-eq-modal{align-items:center}}

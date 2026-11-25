@@ -93,7 +93,6 @@ test('expired subscription rejects an incoming public order before writing', asy
 
 function staffApi(db, path, tenantId='shop') {
  return compile(path, {
-  '@/lib/funcionario-auth':{authenticateFuncionario:async()=>null},
   '@/lib/assinaturas': compile('src/lib/assinaturas.ts', {}), '@/lib/assinaturas-server': { assinaturaVencida: async () => false },
   'next/server':{NextResponse:{json:(body,init)=>Response.json(body,init)}},
   '@supabase/supabase-js':{createClient:()=>db}, '@/lib/product-pricing':pricing,'@/lib/flavor-order-server':server,'@/lib/flavor-pricing':flavor,
