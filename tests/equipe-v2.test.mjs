@@ -57,3 +57,14 @@ test('push dispatcher requires the shared secret', () => {
   assert.match(evento, /if \(!segredoConfere\(request\.headers\.get\('x-wd-segredo'\)\)\)/)
   assert.match(read('../public/sw-equipe.js'), /addEventListener\('push'/)
 })
+
+test('waiter finds a table by number or by scanning its QR', () => {
+  const garcom = read('../src/components/equipe/garcom.tsx')
+  assert.match(garcom, /Number\(m\.mesa\.numero\) === numero/)
+  assert.match(garcom, /searchParams\.get\('mesa'\)/)
+  assert.match(garcom, /m\.mesa\.qr_token === token/)
+  const leitor = read('../src/components/equipe/leitor-qr.tsx')
+  assert.match(leitor, /formats: \['qr_code'\]/)
+  assert.match(leitor, /facingMode: \{ ideal: 'environment' \}/)
+  assert.match(leitor, /getTracks\(\)\.forEach\(t => t\.stop\(\)\)/)
+})

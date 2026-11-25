@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ExternalLink, UtensilsCrossed } from 'lucide-react'
+import { ExternalLink, QrCode, Search, UtensilsCrossed, X } from 'lucide-react'
+import LeitorQr from './leitor-qr'
 import { brasiliaDay } from '@/lib/brasilia'
 import { formatCurrency } from '@/lib/utils'
 import { useEquipe } from './equipe-shell'
@@ -30,6 +31,9 @@ export function GarcomMesas() {
   const [forma, setForma] = useState('dinheiro')
   const [recebido, setRecebido] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  const [foco, setFoco] = useState<string | null>(null)
+  const [numeroBusca, setNumeroBusca] = useState('')
+  const [lendoQr, setLendoQr] = useState(false)
   const prontosVistos = useRef<Set<string> | null>(null)
   const tocar = useSom()
 
@@ -52,16 +56,42 @@ export function GarcomMesas() {
     void carregar()
   }
 
+  // Mostra só a mesa encontrada; se estiver livre, já oferece abrir a comanda.
+  const irParaMesa = (m: Mesa | undefined, origem: string) => {
+    if (!m) { setErro(origem === 'qr' ? 'Este QR não é de uma mesa ativa desta loja.' : `Mesa ${numeroBusca} não encontrada.`); return }
+    setErro(''); setFoco(m.mesa.id); setNumeroBusca('')
+    if (!m.sessao) { setAbrindo(m); setNomeCliente('') }
+  }
+  const buscarNumero = (e: React.FormEvent) => {
+    e.preventDefault()
+    const numero = Number(numeroBusca)
+    if (numero > 0) irParaMesa(mesas?.find(m => Number(m.mesa.numero) === numero), 'numero')
+  }
+  const qrLido = (texto: string) => {
+    setLendoQr(false)
+    let token = ''
+    try { token = new URL(texto, window.location.origin).searchParams.get('mesa') || '' } catch { /* texto não é link */ }
+    irParaMesa(token ? mesas?.find(m => m.mesa.qr_token === token) : undefined, 'qr')
+  }
+
   if (!mesas) return <p className="wd-equipe-vazio">Carregando mesas…</p>
   if (!mesas.length) return <p className="wd-equipe-vazio">Nenhuma mesa cadastrada. Peça ao responsável para cadastrar em Configurações → Mesas.</p>
   const prontosTotal = mesas.reduce((s, m) => s + m.prontos, 0)
   const totalFechando = fechando?.sessao ? Number(fechando.sessao.valor_total) || 0 : 0
   const troco = forma === 'dinheiro' && Number(recebido.replace(',', '.')) > totalFechando ? Number(recebido.replace(',', '.')) - totalFechando : 0
 
+  const visiveis = foco ? mesas.filter(m => m.mesa.id === foco) : mesas
+
   return <>
+    <form className="wd-eq-busca" onSubmit={buscarNumero}>
+      <input inputMode="numeric" pattern="[0-9]*" placeholder="Mesa nº" aria-label="Número da mesa" value={numeroBusca} onChange={e => setNumeroBusca(e.target.value.replace(/D/g, '').slice(0, 4))} />
+      <button type="submit" aria-label="Ir para a mesa"><Search size={18} /></button>
+      <button type="button" className="wd-eq-busca-qr" onClick={() => setLendoQr(true)}><QrCode size={18} />Escanear QR</button>
+    </form>
+    {foco && <button type="button" className="wd-eq-botao-sec" style={{ marginTop: 0, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => setFoco(null)}><X size={16} />Ver todas as mesas</button>}
     {erro && <p className="wd-equipe-erro" role="alert">{erro}</p>}
     {prontosTotal > 0 && <div className="wd-eq-pronto" role="status">🍽️ {prontosTotal} {prontosTotal === 1 ? 'pedido pronto' : 'pedidos prontos'} para servir</div>}
-    <div className="wd-eq-grade">{mesas.map(m => <article key={m.mesa.id} className="wd-eq-card wd-eq-mesa" data-pronto={m.prontos > 0}>
+    <div className="wd-eq-grade">{visiveis.map(m => <article key={m.mesa.id} className="wd-eq-card wd-eq-mesa" data-pronto={m.prontos > 0}>
       <div className="wd-eq-card-topo">
         <span className="wd-eq-codigo">Mesa {m.mesa.numero}</span>
         <span className="wd-eq-tag" data-tipo={m.sessao ? 'mesa' : undefined}>{m.sessao ? 'Ocupada' : 'Livre'}</span>
@@ -79,6 +109,8 @@ export function GarcomMesas() {
         <button type="button" className="wd-eq-botao-sec" onClick={() => { setFechando(m); setForma('dinheiro'); setRecebido('') }}>Fechar conta</button>
       </>}
     </article>)}</div>
+
+    {lendoQr && <LeitorQr onLido={qrLido} onFechar={() => setLendoQr(false)} />}
 
     {abrindo && <div className="wd-eq-modal" onClick={() => setAbrindo(null)}><div role="dialog" aria-modal="true" aria-label={`Abrir comanda da mesa ${abrindo.mesa.numero}`} onClick={e => e.stopPropagation()}>
       <strong style={{ fontSize: 18 }}>Abrir Mesa {abrindo.mesa.numero}</strong>
