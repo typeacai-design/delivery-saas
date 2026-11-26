@@ -37,7 +37,7 @@ test('desktop flow is a kanban where dropping equals the advance button', () => 
   const page = read('../src/app/(dashboard)/pedidos/page.tsx')
   assert.match(page, /const kanbanFluxo = !mobile && pedidosTab === 'fluxo'/)
   assert.match(page, /onMove=\{\(pedido, status\) => updateStatus\(pedido, status as PedidoStatus\)\}/)
-  assert.match(page, /Aceitar pedidos automaticamente/)
+  assert.match(page, /Aceitar automático/)
 })
 
 test('tables with an open tab cannot be deleted or renumbered', () => {

@@ -648,6 +648,5 @@
 .wd-kanban-card[data-dragging=true]{opacity:.45}
 .wd-kanban-card:active{cursor:grabbing}
 .wd-kanban-empty{font-size:12px;color:#8a978e;text-align:center;padding:22px 6px;border:1px dashed #d5ddd7;border-radius:12px}
-.wd-kanban-toolbar{display:flex;justify-content:flex-end;margin-bottom:10px}
 .wd-auto-accept{display:inline-flex;align-items:center;gap:10px;font-size:13px;color:#33473a;background:#fff;border:1px solid #dfe7e1;border-radius:12px;padding:7px 12px;cursor:pointer}
 .wd-auto-accept input{width:18px;height:18px;accent-color:#16a34a;cursor:pointer}

@@ -1219,6 +1219,12 @@ export default function PedidosPage() {
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <div className="wd-desktop-orders-controls flex items-center gap-3">
+            {pedidosTab === 'fluxo' && !mobile && (
+              <label className="wd-auto-accept" title="Novos pedidos entram direto em Preparando">
+                <input type="checkbox" checked={aceiteAutomatico} disabled={salvandoAceite} onChange={e => alternarAceiteAutomatico(e.target.checked)} />
+                Aceitar automático
+              </label>
+            )}
             {/* Botão Som só aparece no desktop (no mobile some pra economizar espaço) */}
             <button
               type="button"
@@ -1248,7 +1254,7 @@ export default function PedidosPage() {
         </div>
 
         {/* TABS - inline no desktop, grid no mobile */}
-        <div className="wd-orders-tabs grid grid-cols-3 md:flex md:gap-1 gap-1 bg-white rounded-2xl border p-1 mb-3">
+        <div className="wd-orders-tabs grid grid-cols-3 md:flex md:w-fit md:mx-auto md:gap-1 gap-1 bg-white rounded-2xl border p-1 mb-3">
           <button
             onClick={() => { setPedidosTab('fluxo'); setFiltroStatus('') }}
             className={`px-2 md:px-4 py-2.5 md:py-2 rounded-xl text-sm font-medium transition flex items-center justify-center gap-1.5 md:gap-2 ${
@@ -1303,7 +1309,7 @@ export default function PedidosPage() {
           setFiltroPeriodo('todos')
         }} />
       ) : (
-      <div className="flex items-center justify-center md:justify-start gap-3 mb-3 md:mb-4 bg-white md:bg-transparent p-3 md:p-0 rounded-xl md:rounded-none border md:border-0 shadow-sm md:shadow-none flex-wrap">
+      <div className="flex items-center justify-center gap-3 mb-3 md:mb-4 bg-white md:bg-transparent p-3 md:p-0 rounded-xl md:rounded-none border md:border-0 shadow-sm md:shadow-none flex-wrap">
         {pedidosTab === 'historico' && (
           <MerchantDateRange from={filtroDataDe} to={filtroDataAte} onApply={({ from, to }) => {
             setFiltroDataDe(from)
@@ -1377,14 +1383,6 @@ export default function PedidosPage() {
       />}
 
       {/* Stats Bar - BOTOES POR ABA */}
-      {pedidosTab === 'fluxo' && !mobile && (
-        <div className="wd-kanban-toolbar">
-          <label className="wd-auto-accept" title="Novos pedidos entram direto em Preparando">
-            <input type="checkbox" checked={aceiteAutomatico} disabled={salvandoAceite} onChange={e => alternarAceiteAutomatico(e.target.checked)} />
-            Aceitar pedidos automaticamente
-          </label>
-        </div>
-      )}
       <div className="wd-order-stats-desktop flex flex-wrap items-center justify-start gap-2 mb-3 md:mb-4">
         {pedidosTab === 'fluxo' && mobile && (() => {
           // Usa o mesmo filtro aplicado ao grid (status + período) para que os
